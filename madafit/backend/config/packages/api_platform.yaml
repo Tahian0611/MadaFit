@@ -1,0 +1,9 @@
+api_platform:
+    title: MadaFit API
+    version: 1.0.0
+    formats:
+        jsonld: ['application/ld+json']
+    defaults:
+        stateless: true
+        cache_headers:
+            vary: ['Content-Type', 'Authorization', 'Origin']
