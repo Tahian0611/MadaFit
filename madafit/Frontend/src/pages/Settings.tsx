@@ -803,38 +803,6 @@ export default function Settings() {
                   subtitle="Personnalisez l'interface de MadaFit"
                 />
 
-                {/* Mode sombre */}
-                <div
-                  className="flex items-center justify-between p-4 rounded-xl border"
-                  style={{ borderColor: "hsl(var(--border))" }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      {darkMode ? (
-                        <Moon size={16} className="text-primary" />
-                      ) : (
-                        <Sun size={16} className="text-primary" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">Mode sombre</p>
-                      <p className="text-xs text-muted-foreground">
-                        Interface adaptée pour un usage nocturne
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => toggleDark(!darkMode)}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                    style={{ background: darkMode ? "hsl(var(--primary))" : "hsl(var(--muted))" }}
-                  >
-                    <span
-                      className="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform"
-                      style={{ transform: darkMode ? "translateX(24px)" : "translateX(2px)" }}
-                    />
-                  </button>
-                </div>
-
                 {/* Thème principal */}
                 <div className="space-y-3">
                   <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
