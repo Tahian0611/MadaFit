@@ -14,7 +14,6 @@ import {
   User as UserIcon,
   Shield,
   Palette,
-  Bell,
   Database,
   Lock,
   ChevronRight,
@@ -27,8 +26,6 @@ import {
   XCircle,
   Pencil,
   Loader2,
-  Moon,
-  Sun,
   Check,
   X,
 } from "lucide-react";
@@ -46,8 +43,6 @@ function applyThemeVars(theme: string): void {
 
 void (() => {
   if (typeof window === "undefined") return;
-  const dark = localStorage.getItem("madafit_dark_mode") === "true";
-  document.documentElement.classList.toggle("dark", dark);
   applyThemeVars(localStorage.getItem("madafit_theme") || "default");
 })();
 
@@ -57,7 +52,6 @@ const SECTIONS = [
   { id: "profile",                label: "Profil",               icon: UserIcon  },
   { id: "users",                  label: "Gestion des accès",    icon: Shield    },
   { id: "appearance",             label: "Apparence",            icon: Palette   },
-  { id: "notifications_settings", label: "Notifications",        icon: Bell      },
   { id: "backup",                 label: "Sauvegarde & Données", icon: Database  },
   { id: "security",               label: "Sécurité",             icon: Lock      },
 ];
@@ -84,14 +78,6 @@ const ACCESS_MATRIX = [
   { label: "Notifications",    accueil: true  },
   { label: "Paramètres",       accueil: false },
 ];
-
-const DEFAULT_NOTIF = {
-  alertJ7:        true,
-  alertJ3:        true,
-  alertJ1:        true,
-  paymentConfirm: true,
-  notifEmail:     "",
-};
 
 // ─── Helper CSV ───────────────────────────────────────────────────────────────
 function downloadCSV(filename: string, headers: string[], rows: (string | number)[][]) {
@@ -215,36 +201,15 @@ export default function Settings() {
   });
 
   // ── Apparence ──────────────────────────────────────────────────────────────
-  const [darkMode, setDarkMode] = useState(
-    () => localStorage.getItem("madafit_dark_mode") === "true"
-  );
   const [selectedTheme, setSelectedTheme] = useState(
     () => localStorage.getItem("madafit_theme") || "default"
   );
-
-  const toggleDark = (enabled: boolean) => {
-    document.documentElement.classList.toggle("dark", enabled);
-    localStorage.setItem("madafit_dark_mode", String(enabled));
-    setDarkMode(enabled);
-  };
 
   const changeTheme = (theme: string) => {
     applyThemeVars(theme);
     localStorage.setItem("madafit_theme", theme);
     setSelectedTheme(theme);
     toast.success("Thème appliqué");
-  };
-
-  // ── Notifications ──────────────────────────────────────────────────────────
-  const [notifSettings, setNotifSettings] = useState<typeof DEFAULT_NOTIF>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("madafit_notif_settings") || "null") || DEFAULT_NOTIF;
-    } catch { return DEFAULT_NOTIF; }
-  });
-
-  const saveNotifSettings = () => {
-    localStorage.setItem("madafit_notif_settings", JSON.stringify(notifSettings));
-    toast.success("Préférences de notification enregistrées");
   };
 
   // ── Sécurité ───────────────────────────────────────────────────────────────
@@ -803,38 +768,6 @@ export default function Settings() {
                   subtitle="Personnalisez l'interface de MadaFit"
                 />
 
-                {/* Mode sombre */}
-                <div
-                  className="flex items-center justify-between p-4 rounded-xl border"
-                  style={{ borderColor: "hsl(var(--border))" }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      {darkMode ? (
-                        <Moon size={16} className="text-primary" />
-                      ) : (
-                        <Sun size={16} className="text-primary" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">Mode sombre</p>
-                      <p className="text-xs text-muted-foreground">
-                        Interface adaptée pour un usage nocturne
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => toggleDark(!darkMode)}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                    style={{ background: darkMode ? "hsl(var(--primary))" : "hsl(var(--muted))" }}
-                  >
-                    <span
-                      className="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform"
-                      style={{ transform: darkMode ? "translateX(24px)" : "translateX(2px)" }}
-                    />
-                  </button>
-                </div>
-
                 {/* Thème principal */}
                 <div className="space-y-3">
                   <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
@@ -870,70 +803,6 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground">
                     Le thème s'applique immédiatement et est sauvegardé automatiquement.
                   </p>
-                </div>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════════════════════════ */}
-            {/* NOTIFICATIONS                                                  */}
-            {/* ══════════════════════════════════════════════════════════════ */}
-            {activeSection === "notifications_settings" && (
-              <div className="space-y-5">
-                <SectionHeader
-                  title="Paramètres de notifications"
-                  subtitle="Configurez les alertes automatiques du système"
-                />
-
-                <div className="space-y-2">
-                  {[
-                    {
-                      key: "alertJ7",
-                      label: "Alerte expiration J-7",
-                      desc: "Notification 7 jours avant l'expiration d'un abonnement",
-                    },
-                    {
-                      key: "alertJ3",
-                      label: "Alerte expiration J-3",
-                      desc: "Notification 3 jours avant l'expiration d'un abonnement",
-                    },
-                    {
-                      key: "alertJ1",
-                      label: "Alerte expiration J-1",
-                      desc: "Notification la veille de l'expiration d'un abonnement",
-                    },
-                    {
-                      key: "paymentConfirm",
-                      label: "Confirmation de paiement",
-                      desc: "Notification après chaque paiement enregistré",
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.key}
-                      className="flex items-center justify-between py-3 px-4 rounded-xl border"
-                      style={{ borderColor: "hsl(var(--border))" }}
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{item.label}</p>
-                        <p className="text-xs text-muted-foreground">{item.desc}</p>
-                      </div>
-                      <ToggleSwitch
-                        enabled={notifSettings[item.key as keyof typeof notifSettings] as boolean}
-                        onChange={(v) =>
-                          setNotifSettings((prev) => ({ ...prev, [item.key]: v }))
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  <FormField
-                    label="Email de notification"
-                    type="email"
-                    placeholder="admin@madafit.mg"
-                    value={notifSettings.notifEmail}
-                    onChange={(v) => setNotifSettings((prev) => ({ ...prev, notifEmail: v }))}
-                  />
                 </div>
               </div>
             )}
@@ -1151,7 +1020,6 @@ export default function Settings() {
                 <button
                   onClick={() => {
                     if (activeSection === "profile") profileMutation.mutate();
-                    if (activeSection === "notifications_settings") saveNotifSettings();
                   }}
                   disabled={profileMutation.isPending}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:opacity-90"

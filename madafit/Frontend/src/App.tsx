@@ -80,7 +80,7 @@ function useSession() {
 
   return {
     session,
-    isAdmin: session?.roles?.includes("ROLE_ADMIN") ?? false,
+    isAdmin: (session?.roles?.includes("ROLE_ADMIN") || session?.roles?.includes("ROLE_RECEPTIONIST")) ?? false,
     isReady,
   };
 }

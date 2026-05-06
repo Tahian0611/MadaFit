@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DollarSign, Users, UserCheck, Bell, TrendingUp, TrendingDown, Clock, Activity } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -20,11 +20,32 @@ export default function Dashboard() {
   const transactionsQuery = useQuery({ queryKey: ["transactions"], queryFn: () => api.transactions.getAll({ itemsPerPage: 500 }) });
   const productsQuery = useQuery({ queryKey: ["products"], queryFn: () => api.products.getAll({ itemsPerPage: 100 }) });
 
+  const [sessionUser, setSessionUser] = useState<unknown | null>(() => {
+      try { 
+        return JSON.parse(localStorage.getItem("madafit_user") || "null"); 
+      } catch { 
+        return null; 
+      }
+    });
+  
+    useEffect(() => {
+      const handler = () => {
+        try { 
+          setSessionUser(JSON.parse(localStorage.getItem("madafit_user") || "null")); 
+        } catch { 
+          setSessionUser(null); 
+        }
+      };
+      window.addEventListener("storage", handler);
+      return () => window.removeEventListener("storage", handler);
+    }, []);
+
+  const userRole = sessionUser?.roles || "ROLE_ADMIN";
   // Une seule fois au montage
   useEffect(() => {
     refreshNotifications();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
+  console.log(userRole)
   const stats = useMemo(() => {
     return computeDashboardStats(
       extractHydraMembers(usersQuery.data),
@@ -36,7 +57,6 @@ export default function Dashboard() {
       extractHydraMembers(productsQuery.data)
     );
   }, [usersQuery.data, paymentsQuery.data, attendanceQuery.data, plansQuery.data, transactionsQuery.data, productsQuery.data]);
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="page-header flex justify-between items-end">
@@ -51,13 +71,15 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard 
-          icon={DollarSign} 
-          label="Revenu (6 mois)" 
-          value={formatCurrency(stats.totalRevenue)} 
-          trend={stats.revenueDiff}
-          trendSuffix="%"
-        />
+        {userRole[0] == "ROLE_ADMIN" ?
+          <StatCard 
+            icon={DollarSign} 
+            label="Revenu (6 mois)" 
+            value={formatCurrency(stats.totalRevenue)} 
+            trend={stats.revenueDiff}
+            trendSuffix="%"
+          /> : <></>
+        }
         <StatCard 
           icon={UserCheck} 
           label="Membres actifs" 
@@ -82,7 +104,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 stat-card overflow-hidden">
+        {userRole[0] == "ROLE_ADMIN" ? <div className="xl:col-span-2 stat-card overflow-hidden">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="font-bold text-foreground">Revenus mensuels</h3>
@@ -97,62 +119,63 @@ export default function Dashboard() {
               <AreaChart data={stats.monthlyData}>
                 <defs>
                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="colorAtt" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8884d8" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#8884d8" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}}
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                 />
-                <YAxis 
+                <YAxis
                   yAxisId="left"
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}}
-                  tickFormatter={(value) => value >= 1000000 ? `${(value/1000000).toFixed(1)}M` : value >= 1000 ? `${(value/1000).toFixed(0)}k` : String(value)}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  tickFormatter={(value) => value >= 1000000 ? `${(value / 1000000).toFixed(1)}M` : value >= 1000 ? `${(value / 1000).toFixed(0)}k` : String(value)}
                 />
-                <YAxis 
+                <YAxis
                   yAxisId="right"
                   orientation="right"
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 12}}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                 />
-                <Tooltip 
-                  contentStyle={{backgroundColor: 'hsl(var(--card))', borderRadius: '12px', border: '1px solid hsl(var(--border))', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                <Tooltip
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '12px', border: '1px solid hsl(var(--border))', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
-                <Area 
+                <Area
                   yAxisId="left"
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="hsl(var(--primary))" 
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="hsl(var(--primary))"
                   strokeWidth={3}
-                  fillOpacity={1} 
-                  fill="url(#colorRev)" 
+                  fillOpacity={1}
+                  fill="url(#colorRev)"
                   name="Revenus (Ar)"
                 />
-                <Area 
+                <Area
                   yAxisId="right"
-                  type="monotone" 
-                  dataKey="attendance" 
-                  stroke="#8884d8" 
+                  type="monotone"
+                  dataKey="attendance"
+                  stroke="#8884d8"
                   strokeWidth={2}
-                  fillOpacity={1} 
-                  fill="url(#colorAtt)" 
+                  fillOpacity={1}
+                  fill="url(#colorAtt)"
                   name="Passages"
                 />
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </div> : <></>
+        }
 
         <div className="stat-card">
           <div className="flex items-center justify-between mb-4">
