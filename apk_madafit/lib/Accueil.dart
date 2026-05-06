@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 
 // --- TES IMPORTS ---
 import 'apropos.dart';
-import 'abonnement.dart';
-import 'profile.dart';
-import 'notification.dart';
+import 'Abonnement.dart';
+import 'Profile.dart';
+import 'Notification.dart';
 
 class HomeScreen extends StatefulWidget {
   final VoidCallback onLogout;
-  const HomeScreen({super.key, required this.onLogout});
+  final Map<String, dynamic>? userData;
+  const HomeScreen({super.key, required this.onLogout, this.userData});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -36,9 +37,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _pages = [
       const ContenuArticlesPage(), // Ta page d'actualités (voir en bas)
       const AproposPage(),
-      const AbonnementPage(),
-      const ProfilePage(),
-      const NotificationPage(),
+      AbonnementPage(
+        token: widget.userData?['token'] ?? '',
+        userId: int.tryParse(widget.userData?['id']?.toString() ?? ''),
+      ),
+      ProfilePage(token: widget.userData?['token'] ?? ''),
+      NotificationPage(token: widget.userData?['token']),
     ];
   }
 
@@ -211,10 +215,9 @@ class ContenuArticlesPage extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.grey.shade900,
             borderRadius: BorderRadius.circular(10),
-            image: const DecorationImage(
-              image: NetworkImage("https://via.placeholder.com/600x400"),
-              fit: BoxFit.cover,
-            ),
+          ),
+          child: const Center(
+            child: Icon(Icons.image, color: Colors.white10, size: 50),
           ),
         ),
 
@@ -295,11 +298,11 @@ class DetailsArticlePage extends StatelessWidget {
             Container(
               width: double.infinity,
               height: 400,
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: NetworkImage("https://via.placeholder.com/600x400"),
-                  fit: BoxFit.cover,
-                ),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade900,
+              ),
+              child: const Center(
+                child: Icon(Icons.image, color: Colors.white10, size: 100),
               ),
             ),
             Padding(

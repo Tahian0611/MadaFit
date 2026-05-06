@@ -19,7 +19,8 @@ class SecurityController extends AbstractController
 {
     public function __construct(
         private JWTTokenManagerInterface $jwtManager
-    ) {}
+    ) {
+    }
 
     #[Route(path: '/api/login', name: 'app_login', methods: ['POST'])]
     public function login(
@@ -36,7 +37,7 @@ class SecurityController extends AbstractController
             if (!$user) {
                 return $this->json([
                     'error' => 'Aucun compte trouvé avec cet email.',
-                    'code'  => 'USER_NOT_FOUND',
+                    'code' => 'USER_NOT_FOUND',
                 ], Response::HTTP_UNAUTHORIZED);
             }
 
@@ -59,7 +60,7 @@ class SecurityController extends AbstractController
             if (!$passwordHasher->isPasswordValid($user, $data['password'])) {
                 return $this->json([
                     'error' => 'Mot de passe incorrect.',
-                    'code'  => 'INVALID_PASSWORD',
+                    'code' => 'INVALID_PASSWORD',
                 ], Response::HTTP_UNAUTHORIZED);
             }
 
@@ -93,7 +94,7 @@ class SecurityController extends AbstractController
         if ($userRepository->findOneBy(['email' => $data['email']])) {
             return $this->json([
                 'error' => 'Cet email est déjà utilisé.',
-                'code'  => 'EMAIL_EXISTS',
+                'code' => 'EMAIL_EXISTS',
             ], Response::HTTP_CONFLICT);
         }
 
@@ -133,8 +134,8 @@ class SecurityController extends AbstractController
             $entityManager->flush();
 
             return $this->json([
-                'message'  => 'Compte créé avec succès.',
-                'id'       => $user->getId(),
+                'message' => 'Compte créé avec succès.',
+                'id' => $user->getId(),
                 'memberId' => $user->getMemberId(),
             ], Response::HTTP_CREATED);
         } catch (\Exception $e) {
@@ -145,22 +146,22 @@ class SecurityController extends AbstractController
     private function formatUserResponse(User $user, bool $firstLogin): array
     {
         return [
-            'id'           => $user->getId(),
-            'email'        => $user->getEmail(),
-            'firstName'    => $user->getFirstName(),
-            'lastName'     => $user->getLastName(),
-            'memberId'     => $user->getMemberId(),
-            'rfidCard'     => $user->getRfidCard(),
-            'status'       => $user->getStatus(),
-            'phone'        => $user->getPhone(),
-            'activity'     => $user->getActivity(),
-            'accessType'   => $user->getAccessType(),
-            'startDate'    => $user->getStartDate()?->format('Y-m-d'),
-            'expiryDate'   => $user->getExpiryDate()?->format('Y-m-d'),
+            'id' => $user->getId(),
+            'email' => $user->getEmail(),
+            'firstName' => $user->getFirstName(),
+            'lastName' => $user->getLastName(),
+            'memberId' => $user->getMemberId(),
+            'rfidCard' => $user->getRfidCard(),
+            'status' => $user->getStatus(),
+            'phone' => $user->getPhone(),
+            'activity' => $user->getActivity(),
+            'accessType' => $user->getAccessType(),
+            'startDate' => $user->getStartDate()?->format('Y-m-d'),
+            'expiryDate' => $user->getExpiryDate()?->format('Y-m-d'),
             'subscription' => $user->getSubscription(),
-            'firstLogin'   => $firstLogin,
-            'message'      => $firstLogin ? 'Bienvenue ! Votre mot de passe a bien été enregistré.' : null,
-            'roles'        => $user->getRoles(),
+            'firstLogin' => $firstLogin,
+            'message' => $firstLogin ? 'Bienvenue ! Votre mot de passe a bien été enregistré.' : null,
+            'roles' => $user->getRoles(),
         ];
     }
 
@@ -171,7 +172,7 @@ class SecurityController extends AbstractController
         EntityManagerInterface $entityManager,
         MailerInterface $mailer
     ): Response {
-        $data  = json_decode($request->getContent(), true);
+        $data = json_decode($request->getContent(), true);
         $email = $data['email'] ?? $request->request->get('email');
 
         if (!$email) {
@@ -277,21 +278,23 @@ class SecurityController extends AbstractController
         }
 
         return $this->json([
-            'id'        => $user->getId(),
-            'email'     => $user->getEmail(),
+            'id' => $user->getId(),
+            'email' => $user->getEmail(),
             'firstName' => $user->getFirstName(),
-            'lastName'  => $user->getLastName(),
-            'roles'     => $user->getRoles(),
-            'memberId'  => $user->getMemberId(),
-            'status'    => $user->getStatus(),
+            'lastName' => $user->getLastName(),
+            'roles' => $user->getRoles(),
+            'memberId' => $user->getMemberId(),
+            'status' => $user->getStatus(),
         ]);
     }
 
     #[Route(path: '/logout', name: 'app_logout')]
-    public function logout(): void {}
+    public function logout(): void
+    {
+    }
 
 
-        #[Route('/api/check-email', name: 'api_check_email', methods: ['POST'])]
+    #[Route('/api/check-email', name: 'api_check_email', methods: ['POST'])]
     public function checkEmail(
         Request $request,
         UserRepository $userRepository
@@ -306,7 +309,7 @@ class SecurityController extends AbstractController
         if ($userRepository->findOneBy(['email' => $email])) {
             return $this->json([
                 'error' => 'Cet email est déjà utilisé.',
-                'code'  => 'EMAIL_EXISTS',
+                'code' => 'EMAIL_EXISTS',
             ], Response::HTTP_CONFLICT); // 409
         }
 
