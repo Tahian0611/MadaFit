@@ -1,7 +1,7 @@
 // ignore: file_names
 import 'package:flutter/material.dart';
 
-// --- IMPORTS DES PAGES (Vérifie que les noms de fichiers correspondent exactement) ---
+// --- IMPORTS DES PAGES ---
 import 'EditProfile.dart';
 import 'Password.dart';
 import 'AccountStatut.dart';
@@ -12,7 +12,12 @@ import 'Confidentiality.dart';
 class SettingsPage extends StatefulWidget {
   final String token;
   final Map<String, dynamic>? userData;
-  const SettingsPage({super.key, required this.token, this.userData});
+
+  const SettingsPage({
+    super.key,
+    required this.token,
+    this.userData,
+  });
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -106,27 +111,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
           const SizedBox(height: 35),
 
-          // --- BOUTON DÉCONNEXION ---
-          InkWell(
-            onTap: () => _showLogoutDialog(context),
-            borderRadius: BorderRadius.circular(15),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.logout, color: Colors.redAccent, size: 20),
-                  SizedBox(width: 10),
-                  Text("DÉCONNEXION",
-                      style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                ],
-              ),
-            ),
-          ),
+          // --- NO LOGOUT BUTTON ANYMORE ---
 
           const SizedBox(height: 25),
           const Center(
@@ -139,7 +124,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // --- LOGIQUE DE NAVIGATION (Zoom + Fade) ---
+  // --- LOGIQUE DE NAVIGATION ---
   void _navigateTo(BuildContext context, Widget page) {
     Navigator.push(
       context,
@@ -156,22 +141,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text("Déconnexion", style: TextStyle(color: Colors.white)),
-        content: const Text("Voulez-vous vraiment quitter Madafit ?", style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler", style: TextStyle(color: Colors.grey))),
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Confirmer", style: TextStyle(color: Colors.redAccent))),
-        ],
-      ),
-    );
-  }
-
-  // --- WIDGETS DE DESIGN ---
+  // --- WIDGETS UI ---
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 5, bottom: 10),

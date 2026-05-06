@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
         token: widget.userData?['token'] ?? '',
         userId: int.tryParse(widget.userData?['id']?.toString() ?? ''),
       ),
-      ProfilePage(token: widget.userData?['token'] ?? ''),
+      ProfilePage(token: widget.userData?['token'] ?? '', onLogout: widget.onLogout,),
       NotificationPage(token: widget.userData?['token']),
     ];
   }

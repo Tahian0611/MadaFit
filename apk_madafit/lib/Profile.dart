@@ -6,9 +6,10 @@ import 'QRCode.dart';
 import 'Payement.dart';
 
 class ProfilePage extends StatefulWidget {
+  final VoidCallback? onLogout;
   final String token;
 
-  const ProfilePage({super.key, required this.token});
+  const ProfilePage({super.key, required this.token, this.onLogout});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();

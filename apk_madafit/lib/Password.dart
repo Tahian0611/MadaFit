@@ -91,7 +91,7 @@ class _PasswordPageState extends State<PasswordPage> {
         // Success
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("✅ Mot de passe modifié avec succès !"),
+            content: Text(" Mot de passe modifié avec succès !"),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
