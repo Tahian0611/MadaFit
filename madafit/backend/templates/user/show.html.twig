@@ -1,0 +1,146 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}User{% endblock %}
+
+{% block body %}
+    <h1>User</h1>
+
+    <table class="table">
+        <tbody>
+            <tr>
+                <th>Id</th>
+                <td>{{ user.id }}</td>
+            </tr>
+            <tr>
+                <th>Email</th>
+                <td>{{ user.email }}</td>
+            </tr>
+            <tr>
+                <th>Roles</th>
+                <td>{{ user.roles ? user.roles|json_encode : '' }}</td>
+            </tr>
+            <tr>
+                <th>Password</th>
+                <td>{{ user.password }}</td>
+            </tr>
+            <tr>
+                <th>MemberId</th>
+                <td>{{ user.memberId }}</td>
+            </tr>
+            <tr>
+                <th>RfidCard</th>
+                <td>{{ user.rfidCard }}</td>
+            </tr>
+            <tr>
+                <th>Photo</th>
+                <td>{{ user.photo }}</td>
+            </tr>
+            <tr>
+                <th>FirstName</th>
+                <td>{{ user.firstName }}</td>
+            </tr>
+            <tr>
+                <th>LastName</th>
+                <td>{{ user.lastName }}</td>
+            </tr>
+            <tr>
+                <th>Phone</th>
+                <td>{{ user.phone }}</td>
+            </tr>
+            <tr>
+                <th>Dob</th>
+                <td>{{ user.dob ? user.dob|date('Y-m-d') : '' }}</td>
+            </tr>
+            <tr>
+                <th>Gender</th>
+                <td>{{ user.gender }}</td>
+            </tr>
+            <tr>
+                <th>Address</th>
+                <td>{{ user.address }}</td>
+            </tr>
+            <tr>
+                <th>EmergencyContact</th>
+                <td>{{ user.emergencyContact }}</td>
+            </tr>
+            <tr>
+                <th>EmergencyPhone</th>
+                <td>{{ user.emergencyPhone }}</td>
+            </tr>
+            <tr>
+                <th>MedicalNotes</th>
+                <td>{{ user.medicalNotes }}</td>
+            </tr>
+            <tr>
+                <th>JoinDate</th>
+                <td>{{ user.joinDate ? user.joinDate|date('Y-m-d') : '' }}</td>
+            </tr>
+            <tr>
+                <th>Subscription</th>
+                <td>{{ user.subscription }}</td>
+            </tr>
+            <tr>
+                <th>Status</th>
+                <td>{{ user.status }}</td>
+            </tr>
+            <tr>
+                <th>ExpiryDate</th>
+                <td>{{ user.expiryDate ? user.expiryDate|date('Y-m-d') : '' }}</td>
+            </tr>
+            <tr>
+                <th>StartDate</th>
+                <td>{{ user.startDate ? user.startDate|date('Y-m-d') : '' }}</td>
+            </tr>
+            <tr>
+                <th>Coach</th>
+                <td>{{ user.coach }}</td>
+            </tr>
+            <tr>
+                <th>Program</th>
+                <td>{{ user.program }}</td>
+            </tr>
+            <tr>
+                <th>TotalPayments</th>
+                <td>{{ user.totalPayments }}</td>
+            </tr>
+            <tr>
+                <th>LastVisit</th>
+                <td>{{ user.lastVisit ? user.lastVisit|date('Y-m-d') : '' }}</td>
+            </tr>
+            <tr>
+                <th>VisitCount</th>
+                <td>{{ user.visitCount }}</td>
+            </tr>
+            <tr>
+                <th>InGym</th>
+                <td>{{ user.inGym ? 'Yes' : 'No' }}</td>
+            </tr>
+            <tr>
+                <th>Notes</th>
+                <td>{{ user.notes }}</td>
+            </tr>
+            <tr>
+                <th>Activity</th>
+                <td>{{ user.activity }}</td>
+            </tr>
+            <tr>
+                <th>AccessType</th>
+                <td>{{ user.accessType }}</td>
+            </tr>
+            <tr>
+                <th>CardStatus</th>
+                <td>{{ user.cardStatus }}</td>
+            </tr>
+            <tr>
+                <th>Promotion</th>
+                <td>{{ user.promotion }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <a href="{{ path('app_user_index') }}">back to list</a>
+
+    <a href="{{ path('app_user_edit', {'id': user.id}) }}">edit</a>
+
+    {{ include('user/_delete_form.html.twig') }}
+{% endblock %}
