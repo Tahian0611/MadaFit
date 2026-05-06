@@ -36,7 +36,6 @@ export default function Dashboard() {
       extractHydraMembers(productsQuery.data)
     );
   }, [usersQuery.data, paymentsQuery.data, attendanceQuery.data, plansQuery.data, transactionsQuery.data, productsQuery.data]);
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="page-header flex justify-between items-end">

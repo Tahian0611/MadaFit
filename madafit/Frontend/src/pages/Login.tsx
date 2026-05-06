@@ -28,7 +28,7 @@ export default function Login() {
       console.log("Roles:", user?.roles);
 
       const roles = user.roles || [];
-      if (!roles.includes("ROLE_ADMIN")) {
+      if (!roles.includes("ROLE_ADMIN") && !roles.includes("ROLE_RECEPTIONIST")) {
         toast.error("Accès refusé : ce compte n'a pas les droits administrateur.");
         setLoading(false);
         return;

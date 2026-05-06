@@ -83,6 +83,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const userEmail = sessionUser?.email || "admin@madafit.com";
 
+  const userRole = sessionUser?.roles || "ROLE_ADMIN";
+
   return (
     <div className="flex h-screen w-full overflow-hidden" style={{ background: "hsl(var(--background))" }}>
       {/* Overlay Mobile */}
@@ -124,7 +126,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "hsl(var(--primary) / 0.15)" }}>
                 <Shield size={14} style={{ color: "hsl(var(--primary))" }} />
                 <span className="text-xs font-semibold truncate" style={{ color: "hsl(var(--primary))" }}>
-                  Administrateur
+                  {userRole == "ROLE_ADMIN" ? "Administrateur" : "Receptioniste"}
                 </span>
               </div>
             </div>
@@ -134,7 +136,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto custom-scrollbar">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
-
+              if (userRole[0] != "ROLE_ADMIN" && item.label == "Rapports")
+                return;
               return (
                 <Link
                   key={item.path}
@@ -163,7 +166,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="px-2 pb-4 space-y-1 border-t pt-3 flex-shrink-0" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
             {bottomItems.map((item) => {
               const isActive = location.pathname === item.path;
-
               return (
                 <Link
                   key={item.path}
