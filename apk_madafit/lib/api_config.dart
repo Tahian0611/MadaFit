@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 
 class ApiConfig {
-  static const String _prodUrl = 'https://st-travelnosybe.com/api';
-  static const String _devUrl = 'http://10.0.2.2:8000/api'; // Default for Android emulator
+  static const String _prodUrl = 'https://www.st-travelnosybe.com/api';
+  static const String _devUrl = 'https://www.st-travelnosybe.com/api'; // Temporarily using Prod for Dev
 
   /// The base URL for the API.
   /// Detects automatically if in Debug or Release mode.

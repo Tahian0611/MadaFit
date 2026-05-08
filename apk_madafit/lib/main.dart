@@ -1123,11 +1123,14 @@ class _AuthScreenState extends State<AuthScreen> {
           children: [
             const Icon(Icons.cake_outlined, color: Colors.redAccent, size: 20),
             const SizedBox(width: 12),
-            Text(
-              _regDob ?? "Date de naissance (optionnel)",
-              style: TextStyle(
-                color: _regDob != null ? Colors.white : Colors.white54,
-                fontSize: 15,
+            Expanded(
+              child: Text(
+                _regDob ?? "Date de naissance (optionnel)",
+                style: TextStyle(
+                  color: _regDob != null ? Colors.white : Colors.white54,
+                  fontSize: 15,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
