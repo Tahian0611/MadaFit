@@ -135,11 +135,11 @@ class _AuthScreenState extends State<AuthScreen> {
         final data = jsonDecode(response.body);
         print('🟡 data keys: ${data.keys.toList()}');
 
-        final members =
-            data['hydra:member'] as List<dynamic>? ??
-            data['member'] as List<dynamic>? ??
-            [];
-        print('🟡 members count: ${members.length}');
+        print('🟢 Full API Response: ${response.body}');
+        print('🟢 Full API Response (Abonnement): ${response.body}');
+        final List<dynamic> members =
+            data['member'] ?? data['hydra:member'] ?? [];
+        print('🟡 Formules trouvées: ${members.length}');
 
         setState(() {
           _plans = members

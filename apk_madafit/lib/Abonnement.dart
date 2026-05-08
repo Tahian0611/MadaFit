@@ -82,8 +82,10 @@ class _AbonnementPageState extends State<AbonnementPage> {
       if (response.statusCode == 200) {
         try {
           final data = jsonDecode(response.body);
+          print('🟢 Full API Response (Abonnement): ${response.body}');
           final List<dynamic> members =
-              data['hydra:member'] ?? data['member'] ?? [];
+              data['member'] ?? data['hydra:member'] ?? [];
+          print('🟡 Formules trouvées: ${members.length}');
           setState(() {
             _plans = members
                 .map((json) => SubscriptionPlan.fromJson(json))
