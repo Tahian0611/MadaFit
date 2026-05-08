@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'main.dart'; // replace with your actual login file name
+import 'main.dart';
+import 'api_config.dart';
 
 // ============================================================
 //  USER MODEL (matches Symfony User entity writable fields)
@@ -95,8 +96,8 @@ class UserModel {
 //  API SERVICE
 // ============================================================
 class UserApiService {
-  static const String apiBase = 'https://www.st-travelnosybe.com/api';
-  static const String usersUrl = '$apiBase/users';
+  static final String apiBase = ApiConfig.baseUrl;
+  static final String usersUrl = '$apiBase/users';
 
   static Future<UserModel> fetchUser(int userId, String token) async {
     debugPrint('🔍 Fetch user: $userId');
@@ -110,7 +111,11 @@ class UserApiService {
       );
       debugPrint('📥 STATUS: ${response.statusCode}');
       if (response.statusCode == 200) {
-        return UserModel.fromJson(jsonDecode(response.body));
+        try {
+          return UserModel.fromJson(jsonDecode(response.body));
+        } catch (e) {
+          throw Exception('Format de réponse invalide (HTML reçu au lieu de JSON ?). Détails: $e');
+        }
       }
       throw Exception('Status ${response.statusCode}: ${response.body}');
     } catch (e) {

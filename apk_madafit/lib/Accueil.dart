@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:math';
 import 'package:http/http.dart' as http;
+import 'api_config.dart';
 
 // --- TES IMPORTS ---
 import 'apropos.dart';
@@ -44,13 +45,7 @@ class ArticleModel {
     );
   }
 
-  String get fullImageUrl {
-    if (imageUrl == null || imageUrl!.isEmpty) return '';
-    if (imageUrl!.startsWith('http')) return imageUrl!;
-    if (imageUrl!.startsWith('/'))
-      return 'https://www.st-travelnosybe.com$imageUrl';
-    return 'https://www.st-travelnosybe.com/$imageUrl';
-  }
+  String get fullImageUrl => ApiConfig.getFullImageUrl(imageUrl);
 
   String get displayDate {
     final dateStr = publishedAt ?? createdAt;
@@ -167,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final response = await http
           .get(
             Uri.parse(
-              'https://www.st-travelnosybe.com/api/notifications/unread-count',
+              '${ApiConfig.baseUrl}/notifications/unread-count',
             ),
             headers: {
               'Authorization': 'Bearer ${widget.token}',
@@ -418,7 +413,7 @@ class _ContenuArticlesPageState extends State<ContenuArticlesPage> {
   Timer? _refreshTimer;
   int _lastArticleCount = 0;
 
-  static const String _baseUrl = 'https://www.st-travelnosybe.com/api';
+  static final String _baseUrl = ApiConfig.baseUrl;
 
   @override
   void initState() {
@@ -480,7 +475,7 @@ class _ContenuArticlesPageState extends State<ContenuArticlesPage> {
       }
     } catch (e) {
       setState(() {
-        _error = 'Impossible de contacter le serveur ($e)';
+        _error = 'Impossible de contacter le serveur. (HTML reçu au lieu de JSON ?). Détails: $e';
         _isLoading = false;
       });
     }

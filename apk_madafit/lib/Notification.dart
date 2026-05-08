@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'api_config.dart';
 
 // ============================================================
 //  MODÈLE NOTIFICATION
@@ -123,8 +124,8 @@ class NotificationModel {
 //  SERVICE API
 // ============================================================
 class NotificationApiService {
-  static const String _baseUrl =
-      'https://www.st-travelnosybe.com/api/notifications';
+  static final String _baseUrl =
+      '${ApiConfig.baseUrl}/notifications';
 
   static Map<String, String> _headers(String? token) => {
     'Accept': 'application/json',
@@ -147,9 +148,13 @@ class NotificationApiService {
         .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final items = data['items'] as List? ?? [];
-      return items.map((e) => NotificationModel.fromJson(e)).toList();
+      try {
+        final data = jsonDecode(response.body);
+        final items = data['items'] as List? ?? [];
+        return items.map((e) => NotificationModel.fromJson(e)).toList();
+      } catch (e) {
+        throw Exception('Format de réponse invalide (HTML reçu au lieu de JSON ?). Détails: $e');
+      }
     }
     throw Exception('Erreur ${response.statusCode}: ${response.body}');
   }

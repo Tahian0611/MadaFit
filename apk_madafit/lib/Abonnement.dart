@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'api_config.dart';
 
 class SubscriptionPlan {
   final int id;
@@ -54,7 +55,7 @@ class _AbonnementPageState extends State<AbonnementPage> {
   bool _isLoading = true;
   String? _error;
 
-  static const String _baseUrl = 'https://www.st-travelnosybe.com/api';
+  static final String _baseUrl = ApiConfig.baseUrl;
 
   @override
   void initState() {
@@ -79,15 +80,22 @@ class _AbonnementPageState extends State<AbonnementPage> {
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final List<dynamic> members =
-            data['hydra:member'] ?? data['member'] ?? [];
-        setState(() {
-          _plans = members
-              .map((json) => SubscriptionPlan.fromJson(json))
-              .toList();
-          _isLoading = false;
-        });
+        try {
+          final data = jsonDecode(response.body);
+          final List<dynamic> members =
+              data['hydra:member'] ?? data['member'] ?? [];
+          setState(() {
+            _plans = members
+                .map((json) => SubscriptionPlan.fromJson(json))
+                .toList();
+            _isLoading = false;
+          });
+        } catch (e) {
+          setState(() {
+            _error = 'Format de réponse invalide (HTML reçu au lieu de JSON ?). Détails: $e';
+            _isLoading = false;
+          });
+        }
       } else {
         setState(() {
           _error = 'Erreur ${response.statusCode}';

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:qr_flutter/qr_flutter.dart';
+import 'api_config.dart';
 
 class QRCodePage extends StatefulWidget {
   final String token;
@@ -19,7 +20,7 @@ class _QRCodePageState extends State<QRCodePage> {
   String? _error;
   String _qrData = '';
 
-  static const String _baseUrl = 'https://www.st-travelnosybe.com/api';
+  static final String _baseUrl = ApiConfig.baseUrl;
 
   @override
   void initState() {
@@ -45,12 +46,17 @@ class _QRCodePageState extends State<QRCodePage> {
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final user = jsonDecode(response.body);
         setState(() {
-          _user = user;
-          final memberId = user['memberId'] ?? 'MAD-${user['id']}';
-          _qrData = 'MADAFIT:$memberId';
-          _isLoading = false;
+          try {
+            final user = jsonDecode(response.body);
+            _user = user;
+            final memberId = user['memberId'] ?? 'MAD-${user['id']}';
+            _qrData = 'MADAFIT:$memberId';
+            _isLoading = false;
+          } catch (e) {
+            _error = 'Format de réponse invalide (HTML reçu au lieu de JSON ?). Détails: $e';
+            _isLoading = false;
+          }
         });
       } else {
         setState(() {
@@ -61,7 +67,7 @@ class _QRCodePageState extends State<QRCodePage> {
       }
     } catch (e) {
       setState(() {
-        _error = 'Erreur réseau : $e';
+        _error = 'Impossible de contacter le serveur. (HTML reçu au lieu de JSON ?). Détails: $e';
         _isLoading = false;
       });
     }

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'Settings.dart';
 import 'QRCode.dart';
 import 'Payement.dart';
+import 'api_config.dart';
 
 class ProfilePage extends StatefulWidget {
   final VoidCallback? onLogout;
@@ -20,7 +21,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isLoading = true;
   String? _error;
 
-  static const String _baseUrl = 'https://www.st-travelnosybe.com/api';
+  static final String _baseUrl = ApiConfig.baseUrl;
 
   @override
   void initState() {
@@ -56,8 +57,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (response.statusCode == 200) {
         setState(() {
-          _user = jsonDecode(response.body);
-          _isLoading = false;
+          try {
+            _user = jsonDecode(response.body);
+            _isLoading = false;
+          } catch (e) {
+            _error = 'Format de réponse invalide (HTML reçu au lieu de JSON ?). Détails: $e';
+            _isLoading = false;
+          }
         });
       } else {
         setState(() {
@@ -67,7 +73,7 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } catch (e) {
       setState(() {
-        _error = 'Impossible de contacter le serveur ($e)';
+        _error = 'Impossible de contacter le serveur. (HTML reçu au lieu de JSON ?). Détails: $e';
         _isLoading = false;
       });
     }

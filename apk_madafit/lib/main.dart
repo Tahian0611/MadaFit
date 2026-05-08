@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
 import 'Accueil.dart';
+import 'api_config.dart';
 
 void main() {
   runApp(const MadafitApp());
@@ -101,7 +102,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _plansLoading = false;
   // ─────────────────────────────────────────────────────────────────────────
 
-  final String _baseUrl = 'https://www.st-travelnosybe.com/api';
+  final String _baseUrl = ApiConfig.baseUrl;
 
   final Map<String, String> _activityLabels = {
     'musculation': 'Musculation',
@@ -207,12 +208,13 @@ class _AuthScreenState extends State<AuthScreen> {
           } else {
             _showSnackBar(errorData['error'] ?? "Erreur d'authentification.");
           }
-        } catch (_) {
-          _showSnackBar("Erreur serveur. Réessayez.");
+        } catch (e) {
+          _showSnackBar("Erreur de format de réponse (HTML reçu au lieu de JSON ?). Détails: $e");
         }
       }
     } catch (e) {
-      _showSnackBar("Erreur réseau. Vérifiez votre connexion.");
+      print('💥 Network Exception (Login): $e');
+      _showSnackBar("Erreur réseau : $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -234,6 +236,8 @@ class _AuthScreenState extends State<AuthScreen> {
         },
         body: jsonEncode({'email': _regEmailController.text.trim()}),
       );
+
+      print('🟢 Check Email Status: ${checkResponse.statusCode}');
 
       if (!mounted) return;
 
@@ -392,6 +396,9 @@ class _AuthScreenState extends State<AuthScreen> {
         }),
       );
 
+      print('🟢 Register Status: ${response.statusCode}');
+      print('🟢 Register Body: ${response.body}');
+
       if (!mounted) return;
 
       if (response.statusCode == 201) {
@@ -417,12 +424,13 @@ class _AuthScreenState extends State<AuthScreen> {
               errorData['error'] ?? "Erreur lors de l'inscription.",
             );
           }
-        } catch (_) {
-          _showSnackBar("Erreur serveur.");
+        } catch (e) {
+          _showSnackBar("Erreur de format (HTML reçu ?). Détails: $e");
         }
       }
     } catch (e) {
-      _showSnackBar("Erreur réseau.");
+      print('💥 Network Exception (Register): $e');
+      _showSnackBar("Erreur réseau : $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

@@ -185,7 +185,7 @@ class SecurityController extends AbstractController
             $user->setResetToken($token);
             $entityManager->flush();
 
-            $resetLink = "https://www.st-travelnosybe.com/api/reset-password/$token";
+            $resetLink = $request->getSchemeAndHttpHost() . "/api/reset-password/$token";
 
             $emailMessage = (new Email())
                 ->from('support@madafit.mg')

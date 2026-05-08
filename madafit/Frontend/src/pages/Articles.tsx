@@ -212,8 +212,11 @@ export default function Articles() {
                       alt={article.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).closest(".h-40")!.innerHTML =
-                          '<div class="h-full flex items-center justify-center text-muted-foreground/30"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg></div>';
+                        const container = (e.target as HTMLImageElement).closest(".h-40");
+                        if (container) {
+                          container.innerHTML =
+                            '<div class="h-full flex items-center justify-center text-muted-foreground/30"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg></div>';
+                        }
                       }}
                     />
                   </div>

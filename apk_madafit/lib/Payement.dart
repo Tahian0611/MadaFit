@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'api_config.dart';
 
 class PayementPage extends StatefulWidget {
   final String token;
@@ -18,7 +19,7 @@ class _PayementPageState extends State<PayementPage> {
   bool _isLoading = true;
   String? _error;
 
-  static const String _baseUrl = 'https://www.st-travelnosybe.com/api';
+  static final String _baseUrl = ApiConfig.baseUrl;
 
   @override
   void initState() {
@@ -45,11 +46,16 @@ class _PayementPageState extends State<PayementPage> {
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
         setState(() {
-          _user = data;
-          _paymentRecords = data['paymentRecords'] ?? [];
-          _isLoading = false;
+          try {
+            final data = jsonDecode(response.body);
+            _user = data;
+            _paymentRecords = data['paymentRecords'] ?? [];
+            _isLoading = false;
+          } catch (e) {
+            _error = 'Format de réponse invalide (HTML reçu au lieu de JSON ?). Détails: $e';
+            _isLoading = false;
+          }
         });
       } else {
         setState(() {
@@ -60,7 +66,7 @@ class _PayementPageState extends State<PayementPage> {
       }
     } catch (e) {
       setState(() {
-        _error = 'Erreur réseau : $e';
+        _error = 'Impossible de contacter le serveur. (HTML reçu au lieu de JSON ?). Détails: $e';
         _isLoading = false;
       });
     }
