@@ -75,41 +75,41 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _isLoading = false;
   int _registerStep = 0;
 
-  final _loginFormKey     = GlobalKey<FormState>();
+  final _loginFormKey = GlobalKey<FormState>();
   final _registerStep0Key = GlobalKey<FormState>();
   final _registerStep1Key = GlobalKey<FormState>();
 
   // Controllers login
-  final _emailController    = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   // Controllers inscription étape 0
-  final _regEmailController     = TextEditingController();
-  final _regPasswordController  = TextEditingController();
+  final _regEmailController = TextEditingController();
+  final _regPasswordController = TextEditingController();
   final _regFirstNameController = TextEditingController();
-  final _regLastNameController  = TextEditingController();
+  final _regLastNameController = TextEditingController();
 
   // Controllers inscription étape 1
   final _regPhoneController = TextEditingController();
-  String _regActivity       = 'musculation';
-  String _regAccessType     = 'abonnement';
+  String _regActivity = 'musculation';
+  String _regAccessType = 'abonnement';
   String? _regDob;
 
   // ── PLANS DEPUIS LA BD ───────────────────────────────────────────────────
-  List<Map<String, dynamic>> _plans       = [];
-  Map<String, dynamic>?      _selectedPlan;
-  bool                       _plansLoading = false;
+  List<Map<String, dynamic>> _plans = [];
+  Map<String, dynamic>? _selectedPlan;
+  bool _plansLoading = false;
   // ─────────────────────────────────────────────────────────────────────────
 
-  final String _baseUrl = 'http://192.168.1.145:8000/api';
+  final String _baseUrl = 'https://www.st-travelnosybe.com/api';
 
   final Map<String, String> _activityLabels = {
     'musculation': 'Musculation',
-    'cardio':      'Cardio',
-    'yoga':        'Yoga',
-    'crossfit':    'CrossFit',
-    'boxe':        'Boxe',
-    'natation':    'Natation',
+    'cardio': 'Cardio',
+    'yoga': 'Yoga',
+    'crossfit': 'CrossFit',
+    'boxe': 'Boxe',
+    'natation': 'Natation',
   };
 
   // ── FETCH DES PLANS DEPUIS LA BD ─────────────────────────────────────────
@@ -126,15 +126,18 @@ class _AuthScreenState extends State<AuthScreen> {
 
       print('🟢 Status: ${response.statusCode}');
       print('🟢 Body length: ${response.body.length}');
-      print('🟢 Body preview: ${response.body.substring(0, min(200, response.body.length))}');
+      print(
+        '🟢 Body preview: ${response.body.substring(0, min(200, response.body.length))}',
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         print('🟡 data keys: ${data.keys.toList()}');
-        
-        final members = data['hydra:member'] as List<dynamic>? 
-                     ?? data['member'] as List<dynamic>? 
-                     ?? [];
+
+        final members =
+            data['hydra:member'] as List<dynamic>? ??
+            data['member'] as List<dynamic>? ??
+            [];
         print('🟡 members count: ${members.length}');
 
         setState(() {
@@ -172,7 +175,7 @@ class _AuthScreenState extends State<AuthScreen> {
           'Accept': 'application/json',
         },
         body: jsonEncode({
-          'email':    _emailController.text.trim(),
+          'email': _emailController.text.trim(),
           'password': _passwordController.text,
         }),
       );
@@ -193,10 +196,12 @@ class _AuthScreenState extends State<AuthScreen> {
       } else {
         try {
           final errorData = jsonDecode(response.body);
-          final code      = errorData['code'] ?? '';
+          final code = errorData['code'] ?? '';
 
           if (code == 'USER_NOT_FOUND') {
-            _showSnackBar("Aucun compte avec cet email. Inscrivez-vous d'abord.");
+            _showSnackBar(
+              "Aucun compte avec cet email. Inscrivez-vous d'abord.",
+            );
           } else if (code == 'INVALID_PASSWORD') {
             _showSnackBar("Mot de passe incorrect.");
           } else {
@@ -227,9 +232,7 @@ class _AuthScreenState extends State<AuthScreen> {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: jsonEncode({
-          'email': _regEmailController.text.trim(),
-        }),
+        body: jsonEncode({'email': _regEmailController.text.trim()}),
       );
 
       if (!mounted) return;
@@ -271,8 +274,11 @@ class _AuthScreenState extends State<AuthScreen> {
                 color: Colors.redAccent.withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.person_search,
-                  color: Colors.redAccent, size: 32),
+              child: const Icon(
+                Icons.person_search,
+                color: Colors.redAccent,
+                size: 32,
+              ),
             ),
             const SizedBox(height: 18),
             // Titre
@@ -316,7 +322,8 @@ class _AuthScreenState extends State<AuthScreen> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () {
                   Navigator.pop(context);
@@ -324,7 +331,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   _emailController.text = _regEmailController.text;
                   // Redirection vers le formulaire de connexion
                   setState(() {
-                    _isLogin      = true;
+                    _isLogin = true;
                     _registerStep = 0;
                   });
                 },
@@ -372,15 +379,15 @@ class _AuthScreenState extends State<AuthScreen> {
           'Accept': 'application/json',
         },
         body: jsonEncode({
-          'email':            _regEmailController.text.trim(),
-          'password':         _regPasswordController.text,
-          'firstName':        _regFirstNameController.text.trim(),
-          'lastName':         _regLastNameController.text.trim(),
-          'phone':            _regPhoneController.text.trim(),
-          'activity':         _regActivity,
-          'accessType':       _regAccessType,
-          'dob':              _regDob,
-          'totalPayments':    totalPayments,
+          'email': _regEmailController.text.trim(),
+          'password': _regPasswordController.text,
+          'firstName': _regFirstNameController.text.trim(),
+          'lastName': _regLastNameController.text.trim(),
+          'phone': _regPhoneController.text.trim(),
+          'activity': _regActivity,
+          'accessType': _regAccessType,
+          'dob': _regDob,
+          'totalPayments': totalPayments,
           'subscriptionType': subscriptionType,
         }),
       );
@@ -388,22 +395,27 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
 
       if (response.statusCode == 201) {
-        _showSnackBar("Compte créé ! Connectez-vous maintenant.", isSuccess: true);
+        _showSnackBar(
+          "Compte créé ! Connectez-vous maintenant.",
+          isSuccess: true,
+        );
         setState(() {
-          _isLogin      = true;
+          _isLogin = true;
           _registerStep = 0;
         });
         _emailController.text = _regEmailController.text;
       } else {
         try {
           final errorData = jsonDecode(response.body);
-          final code      = errorData['code'] ?? '';
+          final code = errorData['code'] ?? '';
 
           if (code == 'EMAIL_EXISTS') {
             // ── Modal dédié au lieu d'un simple snackbar ──
             _showEmailExistsModal();
           } else {
-            _showSnackBar(errorData['error'] ?? "Erreur lors de l'inscription.");
+            _showSnackBar(
+              errorData['error'] ?? "Erreur lors de l'inscription.",
+            );
           }
         } catch (_) {
           _showSnackBar("Erreur serveur.");
@@ -424,8 +436,10 @@ class _AuthScreenState extends State<AuthScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Réinitialisation",
-            style: TextStyle(color: Colors.redAccent)),
+        title: const Text(
+          "Réinitialisation",
+          style: TextStyle(color: Colors.redAccent),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -444,12 +458,13 @@ class _AuthScreenState extends State<AuthScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Annuler",
-                style: TextStyle(color: Colors.white54)),
+            child: const Text(
+              "Annuler",
+              style: TextStyle(color: Colors.white54),
+            ),
           ),
           ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () async {
               final email = resetEmailController.text.trim();
               if (email.isNotEmpty) {
@@ -465,8 +480,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 _showSnackBar("Si ce compte existe, un email a été envoyé.");
               }
             },
-            child: const Text("Envoyer",
-                style: TextStyle(color: Colors.white)),
+            child: const Text("Envoyer", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -474,10 +488,12 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   void _showSnackBar(String msg, {bool isSuccess = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: isSuccess ? Colors.green.shade700 : null,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isSuccess ? Colors.green.shade700 : null,
+      ),
+    );
   }
 
   // ── BUILD ─────────────────────────────────────────────────────────────────
@@ -512,8 +528,11 @@ class _AuthScreenState extends State<AuthScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const SizedBox(height: 40),
-                            const Icon(Icons.fitness_center,
-                                size: 60, color: Colors.white),
+                            const Icon(
+                              Icons.fitness_center,
+                              size: 60,
+                              color: Colors.white,
+                            ),
                             const SizedBox(height: 10),
                             const Text(
                               "MADAFIT",
@@ -554,8 +573,11 @@ class _AuthScreenState extends State<AuthScreen> {
                                 child: const Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(Icons.info_outline,
-                                        color: Colors.redAccent, size: 18),
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: Colors.redAccent,
+                                      size: 18,
+                                    ),
                                     SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
@@ -600,9 +622,10 @@ class _AuthScreenState extends State<AuthScreen> {
           const Text(
             "CONNEXION",
             style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.redAccent),
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.redAccent,
+            ),
           ),
           const SizedBox(height: 25),
           MadafitTextField(
@@ -627,18 +650,21 @@ class _AuthScreenState extends State<AuthScreen> {
                 backgroundColor: Colors.redAccent,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: _isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("SE CONNECTER",
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  : const Text(
+                      "SE CONNECTER",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
           const SizedBox(height: 15),
           TextButton(
             onPressed: () => setState(() {
-              _isLogin      = false;
+              _isLogin = false;
               _registerStep = 0;
             }),
             child: Text.rich(
@@ -660,8 +686,10 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           TextButton(
             onPressed: _showForgotPasswordDialog,
-            child: const Text("Mot de passe oublié ?",
-                style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+            child: const Text(
+              "Mot de passe oublié ?",
+              style: TextStyle(color: Colors.redAccent, fontSize: 12),
+            ),
           ),
         ],
       ),
@@ -679,9 +707,10 @@ class _AuthScreenState extends State<AuthScreen> {
             const Text(
               "INSCRIPTION",
               style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.redAccent),
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.redAccent,
+              ),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -693,9 +722,10 @@ class _AuthScreenState extends State<AuthScreen> {
               child: Text(
                 "Étape ${_registerStep + 1}/2",
                 style: const TextStyle(
-                    color: Colors.redAccent,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold),
+                  color: Colors.redAccent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -753,10 +783,13 @@ class _AuthScreenState extends State<AuthScreen> {
                       backgroundColor: Colors.redAccent,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                    child: const Text("SUIVANT →",
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      "SUIVANT →",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
@@ -796,7 +829,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   value: _regAccessType,
                   items: const {
                     'abonnement': 'Abonnement',
-                    'seance':     'Séance simple',
+                    'seance': 'Séance simple',
                   },
                   onChanged: (val) {
                     setState(() {
@@ -829,7 +862,8 @@ class _AuthScreenState extends State<AuthScreen> {
                           side: const BorderSide(color: Colors.white24),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         child: const Text("← Retour"),
                       ),
@@ -844,18 +878,22 @@ class _AuthScreenState extends State<AuthScreen> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         child: _isLoading
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
                                 child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 2),
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
                               )
-                            : const Text("CRÉER MON COMPTE",
-                                style:
-                                    TextStyle(fontWeight: FontWeight.bold)),
+                            : const Text(
+                                "CRÉER MON COMPTE",
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
                       ),
                     ),
                   ],
@@ -867,7 +905,7 @@ class _AuthScreenState extends State<AuthScreen> {
         const SizedBox(height: 15),
         TextButton(
           onPressed: () => setState(() {
-            _isLogin      = true;
+            _isLogin = true;
             _registerStep = 0;
           }),
           child: Text.rich(
@@ -906,11 +944,15 @@ class _AuthScreenState extends State<AuthScreen> {
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
-                  color: Colors.redAccent, strokeWidth: 2),
+                color: Colors.redAccent,
+                strokeWidth: 2,
+              ),
             ),
             SizedBox(width: 12),
-            Text("Chargement des formules...",
-                style: TextStyle(color: Colors.white54, fontSize: 14)),
+            Text(
+              "Chargement des formules...",
+              style: TextStyle(color: Colors.white54, fontSize: 14),
+            ),
           ],
         ),
       );
@@ -927,15 +969,19 @@ class _AuthScreenState extends State<AuthScreen> {
           children: [
             Icon(Icons.info_outline, color: Colors.white38, size: 18),
             SizedBox(width: 10),
-            Text("Aucune formule disponible.",
-                style: TextStyle(color: Colors.white38, fontSize: 14)),
+            Text(
+              "Aucune formule disponible.",
+              style: TextStyle(color: Colors.white38, fontSize: 14),
+            ),
           ],
         ),
       );
     }
 
     // ── CORRECTION : S'assurer que _selectedPlan vient de _plans ──
-    final bool isValidSelection = _plans.any((p) => p['id'] == _selectedPlan?['id']);
+    final bool isValidSelection = _plans.any(
+      (p) => p['id'] == _selectedPlan?['id'],
+    );
     if (!isValidSelection && _plans.isNotEmpty) {
       _selectedPlan = _plans.first;
     }
@@ -952,8 +998,11 @@ class _AuthScreenState extends State<AuthScreen> {
         value: _selectedPlan,
         dropdownColor: Colors.grey.shade900,
         decoration: const InputDecoration(
-          prefixIcon: Icon(Icons.workspace_premium,
-              color: Colors.redAccent, size: 20),
+          prefixIcon: Icon(
+            Icons.workspace_premium,
+            color: Colors.redAccent,
+            size: 20,
+          ),
           labelText: "Formule d'abonnement *",
           labelStyle: TextStyle(color: Colors.white70, fontSize: 15),
           border: InputBorder.none,
@@ -961,7 +1010,7 @@ class _AuthScreenState extends State<AuthScreen> {
         style: const TextStyle(color: Colors.white),
         items: _plans.map((plan) {
           final price = plan['price'] as num? ?? 0;
-          final name  = plan['name'] as String? ?? 'Formule';
+          final name = plan['name'] as String? ?? 'Formule';
           return DropdownMenuItem<Map<String, dynamic>>(
             value: plan,
             child: Text(
@@ -971,17 +1020,16 @@ class _AuthScreenState extends State<AuthScreen> {
           );
         }).toList(),
         onChanged: (plan) => setState(() => _selectedPlan = plan),
-        validator: (val) =>
-            val == null ? "Veuillez choisir une formule" : null,
+        validator: (val) => val == null ? "Veuillez choisir une formule" : null,
       ),
     );
   }
 
   // ── RÉCAPITULATIF DU PLAN ─────────────────────────────────────────────────
   Widget _buildPlanSummary() {
-    final price    = (_selectedPlan!['price'] as num?)?.toInt() ?? 0;
+    final price = (_selectedPlan!['price'] as num?)?.toInt() ?? 0;
     final duration = _selectedPlan!['duration'] as int? ?? 1;
-    final name     = _selectedPlan!['name'] as String? ?? '';
+    final name = _selectedPlan!['name'] as String? ?? '';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -996,22 +1044,27 @@ class _AuthScreenState extends State<AuthScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(name,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14)),
-              Text('$duration mois',
-                  style: const TextStyle(
-                      color: Colors.white54, fontSize: 12)),
+              Text(
+                name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                '$duration mois',
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
             ],
           ),
           Text(
             '${_formatPrice(price)} Ar',
             style: const TextStyle(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.w900,
-                fontSize: 18),
+              color: Colors.redAccent,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
           ),
         ],
       ),
@@ -1020,7 +1073,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   // ── FORMAT PRIX ───────────────────────────────────────────────────────────
   String _formatPrice(int price) {
-    final str    = price.toString();
+    final str = price.toString();
     final buffer = StringBuffer();
     for (var i = 0; i < str.length; i++) {
       if (i > 0 && (str.length - i) % 3 == 0) buffer.write(' ');
@@ -1060,8 +1113,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.cake_outlined,
-                color: Colors.redAccent, size: 20),
+            const Icon(Icons.cake_outlined, color: Colors.redAccent, size: 20),
             const SizedBox(width: 12),
             Text(
               _regDob ?? "Date de naissance (optionnel)",
@@ -1101,8 +1153,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ),
         style: const TextStyle(color: Colors.white),
         items: items.entries
-            .map((e) =>
-                DropdownMenuItem(value: e.key, child: Text(e.value)))
+            .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
             .toList(),
         onChanged: onChanged,
       ),
@@ -1151,14 +1202,15 @@ class _MadafitTextFieldState extends State<MadafitTextField> {
                   color: Colors.white54,
                   size: 20,
                 ),
-                onPressed: () =>
-                    setState(() => _obscureText = !_obscureText),
+                onPressed: () => setState(() => _obscureText = !_obscureText),
               )
             : null,
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -1168,9 +1220,9 @@ class _MadafitTextFieldState extends State<MadafitTextField> {
         if (!widget.isRequired) return null;
         if (value == null || value.isEmpty) return "Champ obligatoire";
         if (widget.label.toLowerCase().contains("email")) {
-          final bool emailValid =
-              RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
-                  .hasMatch(value);
+          final bool emailValid = RegExp(
+            r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+          ).hasMatch(value);
           if (!emailValid) return "Format d'email invalide";
         }
         if (widget.isPassword && value.length < 6)

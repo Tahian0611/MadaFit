@@ -83,7 +83,7 @@ async function fetchFromApi<T>(
   const response = await fetchWithRetry(url, {
     signal: controller.signal,
     headers: {
-      Accept: "application/ld+json",
+      Accept: "application/ld+json, application/json",
       ...(options.body ? { "Content-Type": contentType } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
@@ -262,6 +262,7 @@ export async function uploadImage(file: File): Promise<string> {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
+      Accept: "application/json",
       // ⚠️ Pas de Content-Type : le navigateur le calcule avec le boundary multipart
     },
     body: formData,

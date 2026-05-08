@@ -31,7 +31,8 @@ class SubscriptionPlan {
       type: json['type']?.toString() ?? 'monthly',
       duration: (json['duration'] as num?)?.toInt() ?? 1,
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
-      features: (json['features'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      features:
+          (json['features'] as List?)?.map((e) => e.toString()).toList() ?? [],
       color: json['color']?.toString(),
       popular: json['popular'] == true,
     );
@@ -53,7 +54,7 @@ class _AbonnementPageState extends State<AbonnementPage> {
   bool _isLoading = true;
   String? _error;
 
-  static const String _baseUrl = 'http://192.168.1.145:8000/api';
+  static const String _baseUrl = 'https://www.st-travelnosybe.com/api';
 
   @override
   void initState() {
@@ -67,19 +68,24 @@ class _AbonnementPageState extends State<AbonnementPage> {
       _error = null;
     });
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/subscription_plans'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Accept': 'application/ld+json',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/subscription_plans'),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Accept': 'application/ld+json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final List<dynamic> members = data['hydra:member'] ?? data['member'] ?? [];
+        final List<dynamic> members =
+            data['hydra:member'] ?? data['member'] ?? [];
         setState(() {
-          _plans = members.map((json) => SubscriptionPlan.fromJson(json)).toList();
+          _plans = members
+              .map((json) => SubscriptionPlan.fromJson(json))
+              .toList();
           _isLoading = false;
         });
       } else {
@@ -130,7 +136,10 @@ class _AbonnementPageState extends State<AbonnementPage> {
 
   void _onSubscribe(SubscriptionPlan plan) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Souscription à ${plan.name}'), backgroundColor: Colors.green),
+      SnackBar(
+        content: Text('Souscription à ${plan.name}'),
+        backgroundColor: Colors.green,
+      ),
     );
   }
 
@@ -142,39 +151,49 @@ class _AbonnementPageState extends State<AbonnementPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.redAccent))
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.redAccent),
+            )
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.redAccent, size: 50),
-                      const SizedBox(height: 15),
-                      Text(_error!, style: const TextStyle(color: Colors.white70)),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: _fetchPlans,
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                        child: const Text("Réessayer"),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.redAccent,
+                    size: 50,
                   ),
-                )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 10),
-                      _buildHeader(),
-                      const SizedBox(height: 30),
-                      ..._plans.map((plan) => _buildSubscriptionCard(plan)),
-                      const SizedBox(height: 20),
-                      _buildPaymentInfo(),
-                      SizedBox(height: systemBottomPadding + footerNavbarHeight + 20),
-                    ],
+                  const SizedBox(height: 15),
+                  Text(_error!, style: const TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _fetchPlans,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                    ),
+                    child: const Text("Réessayer"),
                   ),
-                ),
+                ],
+              ),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  _buildHeader(),
+                  const SizedBox(height: 30),
+                  ..._plans.map((plan) => _buildSubscriptionCard(plan)),
+                  const SizedBox(height: 20),
+                  _buildPaymentInfo(),
+                  SizedBox(
+                    height: systemBottomPadding + footerNavbarHeight + 20,
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -184,7 +203,12 @@ class _AbonnementPageState extends State<AbonnementPage> {
       children: [
         const Text(
           "CHOISISSEZ VOTRE\nDESTIN.",
-          style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900, height: 1.1),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+            height: 1.1,
+          ),
         ),
         const SizedBox(height: 10),
         Text(
@@ -217,12 +241,25 @@ class _AbonnementPageState extends State<AbonnementPage> {
               top: 0,
               right: 20,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: planColor,
-                  borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(10), bottomRight: Radius.circular(10)),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(10),
+                    bottomRight: Radius.circular(10),
+                  ),
                 ),
-                child: const Text("POPULAIRE", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  "POPULAIRE",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
           Padding(
@@ -230,31 +267,61 @@ class _AbonnementPageState extends State<AbonnementPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(plan.name, style: TextStyle(color: planColor, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                Text(
+                  plan.name,
+                  style: TextStyle(
+                    color: planColor,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text("$priceFormatted Ar", style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900)),
+                    Text(
+                      "$priceFormatted Ar",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 5, left: 4),
-                      child: Text(period, style: const TextStyle(color: Colors.white38, fontSize: 14)),
+                      child: Text(
+                        period,
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
                 const Divider(color: Colors.white10),
                 const SizedBox(height: 15),
-                ...plan.features.map((feature) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
-                        children: [
-                          Icon(Icons.check_circle, color: planColor, size: 18),
-                          const SizedBox(width: 10),
-                          Expanded(child: Text(feature, style: const TextStyle(color: Colors.white70, fontSize: 13))),
-                        ],
-                      ),
-                    )),
+                ...plan.features.map(
+                  (feature) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: planColor, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            feature,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -277,7 +344,10 @@ class _AbonnementPageState extends State<AbonnementPage> {
           Expanded(
             child: Text(
               "Paiements acceptés via MVola, AirtelMoney ou directement à la salle. Sans engagement.",
-              style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.4),
+                fontSize: 12,
+              ),
             ),
           ),
         ],

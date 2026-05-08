@@ -47,8 +47,9 @@ class ArticleModel {
   String get fullImageUrl {
     if (imageUrl == null || imageUrl!.isEmpty) return '';
     if (imageUrl!.startsWith('http')) return imageUrl!;
-    if (imageUrl!.startsWith('/')) return 'http://192.168.1.145:8000$imageUrl';
-    return 'http://192.168.1.145:8000/$imageUrl';
+    if (imageUrl!.startsWith('/'))
+      return 'https://www.st-travelnosybe.com$imageUrl';
+    return 'https://www.st-travelnosybe.com/$imageUrl';
   }
 
   String get displayDate {
@@ -56,27 +57,50 @@ class ArticleModel {
     if (dateStr == null) return '';
     final date = DateTime.tryParse(dateStr);
     if (date == null) return '';
-    const months = ['JAN', 'FÉV', 'MAR', 'AVR', 'MAI', 'JUIN', 'JUIL', 'AOÛT', 'SEP', 'OCT', 'NOV', 'DÉC'];
+    const months = [
+      'JAN',
+      'FÉV',
+      'MAR',
+      'AVR',
+      'MAI',
+      'JUIN',
+      'JUIL',
+      'AOÛT',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DÉC',
+    ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   String get categoryLabel {
     switch (category) {
-      case 'news': return 'ACTUALITÉ';
-      case 'promo': return 'PROMOTION';
-      case 'event': return 'ÉVÉNEMENT';
-      case 'tips': return 'CONSEIL';
-      default: return '';
+      case 'news':
+        return 'ACTUALITÉ';
+      case 'promo':
+        return 'PROMOTION';
+      case 'event':
+        return 'ÉVÉNEMENT';
+      case 'tips':
+        return 'CONSEIL';
+      default:
+        return '';
     }
   }
 
   Color get categoryColor {
     switch (category) {
-      case 'news': return Colors.blueAccent;
-      case 'promo': return Colors.greenAccent;
-      case 'event': return Colors.purpleAccent;
-      case 'tips': return Colors.orangeAccent;
-      default: return Colors.white38;
+      case 'news':
+        return Colors.blueAccent;
+      case 'promo':
+        return Colors.greenAccent;
+      case 'event':
+        return Colors.purpleAccent;
+      case 'tips':
+        return Colors.orangeAccent;
+      default:
+        return Colors.white38;
     }
   }
 }
@@ -140,13 +164,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchNotificationCount() async {
     try {
-      final response = await http.get(
-        Uri.parse('http://192.168.1.145:8000/api/notifications/unread-count'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 5));
+      final response = await http
+          .get(
+            Uri.parse(
+              'https://www.st-travelnosybe.com/api/notifications/unread-count',
+            ),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -194,7 +222,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         title: Text(
           _titles[_selectedIndex],
-          style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+          ),
         ),
         centerTitle: true,
         elevation: 4,
@@ -207,10 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Stack(
         children: [
-          IndexedStack(
-            index: _selectedIndex,
-            children: _pages,
-          ),
+          IndexedStack(index: _selectedIndex, children: _pages),
           Positioned(
             left: 15,
             right: 15,
@@ -238,7 +266,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ValueListenableBuilder<int>(
                     valueListenable: _notificationCountNotifier,
                     builder: (context, count, child) {
-                      return _buildNavItem(4, Icons.notifications, badge: count);
+                      return _buildNavItem(
+                        4,
+                        Icons.notifications,
+                        badge: count,
+                      );
                     },
                   ),
                 ],
@@ -277,7 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Colors.redAccent,
                           blurRadius: 10,
                           spreadRadius: 1,
-                        )
+                        ),
                       ]
                     : [],
               ),
@@ -315,11 +347,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       right: 0,
                       top: -2,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.redAccent,
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF151515), width: 2),
+                          border: Border.all(
+                            color: const Color(0xFF151515),
+                            width: 2,
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.5),
@@ -380,7 +418,7 @@ class _ContenuArticlesPageState extends State<ContenuArticlesPage> {
   Timer? _refreshTimer;
   int _lastArticleCount = 0;
 
-  static const String _baseUrl = 'http://192.168.1.145:8000/api';
+  static const String _baseUrl = 'https://www.st-travelnosybe.com/api';
 
   @override
   void initState() {
@@ -404,26 +442,30 @@ class _ContenuArticlesPageState extends State<ContenuArticlesPage> {
     });
 
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/articles?isPublished=true&itemsPerPage=50'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Accept': 'application/ld+json',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/articles?isPublished=true&itemsPerPage=50'),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Accept': 'application/ld+json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final members = (data['hydra:member'] as List?) ?? (data['member'] as List?) ?? [];
+        final members =
+            (data['hydra:member'] as List?) ?? (data['member'] as List?) ?? [];
 
-        final articles = members
-            .map((j) => ArticleModel.fromJson(j as Map<String, dynamic>))
-            .toList()
-          ..sort((a, b) {
-            final dateA = a.publishedAt ?? a.createdAt ?? '';
-            final dateB = b.publishedAt ?? b.createdAt ?? '';
-            return dateB.compareTo(dateA);
-          });
+        final articles =
+            members
+                .map((j) => ArticleModel.fromJson(j as Map<String, dynamic>))
+                .toList()
+              ..sort((a, b) {
+                final dateA = a.publishedAt ?? a.createdAt ?? '';
+                final dateB = b.publishedAt ?? b.createdAt ?? '';
+                return dateB.compareTo(dateA);
+              });
 
         setState(() {
           _articles = articles;
@@ -446,18 +488,21 @@ class _ContenuArticlesPageState extends State<ContenuArticlesPage> {
 
   Future<void> _checkForNewArticles() async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/articles?isPublished=true&itemsPerPage=50'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Accept': 'application/ld+json',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/articles?isPublished=true&itemsPerPage=50'),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Accept': 'application/ld+json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final members = (data['hydra:member'] as List?) ?? (data['member'] as List?) ?? [];
-        
+        final members =
+            (data['hydra:member'] as List?) ?? (data['member'] as List?) ?? [];
+
         if (members.length > _lastArticleCount) {
           _fetchArticles();
           widget.onArticlePublished?.call();
@@ -489,7 +534,9 @@ class _ContenuArticlesPageState extends State<ContenuArticlesPage> {
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _fetchArticles,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+              ),
               child: const Text("Réessayer"),
             ),
           ],
@@ -531,7 +578,8 @@ class _ContenuArticlesPageState extends State<ContenuArticlesPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(top: 10, bottom: 100),
         itemCount: _articles.length,
-        itemBuilder: (context, index) => _buildArticleCard(context, _articles[index]),
+        itemBuilder: (context, index) =>
+            _buildArticleCard(context, _articles[index]),
       ),
     );
   }
@@ -603,7 +651,10 @@ class _ContenuArticlesPageState extends State<ContenuArticlesPage> {
                 children: [
                   if (article.categoryLabel.isNotEmpty) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: article.categoryColor.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(6),
@@ -813,13 +864,12 @@ void _ouvrirDetails(BuildContext context, ArticleModel article) {
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         return ScaleTransition(
           scale: animation.drive(
-            Tween<double>(begin: 0.8, end: 1.0)
-                .chain(CurveTween(curve: Curves.easeOutBack)),
+            Tween<double>(
+              begin: 0.8,
+              end: 1.0,
+            ).chain(CurveTween(curve: Curves.easeOutBack)),
           ),
-          child: FadeTransition(
-            opacity: animation,
-            child: child,
-          ),
+          child: FadeTransition(opacity: animation, child: child),
         );
       },
       transitionDuration: const Duration(milliseconds: 350),

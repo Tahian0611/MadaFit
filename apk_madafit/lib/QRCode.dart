@@ -7,11 +7,7 @@ class QRCodePage extends StatefulWidget {
   final String token;
   final int userId;
 
-  const QRCodePage({
-    super.key,
-    required this.token,
-    required this.userId,
-  });
+  const QRCodePage({super.key, required this.token, required this.userId});
 
   @override
   State<QRCodePage> createState() => _QRCodePageState();
@@ -23,7 +19,7 @@ class _QRCodePageState extends State<QRCodePage> {
   String? _error;
   String _qrData = '';
 
-  static const String _baseUrl = 'http://192.168.1.145:8000/api';
+  static const String _baseUrl = 'https://www.st-travelnosybe.com/api';
 
   @override
   void initState() {
@@ -38,13 +34,15 @@ class _QRCodePageState extends State<QRCodePage> {
     });
 
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/users/${widget.userId}'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Accept': 'application/ld+json',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/users/${widget.userId}'),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Accept': 'application/ld+json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final user = jsonDecode(response.body);
@@ -56,7 +54,8 @@ class _QRCodePageState extends State<QRCodePage> {
         });
       } else {
         setState(() {
-          _error = 'Erreur ${response.statusCode}: Impossible de charger le profil.';
+          _error =
+              'Erreur ${response.statusCode}: Impossible de charger le profil.';
           _isLoading = false;
         });
       }
@@ -102,10 +101,12 @@ class _QRCodePageState extends State<QRCodePage> {
       ),
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Colors.redAccent))
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.redAccent),
+              )
             : _error != null
-                ? _buildError()
-                : _buildContent(),
+            ? _buildError()
+            : _buildContent(),
       ),
     );
   }
@@ -119,7 +120,11 @@ class _QRCodePageState extends State<QRCodePage> {
           const SizedBox(height: 15),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 30),
-            child: Text(_error!, style: const TextStyle(color: Colors.white70), textAlign: TextAlign.center),
+            child: Text(
+              _error!,
+              style: const TextStyle(color: Colors.white70),
+              textAlign: TextAlign.center,
+            ),
           ),
           const SizedBox(height: 20),
           ElevatedButton(
@@ -133,7 +138,8 @@ class _QRCodePageState extends State<QRCodePage> {
   }
 
   Widget _buildContent() {
-    final String fullName = '${_user?['firstName'] ?? ''} ${_user?['lastName'] ?? ''}'.trim();
+    final String fullName =
+        '${_user?['firstName'] ?? ''} ${_user?['lastName'] ?? ''}'.trim();
     final String memberId = _user?['memberId'] ?? 'MAD-${_user?['id']}';
     final String memberType = _getMemberType();
     final String expiryDate = _formatExpiryDate();
@@ -238,10 +244,16 @@ class _QRCodePageState extends State<QRCodePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.white38, fontSize: 10),
+                ),
                 Text(
                   value,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],

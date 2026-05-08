@@ -33,9 +33,12 @@ class NotificationModel {
       final created = DateTime.tryParse(json['createdAt']);
       if (created != null) {
         final diff = DateTime.now().difference(created).inDays;
-        if (diff == 0)      section = "AUJOURD'HUI";
-        else if (diff == 1) section = "HIER";
-        else if (diff < 7)  section = "CETTE SEMAINE";
+        if (diff == 0)
+          section = "AUJOURD'HUI";
+        else if (diff == 1)
+          section = "HIER";
+        else if (diff < 7)
+          section = "CETTE SEMAINE";
       }
     }
 
@@ -47,7 +50,8 @@ class NotificationModel {
         if (diff.inMinutes < 60) {
           timeLabel = "Il y a ${diff.inMinutes}min";
         } else if (diff.inHours < 24) {
-          timeLabel = "${created.hour.toString().padLeft(2, '0')}:${created.minute.toString().padLeft(2, '0')}";
+          timeLabel =
+              "${created.hour.toString().padLeft(2, '0')}:${created.minute.toString().padLeft(2, '0')}";
         } else if (diff.inDays == 1) {
           timeLabel = "Hier";
         } else {
@@ -58,14 +62,14 @@ class NotificationModel {
     }
 
     return NotificationModel(
-      id:          json['id'] ?? 0,
-      type:        json['type'] ?? 'account',
-      title:       json['title'] ?? '',
+      id: json['id'] ?? 0,
+      type: json['type'] ?? 'account',
+      title: json['title'] ?? '',
       description: json['message'] ?? json['description'] ?? '',
-      time:        timeLabel,
-      isUnread:    !(json['isRead'] ?? false),
-      imageUrl:    json['imageUrl'],
-      section:     section,
+      time: timeLabel,
+      isUnread: !(json['isRead'] ?? false),
+      imageUrl: json['imageUrl'],
+      section: section,
     );
   }
 
@@ -73,11 +77,14 @@ class NotificationModel {
     switch (type) {
       case 'subscription':
       case 'expiry':
-      case 'renewal':    return Icons.card_membership_outlined;
+      case 'renewal':
+        return Icons.card_membership_outlined;
       case 'article':
       case 'news':
-      case 'announcement': return Icons.article_outlined;
-      default:           return Icons.notifications_outlined;
+      case 'announcement':
+        return Icons.article_outlined;
+      default:
+        return Icons.notifications_outlined;
     }
   }
 
@@ -85,11 +92,14 @@ class NotificationModel {
     switch (type) {
       case 'subscription':
       case 'expiry':
-      case 'renewal':    return Colors.redAccent;
+      case 'renewal':
+        return Colors.redAccent;
       case 'article':
       case 'news':
-      case 'announcement': return Colors.cyanAccent;
-      default:           return Colors.white38;
+      case 'announcement':
+        return Colors.cyanAccent;
+      default:
+        return Colors.white38;
     }
   }
 
@@ -113,7 +123,8 @@ class NotificationModel {
 //  SERVICE API
 // ============================================================
 class NotificationApiService {
-  static const String _baseUrl = 'http://192.168.1.145:8000/api/notifications';
+  static const String _baseUrl =
+      'https://www.st-travelnosybe.com/api/notifications';
 
   static Map<String, String> _headers(String? token) => {
     'Accept': 'application/json',
@@ -128,13 +139,15 @@ class NotificationApiService {
     if (token == null || token.isEmpty) {
       throw Exception('Non authentifié (token manquant)');
     }
-    final response = await http.get(
-      Uri.parse('$_baseUrl?page=$page&itemsPerPage=50'),
-      headers: _headers(token),
-    ).timeout(const Duration(seconds: 10));
+    final response = await http
+        .get(
+          Uri.parse('$_baseUrl?page=$page&itemsPerPage=50'),
+          headers: _headers(token),
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
-      final data  = jsonDecode(response.body);
+      final data = jsonDecode(response.body);
       final items = data['items'] as List? ?? [];
       return items.map((e) => NotificationModel.fromJson(e)).toList();
     }
@@ -142,7 +155,10 @@ class NotificationApiService {
   }
 
   static Future<void> markAllRead({String? token}) async {
-    await http.post(Uri.parse('$_baseUrl/mark-all-read'), headers: _headers(token));
+    await http.post(
+      Uri.parse('$_baseUrl/mark-all-read'),
+      headers: _headers(token),
+    );
   }
 
   static Future<void> markOneRead(int id, {String? token}) async {
@@ -175,25 +191,29 @@ class _NotificationPageState extends State<NotificationPage>
   Timer? _refreshTimer;
 
   static const _tabs = [
-    {'key': 'all',          'label': 'TOUT'},
+    {'key': 'all', 'label': 'TOUT'},
     {'key': 'subscription', 'label': 'ABONNEMENT'},
-    {'key': 'news',         'label': 'ACTUALITÉS'},
+    {'key': 'news', 'label': 'ACTUALITÉS'},
   ];
 
   @override
   void initState() {
     super.initState();
-    debugPrint('🟡 NOTIF INIT - token: ${widget.token != null ? 'PRESENT' : 'NULL'}');
-    debugPrint('🟡 NOTIF INIT - notifier: ${widget.countNotifier != null ? 'PRESENT' : 'NULL'}');
-    
+    debugPrint(
+      '🟡 NOTIF INIT - token: ${widget.token != null ? 'PRESENT' : 'NULL'}',
+    );
+    debugPrint(
+      '🟡 NOTIF INIT - notifier: ${widget.countNotifier != null ? 'PRESENT' : 'NULL'}',
+    );
+
     _tabController = TabController(length: _tabs.length, vsync: this);
     _loadNotifications();
-    
+
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       debugPrint('🟡 NOTIF TIMER TICK');
       _loadNotifications(silent: true);
     });
-    
+
     widget.countNotifier?.addListener(_onCountChanged);
   }
 
@@ -206,44 +226,63 @@ class _NotificationPageState extends State<NotificationPage>
   }
 
   void _onCountChanged() {
-    debugPrint('🟡 NOTIFIER LISTENER TRIGGERED - new value: ${widget.countNotifier?.value}');
+    debugPrint(
+      '🟡 NOTIFIER LISTENER TRIGGERED - new value: ${widget.countNotifier?.value}',
+    );
     _loadNotifications(silent: true);
   }
 
   Future<void> _loadNotifications({bool silent = false}) async {
     debugPrint('🟡 LOAD NOTIFICATIONS - silent: $silent');
     if (!silent) {
-      setState(() { _isLoading = true; _errorMessage = null; });
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
     }
     try {
-      final data = await NotificationApiService.fetchNotifications(token: widget.token);
+      final data = await NotificationApiService.fetchNotifications(
+        token: widget.token,
+      );
       debugPrint('🟡 FETCHED NOTIFICATIONS: ${data.length}');
 
-      final filtered = data.where((n) =>
-        n.type == 'subscription' ||
-        n.type == 'expiry'       ||
-        n.type == 'renewal'      ||
-        n.type == 'article'      ||
-        n.type == 'news'         ||
-        n.type == 'announcement'
-      ).toList();
+      final filtered = data
+          .where(
+            (n) =>
+                n.type == 'subscription' ||
+                n.type == 'expiry' ||
+                n.type == 'renewal' ||
+                n.type == 'article' ||
+                n.type == 'news' ||
+                n.type == 'announcement',
+          )
+          .toList();
       debugPrint('🟡 FILTERED NOTIFICATIONS: ${filtered.length}');
 
       if (mounted) {
-        setState(() { _notifications = filtered; _isLoading = false; });
+        setState(() {
+          _notifications = filtered;
+          _isLoading = false;
+        });
       }
-      
+
       // Met à jour le notifier avec le vrai count
       final unreadCount = filtered.where((n) => n.isUnread).length;
       debugPrint('🟡 UNREAD COUNT: $unreadCount');
-      if (widget.countNotifier != null && widget.countNotifier!.value != unreadCount) {
-        debugPrint('🟡 UPDATING NOTIFIER FROM $widget.countNotifier!.value TO $unreadCount');
+      if (widget.countNotifier != null &&
+          widget.countNotifier!.value != unreadCount) {
+        debugPrint(
+          '🟡 UPDATING NOTIFIER FROM $widget.countNotifier!.value TO $unreadCount',
+        );
         widget.countNotifier!.value = unreadCount;
       }
     } catch (e) {
       debugPrint('🟡 LOAD EXCEPTION: $e');
       if (mounted && !silent) {
-        setState(() { _errorMessage = '$e'; _isLoading = false; });
+        setState(() {
+          _errorMessage = '$e';
+          _isLoading = false;
+        });
       }
     }
   }
@@ -253,11 +292,20 @@ class _NotificationPageState extends State<NotificationPage>
     try {
       await NotificationApiService.markAllRead(token: widget.token);
       setState(() {
-        _notifications = _notifications.map((n) => NotificationModel(
-          id: n.id, type: n.type, title: n.title,
-          description: n.description, time: n.time,
-          isUnread: false, imageUrl: n.imageUrl, section: n.section,
-        )).toList();
+        _notifications = _notifications
+            .map(
+              (n) => NotificationModel(
+                id: n.id,
+                type: n.type,
+                title: n.title,
+                description: n.description,
+                time: n.time,
+                isUnread: false,
+                imageUrl: n.imageUrl,
+                section: n.section,
+              ),
+            )
+            .toList();
       });
       widget.countNotifier?.value = 0;
       debugPrint('🟡 NOTIFIER SET TO 0');
@@ -276,9 +324,14 @@ class _NotificationPageState extends State<NotificationPage>
         if (idx != -1) {
           final n = _notifications[idx];
           _notifications[idx] = NotificationModel(
-            id: n.id, type: n.type, title: n.title,
-            description: n.description, time: n.time,
-            isUnread: false, imageUrl: n.imageUrl, section: n.section,
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            description: n.description,
+            time: n.time,
+            isUnread: false,
+            imageUrl: n.imageUrl,
+            section: n.section,
           );
         }
       });
@@ -313,7 +366,9 @@ class _NotificationPageState extends State<NotificationPage>
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('🟡 NOTIF BUILD - loading: $_isLoading, count: ${_notifications.length}');
+    debugPrint(
+      '🟡 NOTIF BUILD - loading: $_isLoading, count: ${_notifications.length}',
+    );
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -322,7 +377,10 @@ class _NotificationPageState extends State<NotificationPage>
           if (_notifications.any((n) => n.isUnread))
             TextButton(
               onPressed: _markAllRead,
-              child: const Text("Tout lire", style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+              child: const Text(
+                "Tout lire",
+                style: TextStyle(color: Colors.redAccent, fontSize: 12),
+              ),
             ),
         ],
         bottom: TabBar(
@@ -333,7 +391,10 @@ class _NotificationPageState extends State<NotificationPage>
           indicatorWeight: 3,
           labelColor: Colors.redAccent,
           unselectedLabelColor: Colors.white38,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
           tabs: _tabs.map((t) {
             final count = _unreadCount(t['key']!);
             return Tab(
@@ -344,9 +405,22 @@ class _NotificationPageState extends State<NotificationPage>
                   if (count > 0) ...[
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(10)),
-                      child: Text('$count', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$count',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ],
@@ -356,13 +430,17 @@ class _NotificationPageState extends State<NotificationPage>
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.redAccent))
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.redAccent),
+            )
           : _errorMessage != null
-              ? _buildError()
-              : TabBarView(
-                  controller: _tabController,
-                  children: _tabs.map((t) => _buildNotificationList(t['key']!)).toList(),
-                ),
+          ? _buildError()
+          : TabBarView(
+              controller: _tabController,
+              children: _tabs
+                  .map((t) => _buildNotificationList(t['key']!))
+                  .toList(),
+            ),
     );
   }
 
@@ -373,7 +451,11 @@ class _NotificationPageState extends State<NotificationPage>
         children: [
           const Icon(Icons.wifi_off, color: Colors.white38, size: 60),
           const SizedBox(height: 20),
-          Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white38)),
+          Text(
+            _errorMessage!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white38),
+          ),
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: _loadNotifications,
@@ -396,12 +478,17 @@ class _NotificationPageState extends State<NotificationPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              isSubscription ? Icons.card_membership_outlined : Icons.article_outlined,
-              color: Colors.white12, size: 60,
+              isSubscription
+                  ? Icons.card_membership_outlined
+                  : Icons.article_outlined,
+              color: Colors.white12,
+              size: 60,
             ),
             const SizedBox(height: 15),
             Text(
-              isSubscription ? "Aucune alerte d'abonnement" : "Aucune actualité",
+              isSubscription
+                  ? "Aucune alerte d'abonnement"
+                  : "Aucune actualité",
               style: const TextStyle(color: Colors.white24, fontSize: 14),
             ),
           ],
@@ -414,11 +501,17 @@ class _NotificationPageState extends State<NotificationPage>
       backgroundColor: const Color(0xFF1A1A1A),
       onRefresh: _loadNotifications,
       child: ListView.builder(
-        padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 100),
+        padding: const EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: 100,
+        ),
         itemCount: list.length,
         itemBuilder: (context, index) {
           final item = list[index];
-          final showSection = index == 0 || list[index].section != list[index - 1].section;
+          final showSection =
+              index == 0 || list[index].section != list[index - 1].section;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -433,7 +526,10 @@ class _NotificationPageState extends State<NotificationPage>
                     color: Colors.redAccent.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(18),
                   ),
-                  child: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                  child: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.redAccent,
+                  ),
                 ),
                 onDismissed: (_) => _deleteNotification(item.id),
                 child: GestureDetector(
@@ -451,7 +547,15 @@ class _NotificationPageState extends State<NotificationPage>
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(top: 10, bottom: 15, left: 5),
-      child: Text(title, style: const TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white24,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1,
+        ),
+      ),
     );
   }
 
@@ -460,9 +564,15 @@ class _NotificationPageState extends State<NotificationPage>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: item.isUnread ? const Color(0xFF1A1A1A) : const Color(0xFF101010),
+        color: item.isUnread
+            ? const Color(0xFF1A1A1A)
+            : const Color(0xFF101010),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: item.isUnread ? Colors.redAccent.withOpacity(0.1) : Colors.transparent),
+        border: Border.all(
+          color: item.isUnread
+              ? Colors.redAccent.withOpacity(0.1)
+              : Colors.transparent,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,7 +590,8 @@ class _NotificationPageState extends State<NotificationPage>
               ),
               if (item.isUnread)
                 Container(
-                  width: 10, height: 10,
+                  width: 10,
+                  height: 10,
                   decoration: BoxDecoration(
                     color: Colors.redAccent,
                     shape: BoxShape.circle,
@@ -500,16 +611,30 @@ class _NotificationPageState extends State<NotificationPage>
                     Expanded(
                       child: Text(
                         item.title,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
-                    Text(item.time, style: const TextStyle(color: Colors.white24, fontSize: 10)),
+                    Text(
+                      item.time,
+                      style: const TextStyle(
+                        color: Colors.white24,
+                        fontSize: 10,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(
                   item.description,
-                  style: const TextStyle(color: Colors.white54, fontSize: 12, height: 1.5),
+                  style: const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
                 ),
               ],
             ),

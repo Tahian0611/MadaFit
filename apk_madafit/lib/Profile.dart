@@ -20,7 +20,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isLoading = true;
   String? _error;
 
-  static const String _baseUrl = 'http://192.168.1.145:8000/api';
+  static const String _baseUrl = 'https://www.st-travelnosybe.com/api';
 
   @override
   void initState() {
@@ -43,14 +43,16 @@ class _ProfilePageState extends State<ProfilePage> {
     });
 
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/me'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/me'),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         setState(() {
@@ -87,13 +89,19 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, color: Colors.redAccent, size: 50),
+              const Icon(
+                Icons.error_outline,
+                color: Colors.redAccent,
+                size: 50,
+              ),
               const SizedBox(height: 15),
               Text(_error!, style: const TextStyle(color: Colors.white)),
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: _fetchProfile,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                ),
                 child: const Text('Réessayer'),
               ),
             ],
@@ -103,17 +111,21 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     final String fullName =
-        '${_user?['firstName'] ?? ''} ${_user?['lastName'] ?? ''}'.trim().toUpperCase();
-    final String memberId = _user?['memberId'] ?? '#MAD-${_user?['id'] ?? '---'}';
+        '${_user?['firstName'] ?? ''} ${_user?['lastName'] ?? ''}'
+            .trim()
+            .toUpperCase();
+    final String memberId =
+        _user?['memberId'] ?? '#MAD-${_user?['id'] ?? '---'}';
     final List<dynamic> roles = _user?['roles'] ?? [];
     final String memberType = roles.contains('ROLE_PREMIUM')
         ? 'MEMBRE PREMIUM'
         : roles.contains('ROLE_ADMIN')
-            ? 'ADMINISTRATEUR'
-            : 'MEMBRE STANDARD';
+        ? 'ADMINISTRATEUR'
+        : 'MEMBRE STANDARD';
     final String email = _user?['email'] ?? '';
     final String coach = _user?['coach'] ?? 'Coach FitMania';
-    final double weeklyGoal = double.tryParse(_user?['weeklyGoalProgress']?.toString() ?? '') ?? 0.0;
+    final double weeklyGoal =
+        double.tryParse(_user?['weeklyGoalProgress']?.toString() ?? '') ?? 0.0;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -143,7 +155,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       color: Colors.red.withOpacity(0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
-                    )
+                    ),
                   ],
                 ),
                 child: Column(
@@ -178,11 +190,19 @@ class _ProfilePageState extends State<ProfilePage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text("Objectif hebdo",
-                                style: TextStyle(color: Colors.white, fontSize: 10)),
+                            const Text(
+                              "Objectif hebdo",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                            ),
                             Text(
                               '${(weeklyGoal * 100).toInt()}%',
-                              style: const TextStyle(color: Colors.white, fontSize: 10),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
                             ),
                           ],
                         ),
@@ -192,7 +212,9 @@ class _ProfilePageState extends State<ProfilePage> {
                           child: LinearProgressIndicator(
                             value: weeklyGoal.clamp(0.0, 1.0),
                             backgroundColor: Colors.white12,
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                             minHeight: 6,
                           ),
                         ),
@@ -240,11 +262,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 Icons.qr_code_scanner,
                 Colors.blueAccent,
                 () => _navigateTo(
-                  context, 
-                  QRCodePage(
-                    token: widget.token,
-                    userId: _user?['id'] ?? 0,
-                  ),
+                  context,
+                  QRCodePage(token: widget.token, userId: _user?['id'] ?? 0),
                 ),
               ),
               _buildActionCard(
@@ -253,17 +272,17 @@ class _ProfilePageState extends State<ProfilePage> {
                 Colors.orangeAccent,
                 () => _navigateTo(
                   context,
-                  PayementPage(
-                    token: widget.token,
-                    userId: _user?['id'] ?? 0,
-                  ),
+                  PayementPage(token: widget.token, userId: _user?['id'] ?? 0),
                 ),
               ),
               _buildActionCard(
                 "Paramètres",
                 Icons.settings_outlined,
                 Colors.grey,
-                () => _navigateTo(context, SettingsPage(token: widget.token, userData: _user)),
+                () => _navigateTo(
+                  context,
+                  SettingsPage(token: widget.token, userData: _user),
+                ),
               ),
 
               const SizedBox(height: 100),
@@ -287,14 +306,23 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Text(
             value,
             textAlign: TextAlign.end,
-            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildActionCard(String title, IconData icon, Color iconColor, VoidCallback onTap) {
+  Widget _buildActionCard(
+    String title,
+    IconData icon,
+    Color iconColor,
+    VoidCallback onTap,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -311,9 +339,14 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           child: Icon(icon, color: iconColor),
         ),
-        title: Text(title,
-            style: const TextStyle(
-                color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
       ),
     );

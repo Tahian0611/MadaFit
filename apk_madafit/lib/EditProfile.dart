@@ -14,12 +14,12 @@ class UserModel {
   final String lastName;
   final String? phone;
   final String? address;
-  final String? gender;        // 'M', 'F' or null
+  final String? gender; // 'M', 'F' or null
   final DateTime? dob;
   final String? emergencyContact;
   final String? emergencyPhone;
   final String? medicalNotes;
-  final String? photo;          // optional, not editable in this page
+  final String? photo; // optional, not editable in this page
   final List<String> roles;
   final String? subscription;
 
@@ -45,9 +45,12 @@ class UserModel {
     // Convert gender from 'M'/'F' to display string if needed later
     final rawGender = json['gender']?.toString().toUpperCase();
     String? genderCode;
-    if (rawGender == 'M') genderCode = 'M';
-    else if (rawGender == 'F') genderCode = 'F';
-    else genderCode = null;
+    if (rawGender == 'M')
+      genderCode = 'M';
+    else if (rawGender == 'F')
+      genderCode = 'F';
+    else
+      genderCode = null;
 
     DateTime? parseDate(String? dateStr) {
       if (dateStr == null || dateStr.isEmpty) return null;
@@ -74,25 +77,25 @@ class UserModel {
   }
 
   Map<String, dynamic> toJson() => {
-        'email': email,
-        'firstName': firstName,
-        'lastName': lastName,
-        'phone': phone,
-        'address': address,
-        'gender': gender,   // will be 'M', 'F' or null
-        'dob': dob?.toIso8601String().split('T').first, // YYYY-MM-DD
-        'emergencyContact': emergencyContact,
-        'emergencyPhone': emergencyPhone,
-        'medicalNotes': medicalNotes,
-        // photo is not updated here, but you could add it
-      };
+    'email': email,
+    'firstName': firstName,
+    'lastName': lastName,
+    'phone': phone,
+    'address': address,
+    'gender': gender, // will be 'M', 'F' or null
+    'dob': dob?.toIso8601String().split('T').first, // YYYY-MM-DD
+    'emergencyContact': emergencyContact,
+    'emergencyPhone': emergencyPhone,
+    'medicalNotes': medicalNotes,
+    // photo is not updated here, but you could add it
+  };
 }
 
 // ============================================================
 //  API SERVICE
 // ============================================================
 class UserApiService {
-  static const String apiBase = 'http://192.168.1.145:8000/api';
+  static const String apiBase = 'https://www.st-travelnosybe.com/api';
   static const String usersUrl = '$apiBase/users';
 
   static Future<UserModel> fetchUser(int userId, String token) async {
@@ -116,7 +119,11 @@ class UserApiService {
     }
   }
 
-  static Future<bool> updateUser(int userId, String token, UserModel user) async {
+  static Future<bool> updateUser(
+    int userId,
+    String token,
+    UserModel user,
+  ) async {
     final url = '$usersUrl/$userId';
     final body = jsonEncode(user.toJson());
     try {
@@ -167,11 +174,7 @@ class EditProfilePage extends StatefulWidget {
   final int userId;
   final String token;
 
-  const EditProfilePage({
-    super.key,
-    required this.userId,
-    required this.token,
-  });
+  const EditProfilePage({super.key, required this.userId, required this.token});
 
   @override
   State<EditProfilePage> createState() => _EditProfilePageState();
@@ -239,14 +242,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A1A),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 28),
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orangeAccent,
+                size: 28,
+              ),
               SizedBox(width: 10),
               Text(
                 'Attention',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -258,17 +270,25 @@ class _EditProfilePageState extends State<EditProfilePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Annuler', style: TextStyle(color: Colors.white38)),
+              child: const Text(
+                'Annuler',
+                style: TextStyle(color: Colors.white38),
+              ),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orangeAccent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
               child: const Text(
                 'Confirmer',
-                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -285,13 +305,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
         email: newEmail,
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
-        phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
-        address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
+        phone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+        address: _addressController.text.trim().isEmpty
+            ? null
+            : _addressController.text.trim(),
         gender: _selectedGenderCode,
         dob: _selectedDob,
-        emergencyContact: _emergencyContactController.text.trim().isEmpty ? null : _emergencyContactController.text.trim(),
-        emergencyPhone: _emergencyPhoneController.text.trim().isEmpty ? null : _emergencyPhoneController.text.trim(),
-        medicalNotes: _medicalNotesController.text.trim().isEmpty ? null : _medicalNotesController.text.trim(),
+        emergencyContact: _emergencyContactController.text.trim().isEmpty
+            ? null
+            : _emergencyContactController.text.trim(),
+        emergencyPhone: _emergencyPhoneController.text.trim().isEmpty
+            ? null
+            : _emergencyPhoneController.text.trim(),
+        medicalNotes: _medicalNotesController.text.trim().isEmpty
+            ? null
+            : _medicalNotesController.text.trim(),
       );
 
       await UserApiService.updateUser(widget.userId, widget.token, updatedUser);
@@ -334,7 +364,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context, // ← now using the state's context directly
-      initialDate: _selectedDob ?? DateTime.now().subtract(const Duration(days: 365 * 20)),
+      initialDate:
+          _selectedDob ??
+          DateTime.now().subtract(const Duration(days: 365 * 20)),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       builder: (context, child) {
@@ -357,6 +389,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       });
     }
   }
+
   @override
   void dispose() {
     _firstNameController.dispose();
@@ -383,101 +416,160 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
         title: const Text(
           "MODIFIER PROFIL",
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.2),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 16,
+            letterSpacing: 1.2,
+          ),
         ),
         centerTitle: true,
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _saveProfile,
-            child: const Text("OK",
-                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: const Text(
+              "OK",
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.redAccent))
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.redAccent),
+            )
           : _errorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(30),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.wifi_off, color: Colors.white38, size: 60),
-                        const SizedBox(height: 20),
-                        Text(_errorMessage!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white38)),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              _isLoading = true;
-                              _errorMessage = null;
-                            });
-                            _loadUserData();
-                          },
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                          child: const Text("Réessayer"),
-                        ),
-                      ],
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(30),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.wifi_off, color: Colors.white38, size: 60),
+                    const SizedBox(height: 20),
+                    Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white38),
                     ),
-                  ),
-                )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 25),
-                  child: Column(
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _isLoading = true;
+                          _errorMessage = null;
+                        });
+                        _loadUserData();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                      ),
+                      child: const Text("Réessayer"),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 25),
+              child: Column(
+                children: [
+                  const SizedBox(height: 20),
+                  _buildPhotoSection(),
+                  const SizedBox(height: 30),
+                  _buildSectionHeader("COORDONNÉES"),
+                  Row(
                     children: [
-                      const SizedBox(height: 20),
-                      _buildPhotoSection(),
-                      const SizedBox(height: 30),
-                      _buildSectionHeader("COORDONNÉES"),
-                      Row(
-                        children: [
-                          Expanded(child: _buildEditField("PRÉNOM", _firstNameController, Icons.person_outline)),
-                          const SizedBox(width: 15),
-                          Expanded(child: _buildEditField("NOM", _lastNameController, Icons.person_outline)),
-                        ],
+                      Expanded(
+                        child: _buildEditField(
+                          "PRÉNOM",
+                          _firstNameController,
+                          Icons.person_outline,
+                        ),
                       ),
-                      const SizedBox(height: 15),
-                      _buildEditField("EMAIL", _emailController, Icons.email_outlined),
-                      const SizedBox(height: 15),
-                      _buildEditField("TÉLÉPHONE", _phoneController, Icons.phone_android_outlined),
-                      const SizedBox(height: 15),
-                      _buildEditField("ADRESSE", _addressController, Icons.location_on_outlined),
-                      const SizedBox(height: 15),
-                      _buildDropdownField(
-                        "GENRE",
-                        // ✅ FIX : "Non spécifié" ajouté dans la liste pour éviter l'assertion Flutter
-                        // 'value must be null or one of the items values'
-                        ["Non spécifié", "Homme", "Femme"],
-                        _selectedGenderCode == 'M'
-                            ? "Homme"
-                            : (_selectedGenderCode == 'F' ? "Femme" : "Non spécifié"),
-                        (val) {
-                          setState(() {
-                            if (val == "Homme")       _selectedGenderCode = 'M';
-                            else if (val == "Femme")  _selectedGenderCode = 'F';
-                            else                      _selectedGenderCode = null;
-                          });
-                        },
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: _buildEditField(
+                          "NOM",
+                          _lastNameController,
+                          Icons.person_outline,
+                        ),
                       ),
-                      const SizedBox(height: 15),
-                      _buildDateField("DATE DE NAISSANCE", _selectedDob, _selectDate),
-                      const SizedBox(height: 30),
-                      _buildSectionHeader("CONTACT D'URGENCE"),
-                      _buildEditField("NOM / LIEN", _emergencyContactController, Icons.contact_emergency),
-                      const SizedBox(height: 15),
-                      _buildEditField("TÉLÉPHONE URGENCE", _emergencyPhoneController, Icons.phone),
-                      const SizedBox(height: 30),
-                      _buildSectionHeader("NOTES MÉDICALES"),
-                      _buildMultilineField("Allergies, pathologies, etc.", _medicalNotesController),
-                      const SizedBox(height: 40),
-                      _buildSaveButton(),
-                      const SizedBox(height: 40),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 15),
+                  _buildEditField(
+                    "EMAIL",
+                    _emailController,
+                    Icons.email_outlined,
+                  ),
+                  const SizedBox(height: 15),
+                  _buildEditField(
+                    "TÉLÉPHONE",
+                    _phoneController,
+                    Icons.phone_android_outlined,
+                  ),
+                  const SizedBox(height: 15),
+                  _buildEditField(
+                    "ADRESSE",
+                    _addressController,
+                    Icons.location_on_outlined,
+                  ),
+                  const SizedBox(height: 15),
+                  _buildDropdownField(
+                    "GENRE",
+                    // ✅ FIX : "Non spécifié" ajouté dans la liste pour éviter l'assertion Flutter
+                    // 'value must be null or one of the items values'
+                    ["Non spécifié", "Homme", "Femme"],
+                    _selectedGenderCode == 'M'
+                        ? "Homme"
+                        : (_selectedGenderCode == 'F'
+                              ? "Femme"
+                              : "Non spécifié"),
+                    (val) {
+                      setState(() {
+                        if (val == "Homme")
+                          _selectedGenderCode = 'M';
+                        else if (val == "Femme")
+                          _selectedGenderCode = 'F';
+                        else
+                          _selectedGenderCode = null;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 15),
+                  _buildDateField(
+                    "DATE DE NAISSANCE",
+                    _selectedDob,
+                    _selectDate,
+                  ),
+                  const SizedBox(height: 30),
+                  _buildSectionHeader("CONTACT D'URGENCE"),
+                  _buildEditField(
+                    "NOM / LIEN",
+                    _emergencyContactController,
+                    Icons.contact_emergency,
+                  ),
+                  const SizedBox(height: 15),
+                  _buildEditField(
+                    "TÉLÉPHONE URGENCE",
+                    _emergencyPhoneController,
+                    Icons.phone,
+                  ),
+                  const SizedBox(height: 30),
+                  _buildSectionHeader("NOTES MÉDICALES"),
+                  _buildMultilineField(
+                    "Allergies, pathologies, etc.",
+                    _medicalNotesController,
+                  ),
+                  const SizedBox(height: 40),
+                  _buildSaveButton(),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
     );
   }
 
@@ -487,7 +579,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
       children: [
         Container(
           padding: const EdgeInsets.all(3),
-          decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+          decoration: const BoxDecoration(
+            color: Colors.redAccent,
+            shape: BoxShape.circle,
+          ),
           child: const CircleAvatar(
             radius: 55,
             backgroundColor: Color(0xFF151515),
@@ -508,12 +603,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
       padding: const EdgeInsets.only(bottom: 15),
       child: Row(
         children: [
-          Text(title,
-              style: const TextStyle(
-                  color: Colors.redAccent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.redAccent,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.5,
+            ),
+          ),
           const SizedBox(width: 10),
           const Expanded(child: Divider(color: Colors.white10, thickness: 1)),
         ],
@@ -521,13 +619,22 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  Widget _buildEditField(String label, TextEditingController controller, IconData icon) {
+  Widget _buildEditField(
+    String label,
+    TextEditingController controller,
+    IconData icon,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(
-                color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white38,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
@@ -536,12 +643,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
             filled: true,
             fillColor: const Color(0xFF151515),
             prefixIcon: Icon(icon, color: Colors.redAccent, size: 18),
-            contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 15,
+              horizontal: 10,
+            ),
             enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
             focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.redAccent, width: 1)),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+            ),
           ),
         ),
       ],
@@ -552,9 +665,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(
-                color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white38,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
@@ -563,39 +681,61 @@ class _EditProfilePageState extends State<EditProfilePage> {
           decoration: InputDecoration(
             filled: true,
             fillColor: const Color(0xFF151515),
-            contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 15,
+              horizontal: 10,
+            ),
             enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
             focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Colors.redAccent, width: 1)),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildDropdownField(String label, List<String> items, String currentValue,
-      ValueChanged<String?> onChanged) {
+  Widget _buildDropdownField(
+    String label,
+    List<String> items,
+    String currentValue,
+    ValueChanged<String?> onChanged,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(
-                color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white38,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-              color: const Color(0xFF151515), borderRadius: BorderRadius.circular(12)),
+            color: const Color(0xFF151515),
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: currentValue,
               isExpanded: true,
               dropdownColor: const Color(0xFF1A1A1A),
-              icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white38),
+              icon: const Icon(
+                Icons.keyboard_arrow_down,
+                color: Colors.white38,
+              ),
               style: const TextStyle(color: Colors.white, fontSize: 14),
-              items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              items: items
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
               onChanged: onChanged,
             ),
           ),
@@ -604,13 +744,22 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  Widget _buildDateField(String label, DateTime? selectedDate, VoidCallback onTap) {
+  Widget _buildDateField(
+    String label,
+    DateTime? selectedDate,
+    VoidCallback onTap,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(
-                color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white38,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         InkWell(
           onTap: onTap,
@@ -632,7 +781,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     fontSize: 14,
                   ),
                 ),
-                const Icon(Icons.calendar_today, color: Colors.redAccent, size: 18),
+                const Icon(
+                  Icons.calendar_today,
+                  color: Colors.redAccent,
+                  size: 18,
+                ),
               ],
             ),
           ),
@@ -649,17 +802,27 @@ class _EditProfilePageState extends State<EditProfilePage> {
         onPressed: _isSaving ? null : _saveProfile,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.redAccent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
         ),
         child: _isSaving
             ? const SizedBox(
                 height: 20,
                 width: 20,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
               )
-            : const Text("SAUVEGARDER LES DONNÉES",
+            : const Text(
+                "SAUVEGARDER LES DONNÉES",
                 style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
+              ),
       ),
     );
   }

@@ -185,7 +185,7 @@ class SecurityController extends AbstractController
             $user->setResetToken($token);
             $entityManager->flush();
 
-            $resetLink = "http://192.168.1.145:8000/api/reset-password/$token";
+            $resetLink = "https://www.st-travelnosybe.com/api/reset-password/$token";
 
             $emailMessage = (new Email())
                 ->from('support@madafit.mg')
@@ -291,7 +291,7 @@ class SecurityController extends AbstractController
     public function logout(): void {}
 
 
-        #[Route('/api/check-email', name: 'api_check_email', methods: ['POST'])]
+    #[Route('/api/check-email', name: 'api_check_email', methods: ['POST'])]
     public function checkEmail(
         Request $request,
         UserRepository $userRepository
