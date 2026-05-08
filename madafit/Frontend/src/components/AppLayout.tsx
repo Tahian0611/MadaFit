@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import NotificationBell from '@/components/notifications/NotificationBell';
-import { useNotificationContext } from '@/contexts/NotificationContext';
+import NotificationBell from "@/components/notifications/NotificationBell";
+import { useNotificationContext } from "@/contexts/NotificationContext";
 import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import {
   ArrowRightLeft,
   BarChart3,
@@ -22,74 +23,92 @@ import {
   UserPlus,
   Users,
   Wifi,
-  X,
+  Newspaper,
 } from "lucide-react";
 import logoImg from "@/assets/madafit-logo.png";
 import api from "@/services/api";
 
-const navItems = [
-  { icon: LayoutDashboard, label: "Tableau de bord", path: "/" },
-  { icon: Users, label: "Membres", path: "/members" },
-  { icon: UserPlus, label: "Inscription", path: "/register" },
-  { icon: Wifi, label: "Controle d'acces", path: "/access" },
-  { icon: Tag, label: "Offres", path: "/plans" },
-  { icon: RefreshCw, label: "Abonnements", path: "/subscriptions" },
-  { icon: ShoppingBag, label: "Produits", path: "/products" },
-  { icon: ArrowRightLeft, label: "Mouvements", path: "/movements" },
-  { icon: ClipboardList, label: "Stock", path: "/reports-stock" },
-  { icon: BarChart3, label: "Rapports", path: "/reports" },
-  { icon: HistoryIcon, label: "Historique", path: "/history" },
+// ── Items admin complets ───────────────────────────────────────────────────────
+const ADMIN_NAV_ITEMS = [
+  { icon: LayoutDashboard, label: "Tableau de bord",  path: "/" },
+  { icon: Users,           label: "Membres",          path: "/members" },
+  { icon: UserPlus,        label: "Inscription",      path: "/register" },
+  { icon: Wifi,            label: "Controle d'acces", path: "/access" },
+  { icon: Tag,             label: "Offres",           path: "/plans" },
+  { icon: RefreshCw,       label: "Abonnements",      path: "/subscriptions" },
+  { icon: ShoppingBag,     label: "Produits",         path: "/products" },
+  { icon: ArrowRightLeft,  label: "Mouvements",       path: "/movements" },
+  { icon: ClipboardList,   label: "Stock",            path: "/reports-stock" },
+  { icon: BarChart3,       label: "Rapports",         path: "/reports" },
+  { icon: HistoryIcon,     label: "Historique",       path: "/history" },
+  { icon: Newspaper,       label: "Articles",         path: "/articles" },
 ];
 
-const bottomItems = [
+// ── Items accueil (réception) ─────────────────────────────────────────────────
+const RECEPTION_NAV_ITEMS = [
+  { icon: LayoutDashboard, label: "Tableau de bord",  path: "/" },
+  { icon: Users,           label: "Membres",          path: "/members" },
+  { icon: UserPlus,        label: "Inscription",      path: "/register" },
+  { icon: Wifi,            label: "Controle d'acces", path: "/access" },
+  { icon: Tag,             label: "Offres",           path: "/plans" },
+  { icon: RefreshCw,       label: "Abonnements",      path: "/subscriptions" },
+  { icon: ArrowRightLeft,  label: "Mouvements",       path: "/movements" },
+  { icon: ClipboardList,   label: "Stock",            path: "/reports-stock" },
+  { icon: HistoryIcon,     label: "Historique",       path: "/history" },
+];
+
+// ── Bottom items ──────────────────────────────────────────────────────────────
+// Admin : Notifications + Paramètres
+const ADMIN_BOTTOM_ITEMS = [
+  { icon: Bell,     label: "Notifications", path: "/notifications" },
+  { icon: Settings, label: "Parametres",    path: "/settings" },
+];
+
+// Accueil : Notifications uniquement (pas de Paramètres)
+const RECEPTION_BOTTOM_ITEMS = [
   { icon: Bell, label: "Notifications", path: "/notifications" },
-  { icon: Settings, label: "Parametres", path: "/settings" },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const { isAdmin } = useAuth();
 
   const { unreadCount } = useNotificationContext();
 
-  const [sessionUser, setSessionUser] = useState<unknown | null>(() => {
-    try { 
-      return JSON.parse(localStorage.getItem("madafit_user") || "null"); 
-    } catch { 
-      return null; 
-    }
+  const navItems    = isAdmin ? ADMIN_NAV_ITEMS    : RECEPTION_NAV_ITEMS;
+  const bottomItems = isAdmin ? ADMIN_BOTTOM_ITEMS : RECEPTION_BOTTOM_ITEMS;
+
+  const [sessionUser, setSessionUser] = useState<any | null>(() => {
+    try { return JSON.parse(localStorage.getItem("madafit_user") || "null"); }
+    catch { return null; }
   });
 
   useEffect(() => {
     const handler = () => {
-      try { 
-        setSessionUser(JSON.parse(localStorage.getItem("madafit_user") || "null")); 
-      } catch { 
-        setSessionUser(null); 
-      }
+      try { setSessionUser(JSON.parse(localStorage.getItem("madafit_user") || "null")); }
+      catch { setSessionUser(null); }
     };
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
   }, []);
 
-  const userInitial = sessionUser?.firstName?.charAt(0)?.toUpperCase() 
-    || sessionUser?.email?.charAt(0)?.toUpperCase() 
+  const userInitial = sessionUser?.firstName?.charAt(0)?.toUpperCase()
+    || sessionUser?.email?.charAt(0)?.toUpperCase()
     || "A";
-
-  const userName = sessionUser?.firstName 
-    ? `${sessionUser.firstName} ${sessionUser.lastName || ""}`.trim() 
-    : "Admin MadaFit";
-
-  const userEmail = sessionUser?.email || "admin@madafit.com";
+  const userName  = sessionUser?.firstName
+    ? `${sessionUser.firstName} ${sessionUser.lastName || ""}`.trim()
+    : "MadaFit";
+  const userEmail = sessionUser?.email || "";
+  const roleLabel = sessionUser?.roles?.includes("ROLE_ADMIN") ? "Administrateur" : "Accueil";
 
   return (
     <div className="flex h-screen w-full overflow-hidden" style={{ background: "hsl(var(--background))" }}>
-      {/* Overlay Mobile */}
       {mobileOpen && (
-        <div 
-          className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm lg:hidden transition-opacity" 
-          onClick={() => setMobileOpen(false)} 
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm lg:hidden transition-opacity"
+          onClick={() => setMobileOpen(false)}
         />
       )}
 
@@ -105,7 +124,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         }}
       >
         <div className="flex flex-col h-full w-full overflow-hidden">
-          {/* Header Sidebar */}
+          {/* Header */}
           <div className="flex items-center gap-3 px-4 py-5 border-b flex-shrink-0" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
             <img src={logoImg} alt="MadaFit" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
             {(!collapsed || mobileOpen) && (
@@ -118,13 +137,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* Badge Admin */}
+          {/* Badge rôle */}
           {(!collapsed || mobileOpen) && (
             <div className="px-4 py-3 border-b flex-shrink-0" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "hsl(var(--primary) / 0.15)" }}>
                 <Shield size={14} style={{ color: "hsl(var(--primary))" }} />
                 <span className="text-xs font-semibold truncate" style={{ color: "hsl(var(--primary))" }}>
-                  Administrateur
+                  {roleLabel}
                 </span>
               </div>
             </div>
@@ -134,7 +153,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto custom-scrollbar">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
-
               return (
                 <Link
                   key={item.path}
@@ -159,11 +177,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {/* Section Bas de Sidebar */}
+          {/* Section bas */}
           <div className="px-2 pb-4 space-y-1 border-t pt-3 flex-shrink-0" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
             {bottomItems.map((item) => {
               const isActive = location.pathname === item.path;
-
               return (
                 <Link
                   key={item.path}
@@ -171,6 +188,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   onClick={() => setMobileOpen(false)}
                   className="nav-item relative flex items-center h-10 px-3 rounded-lg"
                   style={{ background: isActive ? "hsl(var(--primary))" : undefined }}
+                  title={collapsed && !mobileOpen ? item.label : undefined}
                 >
                   <item.icon size={18} className="flex-shrink-0" />
                   {(!collapsed || mobileOpen) && (
@@ -186,17 +204,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         height: "16px",
                         background: "hsl(var(--primary))",
                         fontSize: "9px",
-                        border: "2px solid var(--gradient-sidebar)"
+                        border: "2px solid var(--gradient-sidebar)",
                       }}
                     >
-                      {unreadCount > 9 ? '9+' : unreadCount}
+                      {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
                 </Link>
               );
             })}
 
-            {/* Profil Utilisateur */}
+            {/* Profil utilisateur */}
             <div className="flex items-center gap-3 px-3 py-3 mt-2 rounded-lg bg-white/5 overflow-hidden">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold border border-white/10">
                 {userInitial}
@@ -208,7 +226,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
               )}
               {(!collapsed || mobileOpen) && (
-                <button 
+                <button
                   onClick={() => api.auth.logout()}
                   className="p-1.5 hover:bg-white/10 rounded-md transition-colors text-white/60 hover:text-white"
                 >
@@ -218,7 +236,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Bouton de réduction (Desktop uniquement) */}
+          {/* Bouton réduction desktop */}
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="hidden lg:flex absolute -right-3 top-20 z-10 items-center justify-center w-6 h-6 rounded-full border text-white transition-transform hover:scale-110 shadow-lg"
@@ -232,15 +250,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Contenu Principal */}
+      {/* Contenu principal */}
       <div className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
-        <header 
-          className="flex-shrink-0 flex items-center justify-between px-4 lg:px-6 h-16 border-b bg-card/80 backdrop-blur-md z-30" 
+        <header
+          className="flex-shrink-0 flex items-center justify-between px-4 lg:px-6 h-16 border-b bg-card/80 backdrop-blur-md z-30"
           style={{ borderColor: "hsl(var(--border))" }}
         >
           <div className="flex items-center gap-4">
-            <button 
-              className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-muted transition-colors" 
+            <button
+              className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-muted transition-colors"
               onClick={() => setMobileOpen(true)}
               aria-label="Ouvrir le menu"
             >
@@ -249,16 +267,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-2.5">
               <Dumbbell size={20} className="text-primary" />
               <span className="text-sm font-semibold text-muted-foreground hidden md:block">
-                {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                {new Date().toLocaleDateString("fr-FR", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+            {/* NotificationBell visible pour admin ET accueil */}
             <NotificationBell />
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-accent/5 border-accent/20">
               <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-              <span className="text-[11px] font-bold text-accent uppercase tracking-tight hidden xs:block">Online</span>
+              <span className="text-[11px] font-bold text-accent uppercase tracking-tight hidden xs:block">
+                Online
+              </span>
             </div>
           </div>
         </header>

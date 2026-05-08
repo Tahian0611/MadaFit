@@ -40,9 +40,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     const startPolling = () => {
       const interval = (countData?.count ?? data?.unreadCount ?? 0) > 0 ? 5000 : 30000;
-      
+
       if (intervalRef.current) clearInterval(intervalRef.current);
-      
+
       intervalRef.current = setInterval(() => {
         refetch();
         queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
@@ -94,28 +94,30 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // ── FILTRAGE : exclure les notifications de type 'system' ──
   const rawNotifications = (data?.items ?? []).map((n: any): Notification => ({
     ...n,
-    id: n.id,
-    type: n.type,
-    title: n.title,
-    message: n.message,
-    read: n.isRead ?? n.read ?? false,
-    date: n.createdAt ?? n.date ?? new Date().toISOString(),
-    isRead: n.isRead ?? n.read ?? false,
-    createdAt: n.createdAt ?? n.date ?? new Date().toISOString(),
-    priority: n.priority ?? 'normal',
-    link: n.link,
-    icon: n.icon,
+    id:         n.id,
+    type:       n.type,
+    title:      n.title,
+    message:    n.message,
+    read:       n.isRead ?? n.read ?? false,
+    date:       n.createdAt ?? n.date ?? new Date().toISOString(),
+    isRead:     n.isRead ?? n.read ?? false,
+    createdAt:  n.createdAt ?? n.date ?? new Date().toISOString(),
+    priority:   n.priority ?? 'normal',
+    link:       n.link,
+    icon:       n.icon,
     actionText: n.actionText,
     actionLink: n.actionLink,
-    user: n.user,
-    memberId: n.memberId,
+    user:       n.user,
+    memberId:   n.memberId,
     memberName: n.memberName,
   }));
 
-  const notifications = rawNotifications.filter((n) => n.type !== 'system');
+  // ❌ Filtre 'system' (existant) + 'access' (retiré suite à suppression de la notif accès)
+  const notifications = rawNotifications.filter(
+    (n) => n.type !== 'system' && n.type !== 'access'
+  );
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 

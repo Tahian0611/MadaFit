@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'EditProfile.dart'; // Add this to use UserApiService
 
 class PasswordPage extends StatefulWidget {
-  const PasswordPage({super.key});
+  final String token;      // JWT token from login
+  final int userId;        // current user ID
+
+  const PasswordPage({
+    super.key,
+    required this.token,
+    required this.userId,
+  });
 
   @override
   State<PasswordPage> createState() => _PasswordPageState();
@@ -15,11 +24,13 @@ class _PasswordPageState extends State<PasswordPage> {
   bool _obscureOld = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
+  bool _isLoading = false;
 
-  // --- LOGIQUE DE FORCE DU MOT DE PASSE ---
+  // --- Password strength indicator ---
   double _strengthValue = 0;
   String _strengthText = "";
   Color _strengthColor = Colors.transparent;
+
 
   void _checkPasswordStrength(String value) {
     double strength = 0;
@@ -50,6 +61,65 @@ class _PasswordPageState extends State<PasswordPage> {
     });
   }
 
+  Future<void> _changePassword() async {
+    // Validate fields
+    if (_oldPasswordController.text.isEmpty) {
+      _showError("Veuillez entrer votre mot de passe actuel.");
+      return;
+    }
+    if (_newPasswordController.text.length < 6) {
+      _showError("Le nouveau mot de passe doit avoir au moins 6 caractères.");
+      return;
+    }
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      _showError("Les mots de passe ne correspondent pas.");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await UserApiService.changePassword(
+        token: widget.token,
+        currentPassword: _oldPasswordController.text,
+        newPassword: _newPasswordController.text,
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        // Success
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(" Mot de passe modifié avec succès !"),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        Navigator.pop(context); // return to previous page
+      } else {
+        // Handle errors from backend
+        try {
+          final errorData = jsonDecode(response.body);
+          final message = errorData['message'] ?? errorData['error'] ?? "Erreur inconnue";
+          _showError(message);
+        } catch (_) {
+          _showError("Erreur ${response.statusCode}: Impossible de changer le mot de passe.");
+        }
+      }
+    } catch (e) {
+      _showError("Erreur réseau. Vérifiez votre connexion.");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -61,8 +131,8 @@ class _PasswordPageState extends State<PasswordPage> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("SÉCURITÉ", 
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.2)),
+        title: const Text("SÉCURITÉ",
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.2)),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -77,14 +147,13 @@ class _PasswordPageState extends State<PasswordPage> {
             const SizedBox(height: 20),
             const Center(
               child: Text("MODIFIER LE MOT DE PASSE",
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
             ),
             const SizedBox(height: 10),
             const Center(
               child: Text("Assurez-vous d'utiliser un mot de passe robuste.",
-                textAlign: TextAlign.center, style: TextStyle(color: Colors.white38, fontSize: 13)),
+                  textAlign: TextAlign.center, style: TextStyle(color: Colors.white38, fontSize: 13)),
             ),
-
             const SizedBox(height: 40),
 
             _buildPasswordField(
@@ -93,7 +162,7 @@ class _PasswordPageState extends State<PasswordPage> {
               isObscured: _obscureOld,
               onToggle: () => setState(() => _obscureOld = !_obscureOld),
             ),
-            
+
             const SizedBox(height: 20),
             const Divider(color: Colors.white10, thickness: 1),
             const SizedBox(height: 20),
@@ -102,11 +171,11 @@ class _PasswordPageState extends State<PasswordPage> {
               label: "NOUVEAU MOT DE PASSE",
               controller: _newPasswordController,
               isObscured: _obscureNew,
-              onChanged: _checkPasswordStrength, // Mise à jour auto
+              onChanged: _checkPasswordStrength,
               onToggle: () => setState(() => _obscureNew = !_obscureNew),
             ),
-            
-            // --- INDICATEUR DE FORCE ---
+
+            // Strength indicator
             if (_newPasswordController.text.isNotEmpty) ...[
               const SizedBox(height: 10),
               Row(
@@ -120,8 +189,8 @@ class _PasswordPageState extends State<PasswordPage> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text(_strengthText, 
-                    style: TextStyle(color: _strengthColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                  Text(_strengthText,
+                      style: TextStyle(color: _strengthColor, fontSize: 10, fontWeight: FontWeight.bold)),
                 ],
               ),
             ],
@@ -141,21 +210,19 @@ class _PasswordPageState extends State<PasswordPage> {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: () {
-                  if (_newPasswordController.text != _confirmPasswordController.text) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Les mots de passe ne correspondent pas"), backgroundColor: Colors.red),
-                    );
-                    return;
-                  }
-                  Navigator.pop(context);
-                },
+                onPressed: _isLoading ? null : _changePassword,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.redAccent,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 ),
-                child: const Text("METTRE À JOUR",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text("METTRE À JOUR",
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
               ),
             ),
             const SizedBox(height: 30),
@@ -166,9 +233,9 @@ class _PasswordPageState extends State<PasswordPage> {
   }
 
   Widget _buildPasswordField({
-    required String label, 
-    required TextEditingController controller, 
-    required bool isObscured, 
+    required String label,
+    required TextEditingController controller,
+    required bool isObscured,
     required VoidCallback onToggle,
     ValueChanged<String>? onChanged,
   }) {
@@ -187,12 +254,14 @@ class _PasswordPageState extends State<PasswordPage> {
             fillColor: const Color(0xFF151515),
             prefixIcon: const Icon(Icons.lock_outline, color: Colors.white38, size: 20),
             suffixIcon: IconButton(
-              icon: Icon(isObscured ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.white38, size: 20),
+              icon: Icon(isObscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  color: Colors.white38, size: 20),
               onPressed: onToggle,
             ),
             contentPadding: const EdgeInsets.symmetric(vertical: 18),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent, width: 1)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent, width: 1)),
           ),
         ),
       ],

@@ -27,7 +27,7 @@ class StockReportController extends AbstractController
     public function getSummary(Request $request): JsonResponse
     {
         $fromStr = $request->query->get('from');
-        $toStr = $request->query->get('to');
+        $toStr   = $request->query->get('to');
 
         if (!$fromStr || !$toStr) {
             return $this->json([
@@ -36,9 +36,13 @@ class StockReportController extends AbstractController
         }
 
         try {
-            $utc = new DateTimeZone('UTC');
-            $from = new DateTimeImmutable($fromStr . ' 00:00:00', $utc);
-            $to = new DateTimeImmutable($toStr . ' 23:59:59', $utc);
+            // ✅ FIX timezone : Madagascar = UTC+3 (Indian/Antananarivo)
+            // Avant : UTC → à 1h du matin Madagascar (= 22h UTC la veille),
+            // les transactions tombaient hors de la fenêtre "aujourd'hui UTC".
+            // Maintenant : les bornes sont calculées en heure locale Madagascar.
+            $tz   = new DateTimeZone('Indian/Antananarivo');
+            $from = new DateTimeImmutable($fromStr . ' 00:00:00', $tz);
+            $to   = new DateTimeImmutable($toStr   . ' 23:59:59', $tz);
         } catch (\Exception $e) {
             return $this->json([
                 'error' => 'Format de date invalide. Utilisez YYYY-MM-DD',
@@ -62,7 +66,7 @@ class StockReportController extends AbstractController
             $summary = $this->stockReportService->generateSummary($from, $to);
         } catch (\Exception $e) {
             return $this->json([
-                'error' => 'Erreur lors du calcul du rapport',
+                'error'  => 'Erreur lors du calcul du rapport',
                 'detail' => $e->getMessage(),
             ], 500);
         }
@@ -71,22 +75,22 @@ class StockReportController extends AbstractController
             'period' => $summary->period,
             'totals' => $summary->totals,
             'activeProductsCount' => $summary->activeProductsCount,
-            'rows' => array_map(fn($row) => [
+            'rows'   => array_map(fn($row) => [
                 'product' => [
-                    'id' => $row->productId,
-                    'name' => $row->productName,
+                    'id'       => $row->productId,
+                    'name'     => $row->productName,
                     'category' => $row->category,
                 ],
-                'initialStock' => $row->initialStock,
-                'totalEntries' => $row->totalEntries,
-                'totalSales' => $row->totalSales,
-                'totalCredits' => $row->totalCredits,
+                'initialStock'      => $row->initialStock,
+                'totalEntries'      => $row->totalEntries,
+                'totalSales'        => $row->totalSales,
+                'totalCredits'      => $row->totalCredits,
                 'totalNonSaleExits' => $row->totalNonSaleExits,
-                'totalExits' => $row->totalExits,
-                'finalStock' => $row->finalStock,
-                'totalCost' => $row->totalCost,
-                'revenue' => $row->revenue,
-                'profit' => $row->profit,
+                'totalExits'        => $row->totalExits,
+                'finalStock'        => $row->finalStock,
+                'totalCost'         => $row->totalCost,
+                'revenue'           => $row->revenue,
+                'profit'            => $row->profit,
             ], $summary->rows),
         ]);
     }

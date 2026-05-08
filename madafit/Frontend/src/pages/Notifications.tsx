@@ -1,51 +1,51 @@
 import { useState } from 'react';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import NotificationItem from '@/components/notifications/NotificationItem';
-import { 
-  Bell, Filter, CheckCheck, Loader2, 
-  UserPlus, DollarSign, Shield, Package, CalendarClock
+import {
+  Bell, Filter, CheckCheck, Loader2,
+  UserPlus, DollarSign, Package, CalendarClock, Newspaper
 } from 'lucide-react';
 
+// ✅ Ajout du filtre 'article'
 const TYPE_FILTERS = [
-  { value: 'all', label: 'Toutes', icon: Bell },
-  { value: 'member', label: 'Membres', icon: UserPlus },
-  { value: 'payment', label: 'Paiements', icon: DollarSign },
-  { value: 'access', label: 'Acces', icon: Shield },
-  { value: 'stock', label: 'Stock', icon: Package },
-  { value: 'subscription', label: 'Abonnements', icon: CalendarClock },
+  { value: 'all',          label: 'Toutes',       icon: Bell          },
+  { value: 'member',       label: 'Membres',      icon: UserPlus      },
+  { value: 'payment',      label: 'Paiements',    icon: DollarSign    },
+  { value: 'stock',        label: 'Stock',        icon: Package       },
+  { value: 'subscription', label: 'Abonnements',  icon: CalendarClock },
+  { value: 'article',      label: 'Articles',     icon: Newspaper     },
 ];
 
 const PRIORITY_FILTERS = [
-  { value: 'all', label: 'Toutes priorites' },
-  { value: 'urgent', label: 'Urgente', color: 'text-destructive' },
-  { value: 'high', label: 'Haute', color: 'text-amber-500' },
-  { value: 'normal', label: 'Normal', color: 'text-primary' },
-  { value: 'low', label: 'Basse', color: 'text-muted-foreground' },
+  { value: 'all',    label: 'Toutes priorites' },
+  { value: 'urgent', label: 'Urgente',  color: 'text-destructive'      },
+  { value: 'high',   label: 'Haute',    color: 'text-amber-500'        },
+  { value: 'normal', label: 'Normal',   color: 'text-primary'          },
+  { value: 'low',    label: 'Basse',    color: 'text-muted-foreground' },
 ];
 
 export default function NotificationsPage() {
   const { notifications, isLoading, markAllAsRead, deleteNotification } = useNotificationContext();
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [typeFilter,     setTypeFilter]     = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
-  const [readFilter, setReadFilter] = useState<'all' | 'read' | 'unread'>('all');
+  const [readFilter,     setReadFilter]     = useState<'all' | 'read' | 'unread'>('all');
 
   const filtered = notifications.filter(n => {
     if (typeFilter !== 'all' && n.type !== typeFilter) return false;
     if (priorityFilter !== 'all' && n.priority !== priorityFilter) return false;
-    if (readFilter === 'read' && !n.isRead) return false;
-    if (readFilter === 'unread' && n.isRead) return false;
+    if (readFilter === 'read'   && !n.isRead)  return false;
+    if (readFilter === 'unread' &&  n.isRead)  return false;
     return true;
   });
 
   const stats = {
-    total: notifications.length,
+    total:  notifications.length,
     unread: notifications.filter(n => !n.isRead).length,
     urgent: notifications.filter(n => n.priority === 'urgent' && !n.isRead).length,
   };
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6 px-2 sm:px-4 lg:px-0 pb-10">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-foreground uppercase tracking-tight">
@@ -66,7 +66,6 @@ export default function NotificationsPage() {
         )}
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-3 gap-4">
         <div className="stat-card relative overflow-hidden">
           <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-primary/5 rounded-full" />
@@ -85,24 +84,23 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="bg-card rounded-2xl border p-4 space-y-4" style={{ borderColor: 'hsl(var(--border))' }}>
         <div className="flex items-center gap-2 mb-2">
           <Filter size={14} className="text-muted-foreground" />
           <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Filtres</span>
         </div>
-        
+
         <div className="flex flex-wrap gap-2">
           {TYPE_FILTERS.map(f => {
-            const Icon = f.icon;
+            const Icon  = f.icon;
             const active = typeFilter === f.value;
             return (
               <button
                 key={f.value}
                 onClick={() => setTypeFilter(f.value)}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  active 
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' 
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
               >
@@ -120,23 +118,27 @@ export default function NotificationsPage() {
                 key={r}
                 onClick={() => setReadFilter(r)}
                 className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                  readFilter === r ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  readFilter === r
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {r === 'all' ? 'Tout' : r === 'unread' ? 'Non lues' : 'Lues'}
               </button>
             ))}
           </div>
-          
+
           <div className="h-4 w-px bg-border" />
-          
+
           <div className="flex items-center gap-1.5">
             {PRIORITY_FILTERS.map(p => (
               <button
                 key={p.value}
                 onClick={() => setPriorityFilter(p.value)}
                 className={`text-xs font-bold transition-all ${
-                  priorityFilter === p.value ? p.color || 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  priorityFilter === p.value
+                    ? p.color || 'text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {p.label}
@@ -146,26 +148,30 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {/* List */}
       <div className="space-y-3">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={24} className="animate-spin text-muted-foreground" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center bg-card rounded-2xl border border-dashed" style={{ borderColor: 'hsl(var(--border))' }}>
+          <div
+            className="flex flex-col items-center justify-center py-20 text-center bg-card rounded-2xl border border-dashed"
+            style={{ borderColor: 'hsl(var(--border))' }}
+          >
             <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
               <Bell size={28} className="text-muted-foreground/40" />
             </div>
             <p className="text-lg font-bold text-muted-foreground">Aucune notification</p>
-            <p className="text-sm text-muted-foreground/60 mt-1">Les filtres actuels ne retournent aucun resultat</p>
+            <p className="text-sm text-muted-foreground/60 mt-1">
+              Les filtres actuels ne retournent aucun resultat
+            </p>
           </div>
         ) : (
           filtered.map(notification => (
-            <NotificationItem 
-              key={notification.id} 
-              notification={notification} 
-              onDelete={() => deleteNotification(notification.id)}
+            <NotificationItem
+              key={notification.id}
+              notification={notification}
+              onDelete={() => deleteNotification(notification.id!)}
             />
           ))
         )}

@@ -2,7 +2,8 @@
 
 namespace App\EventSubscriber;
 
-use App\Entity\AttendanceRecord;
+use App\Entity\Article;
+use App\Entity\Payment;
 use App\Entity\PaymentRecord;
 use App\Entity\Transaction;
 use App\Entity\User;
@@ -11,10 +12,13 @@ use Doctrine\Bundle\DoctrineBundle\Attribute\AsEntityListener;
 use Doctrine\ORM\Events;
 use Doctrine\Persistence\Event\LifecycleEventArgs;
 
-#[AsEntityListener(event: Events::postPersist, entity: User::class, method: 'onUserCreated')]
-#[AsEntityListener(event: Events::postPersist, entity: AttendanceRecord::class, method: 'onAttendanceRecorded')]
-#[AsEntityListener(event: Events::postPersist, entity: Transaction::class, method: 'onTransactionCreated')]
+#[AsEntityListener(event: Events::postPersist, entity: User::class,         method: 'onUserCreated')]
+#[AsEntityListener(event: Events::postPersist, entity: Payment::class,       method: 'onPaymentCreated')]
+#[AsEntityListener(event: Events::postPersist, entity: Transaction::class,   method: 'onTransactionCreated')]
 #[AsEntityListener(event: Events::postPersist, entity: PaymentRecord::class, method: 'onPaymentRecorded')]
+// ✅ Article : notifier lors de la création et du passage en publié
+#[AsEntityListener(event: Events::postPersist, entity: Article::class,       method: 'onArticleCreated')]
+#[AsEntityListener(event: Events::postUpdate,  entity: Article::class,       method: 'onArticleUpdated')]
 class NotificationSubscriber
 {
     public function __construct(
@@ -26,35 +30,29 @@ class NotificationSubscriber
         $this->notificationService->notifyNewMember($user);
     }
 
-    public function onAttendanceRecorded(AttendanceRecord $record, LifecycleEventArgs $args): void
+    public function onPaymentCreated(Payment $payment, LifecycleEventArgs $args): void
     {
-        $user = $record->getUser();
+        try {
+            $em   = $args->getObjectManager();
+            $user = null;
 
-        if (!$user instanceof User) {
-            return;
-        }
+            if ($payment->getMemberId()) {
+                $user = $em->getRepository(User::class)
+                    ->findOneBy(['memberId' => $payment->getMemberId()]);
+            }
 
-        $status = $user->getStatus();
-
-        if ($status !== 'active') {
-            $reason = match($status) {
-                'expired' => 'Abonnement expire',
-                'suspended' => 'Compte suspendu',
-                default => 'Statut inactif'
-            };
-            $this->notificationService->notifyAccessDenied($user, $reason);
-        } else {
-            $this->notificationService->notifyAccessGranted($user);
+            if ($user instanceof User) {
+                $this->notificationService->notifyPaymentReceived($user, $payment->getAmount() ?? 0);
+            }
+        } catch (\Exception) {
+            // Non-critique
         }
     }
 
     public function onTransactionCreated(Transaction $transaction, LifecycleEventArgs $args): void
     {
         $product = $transaction->getProduct();
-
-        if (!$product) {
-            return;
-        }
+        if (!$product) return;
 
         $this->notificationService->notifyMovement(
             $product,
@@ -63,23 +61,45 @@ class NotificationSubscriber
         );
 
         $isExit = in_array($transaction->getType(), ['sale', 'credit', 'non_sale_exit', 'loss', 'damage'], true);
-
         if ($product->getCurrentStock() <= 5 && $isExit) {
-            $this->notificationService->notifyLowStock(
-                $product->getName(),
-                $product->getCurrentStock()
-            );
+            $this->notificationService->notifyLowStock($product->getName(), $product->getCurrentStock());
         }
     }
 
     public function onPaymentRecorded(PaymentRecord $record, LifecycleEventArgs $args): void
     {
         $user = $record->getUser();
-
-        if (!$user instanceof User) {
-            return;
-        }
-
+        if (!$user instanceof User) return;
         $this->notificationService->notifyPaymentReceived($user, $record->getAmount());
+    }
+
+    /**
+     * ✅ Nouvel article créé directement en publié → notifier tous les membres
+     */
+    public function onArticleCreated(Article $article, LifecycleEventArgs $args): void
+    {
+        try {
+            if ($article->isPublished()) {
+                $this->notificationService->notifyArticlePublished($article);
+            }
+        } catch (\Exception) {}
+    }
+
+    /**
+     * ✅ Article mis à jour : notifier seulement si isPublished vient de passer false → true
+     */
+    public function onArticleUpdated(Article $article, LifecycleEventArgs $args): void
+    {
+        try {
+            $em      = $args->getObjectManager();
+            $changes = $em->getUnitOfWork()->getEntityChangeSet($article);
+
+            if (isset($changes['isPublished'])
+                && $changes['isPublished'][0] === false
+                && $changes['isPublished'][1] === true
+            ) {
+                $this->notificationService->notifyArticlePublished($article);
+            }
+        } catch (\Exception) {}
     }
 }

@@ -11,4 +11,5 @@ nelmio_cors:
             allow_origin: ['*']
             allow_headers: ['*']
             allow_methods: ['*']
+            expose_headers: ['Link']
             max_age: 3600

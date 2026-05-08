@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\User;
 use App\Service\NotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -18,26 +19,40 @@ class NotificationController extends AbstractController
     #[Route('/', name: 'api_notifications_list_slash', methods: ['GET'])]
     public function list(Request $request, NotificationService $service): JsonResponse
     {
-        $user = $this->getUser();
-        $page = $request->query->getInt('page', 1);
+        $user         = $this->getUser();
+        $page         = $request->query->getInt('page', 1);
         $itemsPerPage = $request->query->getInt('itemsPerPage', 20);
 
-        $result = $service->getUserNotifications($user, $page, $itemsPerPage);
-        $unreadCount = $service->countUnreadForUser($user);
+        // ✅ Admin voit TOUTES les notifications (y compris alertes abonnements membres)
+        $isAdmin = $user instanceof User && in_array('ROLE_ADMIN', $user->getRoles());
+
+        if ($isAdmin) {
+            $result      = $service->getAllNotifications($page, $itemsPerPage);
+            $unreadCount = $service->countAllUnread();
+        } else {
+            $result      = $service->getUserNotifications($user, $page, $itemsPerPage);
+            $unreadCount = $service->countUnreadForUser($user);
+        }
 
         return $this->json([
-            'items' => $result['items'],
-            'total' => $result['total'],
-            'page' => $result['page'],
+            'items'        => $result['items'],
+            'total'        => $result['total'],
+            'page'         => $result['page'],
             'itemsPerPage' => $itemsPerPage,
-            'unreadCount' => $unreadCount,
+            'unreadCount'  => $unreadCount,
         ], 200, [], ['groups' => 'notification:read']);
     }
 
     #[Route('/unread-count', name: 'api_notifications_unread_count', methods: ['GET'])]
     public function unreadCount(NotificationService $service): JsonResponse
     {
-        $count = $service->countUnreadForUser($this->getUser());
+        $user    = $this->getUser();
+        $isAdmin = $user instanceof User && in_array('ROLE_ADMIN', $user->getRoles());
+
+        $count = $isAdmin
+            ? $service->countAllUnread()
+            : $service->countUnreadForUser($user);
+
         return $this->json(['count' => $count]);
     }
 

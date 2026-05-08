@@ -12,16 +12,18 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ORM\HasLifecycleCallbacks]
 class Notification
 {
-    public const TYPE_MEMBER = 'member';
-    public const TYPE_PAYMENT = 'payment';
-    public const TYPE_ACCESS = 'access';
-    public const TYPE_STOCK = 'stock';
+    public const TYPE_MEMBER       = 'member';
+    public const TYPE_PAYMENT      = 'payment';
+    public const TYPE_ACCESS       = 'access';
+    public const TYPE_STOCK        = 'stock';
     public const TYPE_SUBSCRIPTION = 'subscription';
-    public const TYPE_SYSTEM = 'system';
+    public const TYPE_SYSTEM       = 'system';
+    // ✅ Nouveau type pour les articles publiés (visible APK + web)
+    public const TYPE_ARTICLE      = 'article';
 
-    public const PRIORITY_LOW = 'low';
+    public const PRIORITY_LOW    = 'low';
     public const PRIORITY_NORMAL = 'normal';
-    public const PRIORITY_HIGH = 'high';
+    public const PRIORITY_HIGH   = 'high';
     public const PRIORITY_URGENT = 'urgent';
 
     #[ORM\Id]
@@ -32,7 +34,6 @@ class Notification
 
     #[ORM\ManyToOne(targetEntity: User::class, fetch: 'EAGER')]
     #[ORM\JoinColumn(nullable: true, onDelete: 'CASCADE')]
-    // ← SUPPRIMÉ : pas de Groups ici pour éviter la boucle
     private ?User $user = null;
 
     #[ORM\Column(length: 255)]
@@ -85,22 +86,15 @@ class Notification
         $this->createdAt = new \DateTimeImmutable();
     }
 
-    // ─── Getters / Setters ─────────────────────────────────────────────────
-
     public function getId(): ?int { return $this->id; }
-
     public function getUser(): ?User { return $this->user; }
     public function setUser(?User $user): static { $this->user = $user; return $this; }
-
     public function getTitle(): string { return $this->title; }
     public function setTitle(string $title): static { $this->title = $title; return $this; }
-
     public function getMessage(): string { return $this->message; }
     public function setMessage(string $message): static { $this->message = $message; return $this; }
-
     public function getType(): string { return $this->type; }
     public function setType(string $type): static { $this->type = $type; return $this; }
-
     public function isRead(): bool { return $this->isRead; }
     public function setIsRead(bool $isRead): static {
         $this->isRead = $isRead;
@@ -109,23 +103,16 @@ class Notification
         }
         return $this;
     }
-
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
-
     public function getLink(): ?string { return $this->link; }
     public function setLink(?string $link): static { $this->link = $link; return $this; }
-
     public function getIcon(): ?string { return $this->icon; }
     public function setIcon(?string $icon): static { $this->icon = $icon; return $this; }
-
     public function getPriority(): string { return $this->priority; }
     public function setPriority(string $priority): static { $this->priority = $priority; return $this; }
-
     public function getActionText(): ?string { return $this->actionText; }
     public function setActionText(?string $actionText): static { $this->actionText = $actionText; return $this; }
-
     public function getActionLink(): ?string { return $this->actionLink; }
     public function setActionLink(?string $actionLink): static { $this->actionLink = $actionLink; return $this; }
-
     public function getReadAt(): ?\DateTimeImmutable { return $this->readAt; }
 }

@@ -5,25 +5,24 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
-import Dashboard from "./pages/Dashboard";
-import Members from "./pages/Members";
-import Register from "./pages/Register";
+import Dashboard     from "./pages/Dashboard";
+import Members       from "./pages/Members";
+import Register      from "./pages/Register";
 import AccessControl from "./pages/AccessControl";
-import Plans from "./pages/Plans";
+import Plans         from "./pages/Plans";
 import Subscriptions from "./pages/Subscriptions";
-import Reports from "./pages/Reports";
+import Reports       from "./pages/Reports";
 import Notifications from "./pages/Notifications";
-import Settings from "./pages/Settings";
-import NotFound from "./pages/NotFound";
-import Products from "./pages/Products";
-import Movements from "./pages/Movements";
-import ReportsStock from "./pages/Reports_stock";
-import History from "./pages/History";
-import ApiTest from "./pages/ApiTest";
-import Login from "./pages/Login";
+import Settings      from "./pages/Settings";
+import NotFound      from "./pages/NotFound";
+import Products      from "./pages/Products";
+import Movements     from "./pages/Movements";
+import ReportsStock  from "./pages/Reports_stock";
+import History       from "./pages/History";
+import Login         from "./pages/Login";
+import Articles      from "./pages/Articles";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 
-// ← DÉPLACÉ en haut pour être accessible partout
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -50,12 +49,10 @@ function useSession() {
       return null;
     }
   });
-
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     setIsReady(true);
-
     const handleStorage = () => {
       try {
         const userStr = localStorage.getItem("madafit_user");
@@ -64,46 +61,44 @@ function useSession() {
         setSession(null);
       }
     };
-
-    const handleSessionExpired = () => {
-      setSession(null);
-    };
-
+    const handleSessionExpired = () => setSession(null);
     window.addEventListener("storage", handleStorage);
     window.addEventListener("madafit:sessionExpired", handleSessionExpired);
-
     return () => {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("madafit:sessionExpired", handleSessionExpired);
     };
   }, []);
 
-  return {
-    session,
-    isAdmin: session?.roles?.includes("ROLE_ADMIN") ?? false,
-    isReady,
-  };
+  const isAdmin     = session?.roles?.includes("ROLE_ADMIN")     ?? false;
+  const isReception = session?.roles?.includes("ROLE_RECEPTION") ?? false;
+  const isStaff     = isAdmin || isReception;
+
+  return { session, isAdmin, isReception, isStaff, isReady };
+}
+
+// ── Garde de route : admin uniquement ─────────────────────────────────────────
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  const roles = (() => {
+    try { return JSON.parse(localStorage.getItem("madafit_user") || "{}").roles || []; }
+    catch { return []; }
+  })();
+  if (!roles.includes("ROLE_ADMIN")) return <Navigate to="/" replace />;
+  return <>{children}</>;
 }
 
 const App = () => {
-  const { isAdmin, isReady } = useSession();
+  const { isStaff, isReady } = useSession();
 
-  // ← NOUVEAU : Écouter les demandes de refresh global
   useEffect(() => {
     const handleRefresh = () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     };
-
-    window.addEventListener('madafit:refreshNotifications', handleRefresh);
-    
-    return () => {
-      window.removeEventListener('madafit:refreshNotifications', handleRefresh);
-    };
+    window.addEventListener("madafit:refreshNotifications", handleRefresh);
+    return () => window.removeEventListener("madafit:refreshNotifications", handleRefresh);
   }, []);
 
-  if (!isReady) {
-    return <div className="min-h-screen bg-background" />;
-  }
+  if (!isReady) return <div className="min-h-screen bg-background" />;
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -112,31 +107,40 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Page login */}
             <Route
               path="/login"
-              element={!isAdmin ? <Login /> : <Navigate to="/" replace />}
+              element={!isStaff ? <Login /> : <Navigate to="/" replace />}
             />
+
+            {/* App protégée — staff uniquement (admin + accueil) */}
             <Route
               path="/*"
               element={
-                isAdmin ? (
+                isStaff ? (
                   <NotificationProvider>
                     <AppLayout>
                       <Routes>
-                        <Route path="/" element={<Dashboard />} />
-                        <Route path="/members" element={<Members />} />
-                        <Route path="/register" element={<Register />} />
-                        <Route path="/access" element={<AccessControl />} />
-                        <Route path="/plans" element={<Plans />} />
+                        {/* ── Routes communes admin + accueil ────────────── */}
+                        <Route path="/"              element={<Dashboard />} />
+                        <Route path="/members"       element={<Members />} />
+                        <Route path="/register"      element={<Register />} />
+                        <Route path="/access"        element={<AccessControl />} />
+                        <Route path="/plans"         element={<Plans />} />
                         <Route path="/subscriptions" element={<Subscriptions />} />
-                        <Route path="/products" element={<Products />} />
-                        <Route path="/movements" element={<Movements />} />
+                        <Route path="/movements"     element={<Movements />} />
                         <Route path="/reports-stock" element={<ReportsStock />} />
-                        <Route path="/reports" element={<Reports />} />
-                        <Route path="/history" element={<History />} />
+                        <Route path="/history"       element={<History />} />
+
+                        {/* ── Notifications : admin + accueil ───────────── */}
                         <Route path="/notifications" element={<Notifications />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="/debug-api" element={<ApiTest />} />
+
+                        {/* ── Routes admin uniquement ────────────────────── */}
+                        <Route path="/products"  element={<AdminOnly><Products /></AdminOnly>} />
+                        <Route path="/reports"   element={<AdminOnly><Reports /></AdminOnly>} />
+                        <Route path="/settings"  element={<AdminOnly><Settings /></AdminOnly>} />
+                        <Route path="/articles"  element={<AdminOnly><Articles /></AdminOnly>} />
+
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </AppLayout>

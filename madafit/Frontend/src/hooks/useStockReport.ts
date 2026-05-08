@@ -5,8 +5,11 @@ export function useStockReport(from: string, to: string) {
   return useQuery({
     queryKey: ['stock-report', from, to],
     queryFn: () => api.stockReports.getSummary({ from, to }),
-    enabled: !!from && !!to, // Ne lance la requête que si les deux dates sont définies
-    staleTime: 5 * 60 * 1000, // 5 minutes de cache
-    retry: 2, // Réessaie 2 fois en cas d'erreur
+    enabled: !!from && !!to,
+    // ✅ FIX staleTime 0 : le rapport est toujours considéré périmé.
+    // Avant : staleTime = 5 minutes → après un mouvement, le rapport
+    // restait figé 5 minutes même après invalidation.
+    staleTime: 0,
+    retry: 2,
   });
 }

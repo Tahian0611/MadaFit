@@ -20,6 +20,11 @@ export type NotificationType = 'member' | 'payment' | 'access' | 'stock' | 'subs
 export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
 
 // ============================================================================
+// ARTICLE TYPE
+// ============================================================================
+export type ArticleCategory = 'news' | 'promo' | 'event' | 'tips';
+
+// ============================================================================
 // USER ENTITY
 // ============================================================================
 export interface User {
@@ -64,6 +69,22 @@ export interface User {
   paymentRecords?: PaymentRecord[];
   visitRecords?: VisitRecord[];
   notifications?: Notification[];
+}
+
+// ============================================================================
+// ARTICLE ENTITY
+// ============================================================================
+export interface Article {
+  id?: number;
+  title: string;
+  content: string;
+  imageUrl?: string | null;
+  category?: ArticleCategory | null;
+  isPublished: boolean;
+  publishedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string | null;
+  author?: User | null;
 }
 
 // ============================================================================

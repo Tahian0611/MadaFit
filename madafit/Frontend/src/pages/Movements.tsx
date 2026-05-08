@@ -59,17 +59,17 @@ const CATEGORIES = [
 ];
 
 const TX_OPTIONS: { value: TxType; label: string; description: string; icon: React.ElementType; color: string }[] = [
-  { value: 'entry', label: 'Entrée (Approvisionnement)', description: 'Stock reçu ou acheté', icon: ArrowDown, color: 'border-success/40 bg-success/5 text-success' },
-  { value: 'sale', label: 'Sortie — Vente', description: "Génère un encaissement direct", icon: ArrowUp, color: 'border-accent/40 bg-accent/5 text-accent' },
-  { value: 'credit', label: 'Sortie — À Crédit', description: "Vendu mais non payé", icon: Clock, color: 'border-amber-500/40 bg-amber-500/5 text-amber-600' },
-  { value: 'non_sale_exit', label: 'Sortie sans encaissement', description: 'Ex : offert, cassé, perdu...', icon: Gift, color: 'border-destructive/40 bg-destructive/5 text-destructive' },
+  { value: 'entry',        label: 'Entrée (Approvisionnement)', description: 'Stock reçu ou acheté',      icon: ArrowDown, color: 'border-success/40 bg-success/5 text-success' },
+  { value: 'sale',         label: 'Sortie — Vente',             description: "Génère un encaissement direct", icon: ArrowUp,   color: 'border-accent/40 bg-accent/5 text-accent' },
+  { value: 'credit',       label: 'Sortie — À Crédit',          description: "Vendu mais non payé",        icon: Clock,     color: 'border-amber-500/40 bg-amber-500/5 text-amber-600' },
+  { value: 'non_sale_exit',label: 'Sortie sans encaissement',   description: 'Ex : offert, cassé, perdu...', icon: Gift,    color: 'border-destructive/40 bg-destructive/5 text-destructive' },
 ];
 
 const TX_TYPE_INFO: Record<string, { label: string; badgeClass: string; marker: string }> = {
-  entry: { label: 'Entrée', badgeClass: 'bg-success/10 text-success', marker: 'bg-success' },
-  sale: { label: 'Vente', badgeClass: 'bg-accent/10 text-accent', marker: 'bg-accent' },
-  credit: { label: 'Crédit', badgeClass: 'bg-amber-500/10 text-amber-600', marker: 'bg-amber-500' },
-  non_sale_exit: { label: 'Sortie S/E', badgeClass: 'bg-destructive/10 text-destructive', marker: 'bg-destructive' },
+  entry:        { label: 'Entrée',    badgeClass: 'bg-success/10 text-success',       marker: 'bg-success'      },
+  sale:         { label: 'Vente',     badgeClass: 'bg-accent/10 text-accent',         marker: 'bg-accent'       },
+  credit:       { label: 'Crédit',    badgeClass: 'bg-amber-500/10 text-amber-600',   marker: 'bg-amber-500'    },
+  non_sale_exit:{ label: 'Sortie S/E',badgeClass: 'bg-destructive/10 text-destructive',marker: 'bg-destructive' },
 };
 
 function generateId(): string {
@@ -281,10 +281,10 @@ export default function Movements() {
   const [showHistory, setShowHistory] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  const productsQuery = useQuery({ queryKey: ['products'], queryFn: () => api.products.getAll({ itemsPerPage: 1000 }) });
+  const productsQuery     = useQuery({ queryKey: ['products'],     queryFn: () => api.products.getAll({ itemsPerPage: 1000 }) });
   const transactionsQuery = useQuery({ queryKey: ['transactions'], queryFn: () => api.transactions.getAll({ itemsPerPage: 20 }) });
 
-  const products = extractHydraMembers(productsQuery.data);
+  const products           = extractHydraMembers(productsQuery.data);
   const recentTransactions = extractHydraMembers(transactionsQuery.data);
 
   const createTxMutation = useMutation({
@@ -300,6 +300,9 @@ export default function Movements() {
       toast.success("Transaction supprimee");
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      // ✅ FIX : invalide aussi le rapport stock pour que Reports_stock
+      // se mette à jour immédiatement sans F5
+      queryClient.invalidateQueries({ queryKey: ['stock-report'] });
       setDeleteId(null);
     }
   });
@@ -422,6 +425,9 @@ export default function Movements() {
 
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      // ✅ FIX : invalide le rapport stock pour que Reports_stock
+      // affiche les nouvelles données immédiatement sans F5
+      queryClient.invalidateQueries({ queryKey: ['stock-report'] });
       
       refreshNotifications();
       
@@ -610,15 +616,11 @@ export default function Movements() {
                   const total = (() => {
                     if (!product) return null;
                     switch (tx.type) {
-                      case 'entry':
-                        return tx.quantity * (tx.unitPrice ?? product.purchasePrice ?? 0);
+                      case 'entry':        return tx.quantity * (tx.unitPrice ?? product.purchasePrice ?? 0);
                       case 'sale':
-                      case 'credit':
-                        return tx.quantity * (tx.unitPrice ?? product.salePrice ?? 0);
-                      case 'non_sale_exit':
-                        return tx.quantity * (tx.unitPrice ?? product.purchasePrice ?? 0);
-                      default:
-                        return null;
+                      case 'credit':       return tx.quantity * (tx.unitPrice ?? product.salePrice ?? 0);
+                      case 'non_sale_exit':return tx.quantity * (tx.unitPrice ?? product.purchasePrice ?? 0);
+                      default:             return null;
                     }
                   })();
 

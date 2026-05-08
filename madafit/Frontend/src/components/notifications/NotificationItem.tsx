@@ -2,24 +2,26 @@ import { useNotificationContext } from '@/contexts/NotificationContext';
 import type { Notification } from '@/types/entities';
 import { 
   UserPlus, DollarSign, ShieldCheck, Package, 
-  CalendarClock, AlertTriangle, Info, Check, ArrowRight, Trash2 
+  CalendarClock, AlertTriangle, Info, Check, ArrowRight, Trash2, Newspaper
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 const TYPE_CONFIG = {
-  member: { icon: UserPlus, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-  payment: { icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-  access: { icon: ShieldCheck, color: 'text-violet-500', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
-  stock: { icon: Package, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-  subscription: { icon: CalendarClock, color: 'text-rose-500', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
-  system: { icon: Info, color: 'text-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/20' },
+  member:       { icon: UserPlus,      color: 'text-blue-500',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20'    },
+  payment:      { icon: DollarSign,    color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+  access:       { icon: ShieldCheck,   color: 'text-violet-500',  bg: 'bg-violet-500/10',  border: 'border-violet-500/20'  },
+  stock:        { icon: Package,       color: 'text-amber-500',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20'   },
+  subscription: { icon: CalendarClock, color: 'text-rose-500',    bg: 'bg-rose-500/10',    border: 'border-rose-500/20'    },
+  system:       { icon: Info,          color: 'text-slate-500',   bg: 'bg-slate-500/10',   border: 'border-slate-500/20'   },
+  // ✅ Nouveau type article
+  article:      { icon: Newspaper,     color: 'text-sky-500',     bg: 'bg-sky-500/10',     border: 'border-sky-500/20'     },
 };
 
 const PRIORITY_INDICATOR = {
-  low: 'bg-muted',
+  low:    'bg-muted',
   normal: 'bg-primary',
-  high: 'bg-amber-500',
+  high:   'bg-amber-500',
   urgent: 'bg-destructive animate-pulse',
 };
 
@@ -32,7 +34,7 @@ interface Props {
 
 export default function NotificationItem({ notification, compact, onClose, onDelete }: Props) {
   const { markAsRead } = useNotificationContext();
-  const config = TYPE_CONFIG[notification.type] || TYPE_CONFIG.system;
+  const config = TYPE_CONFIG[notification.type as keyof typeof TYPE_CONFIG] || TYPE_CONFIG.system;
   const Icon = config.icon;
   
   const timeAgo = formatDistanceToNow(new Date(notification.createdAt || notification.date), { 
@@ -42,10 +44,10 @@ export default function NotificationItem({ notification, compact, onClose, onDel
 
   const handleClick = () => {
     if (!notification.isRead) {
-      markAsRead(notification.id);
+      markAsRead(notification.id!);
     }
     if (notification.link && onClose) {
-           onClose();
+      onClose();
       window.location.href = notification.link;
     }
   };
@@ -58,15 +60,12 @@ export default function NotificationItem({ notification, compact, onClose, onDel
           !notification.isRead ? 'bg-primary/[0.02]' : ''
         }`}
       >
-        {/* Priority indicator */}
-        <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 rounded-r-full ${PRIORITY_INDICATOR[notification.priority]}`} />
+        <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 rounded-r-full ${PRIORITY_INDICATOR[notification.priority as keyof typeof PRIORITY_INDICATOR] || 'bg-muted'}`} />
         
-        {/* Icon */}
         <div className={`flex-shrink-0 w-9 h-9 rounded-xl ${config.bg} ${config.color} flex items-center justify-center border ${config.border}`}>
           <Icon size={16} />
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <p className={`text-sm font-semibold leading-tight ${!notification.isRead ? 'text-foreground' : 'text-muted-foreground'}`}>
@@ -92,7 +91,6 @@ export default function NotificationItem({ notification, compact, onClose, onDel
     );
   }
 
-  // Full version for the dedicated page
   return (
     <div
       onClick={handleClick}
@@ -115,7 +113,7 @@ export default function NotificationItem({ notification, compact, onClose, onDel
           </span>
           <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
             notification.priority === 'urgent' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
-            notification.priority === 'high' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
+            notification.priority === 'high'   ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
             'bg-muted text-muted-foreground border border-border'
           }`}>
             {notification.priority}
@@ -134,28 +132,20 @@ export default function NotificationItem({ notification, compact, onClose, onDel
           <div className="flex items-center gap-2">
             {!notification.isRead && (
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  markAsRead(notification.id);
-                }}
+                onClick={(e) => { e.stopPropagation(); markAsRead(notification.id!); }}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-primary hover:bg-primary/10 transition-colors"
               >
                 <Check size={12} /> Marquer comme lu
               </button>
             )}
-
             {onDelete && (
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                }}
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-destructive hover:bg-destructive/10 transition-colors"
               >
                 <Trash2 size={12} /> Supprimer
               </button>
             )}
-
             {notification.link && (
               <a
                 href={notification.link}
