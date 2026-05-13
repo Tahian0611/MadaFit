@@ -144,13 +144,65 @@ class _AbonnementPageState extends State<AbonnementPage> {
     return Color(int.parse(buffer.toString(), radix: 16));
   }
 
-  void _onSubscribe(SubscriptionPlan plan) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Souscription à ${plan.name}'),
-        backgroundColor: Colors.green,
+  void _onSubscribe(SubscriptionPlan plan) async {
+    if (widget.userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Erreur: Utilisateur non identifié")),
+      );
+      return;
+    }
+
+    // Afficher un loader
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Colors.redAccent),
       ),
     );
+
+    try {
+      final response = await http.patch(
+        Uri.parse('$_baseUrl/users/${widget.userId}'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/merge-patch+json',
+          'Accept': 'application/ld+json',
+        },
+        body: jsonEncode({
+          'subscription': plan.name,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (mounted) Navigator.of(context).pop(); // Fermer le loader
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✓ Vous avez choisi la formule : ${plan.name}'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erreur lors du choix : ${response.statusCode}'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur réseau : $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -354,6 +406,32 @@ class _AbonnementPageState extends State<AbonnementPage> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 25),
+                // ── BOUTON D'ACTION ──────────────────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => _onSubscribe(plan),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: planColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      elevation: 5,
+                      shadowColor: planColor.withOpacity(0.5),
+                    ),
+                    child: const Text(
+                      "CHOISIR CETTE OFFRE",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ),

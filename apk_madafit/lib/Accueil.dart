@@ -6,10 +6,10 @@ import 'package:http/http.dart' as http;
 import 'api_config.dart';
 
 // --- TES IMPORTS ---
-import 'apropos.dart';
-import 'abonnement.dart';
-import 'profile.dart';
-import 'notification.dart';
+import 'Apropos.dart';
+import 'Abonnement.dart';
+import 'Profile.dart';
+import 'Notification.dart';
 
 // ============================================================
 //  MODÈLE ARTICLE
@@ -106,7 +106,13 @@ class ArticleModel {
 class HomeScreen extends StatefulWidget {
   final VoidCallback onLogout;
   final String token;
-  const HomeScreen({super.key, required this.onLogout, required this.token});
+  final int? userId;
+  const HomeScreen({
+    super.key,
+    required this.onLogout,
+    required this.token,
+    this.userId,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -137,8 +143,12 @@ class _HomeScreenState extends State<HomeScreen> {
         countNotifier: _notificationCountNotifier,
       ),
       const AproposPage(),
-      AbonnementPage(token: widget.token),
-      ProfilePage(token: widget.token, onLogout: widget.onLogout),
+      AbonnementPage(token: widget.token, userId: widget.userId),
+      ProfilePage(
+        token: widget.token,
+        onLogout: widget.onLogout,
+        userId: widget.userId,
+      ),
       NotificationPage(
         token: widget.token,
         countNotifier: _notificationCountNotifier,

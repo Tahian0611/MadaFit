@@ -9,8 +9,14 @@ import 'api_config.dart';
 class ProfilePage extends StatefulWidget {
   final VoidCallback? onLogout;
   final String token;
+  final int? userId;
 
-  const ProfilePage({super.key, required this.token, this.onLogout});
+  const ProfilePage({
+    super.key,
+    required this.token,
+    this.onLogout,
+    this.userId,
+  });
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();

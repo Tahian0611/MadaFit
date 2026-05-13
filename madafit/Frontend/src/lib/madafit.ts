@@ -51,13 +51,16 @@ export function normalizeMemberStatus(status?: string | null): MemberStatus {
   return "suspended";
 }
 
-export function normalizeSubscriptionType(subscription?: string | null): SubscriptionType {
-  const value = (subscription ?? "").toLowerCase();
+export function normalizeSubscriptionType(subscription?: string | null): string {
+  const value = (subscription ?? "").toLowerCase().trim();
   if (["monthly", "mensuel", "abonnement mensuel", "session"].includes(value)) return "monthly";
   if (["quarterly", "trimestriel"].includes(value)) return "quarterly";
   if (["annual", "annuel", "yearly", "abonnement annuel"].includes(value)) return "annual";
   if (["vip"].includes(value)) return "vip";
-  return "coaching";
+  if (["coaching", "coaching perso"].includes(value)) return "coaching";
+  
+  // Si on ne connaît pas le mot-clé, on garde la valeur brute (ex: "Offre 2026")
+  return subscription ?? "standard";
 }
 
 export function formatCurrency(amount?: number | null) {

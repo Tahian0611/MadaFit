@@ -240,7 +240,7 @@ export default function Members() {
                             <p className="text-xs text-muted-foreground">{member.memberId || "Sans numéro"}</p>
                           </div>
                         </td>
-                        <td>{SUBSCRIPTION_LABELS[subscription]}</td>
+                        <td>{SUBSCRIPTION_LABELS[subscription as SubscriptionType] ?? subscription}</td>
                         {/* ═══════════════════════════════════════════════════════════════
                             INJECTION : Affichage multi-activités (badges)
                             ═══════════════════════════════════════════════════════════════ */}
@@ -356,7 +356,7 @@ export default function Members() {
                 {/* ═══════════════════════════════════════════════════════════════ */}
                 <InfoRow
                   label="Abonnement"
-                  value={SUBSCRIPTION_LABELS[normalizeSubscriptionType(selectedMember.subscription)]}
+                  value={SUBSCRIPTION_LABELS[normalizeSubscriptionType(selectedMember.subscription) as SubscriptionType] ?? normalizeSubscriptionType(selectedMember.subscription)}
                 />
                 <InfoRow
                   label="Date début"

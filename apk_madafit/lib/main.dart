@@ -60,7 +60,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   Widget build(BuildContext context) {
     return _isLoggedIn
-        ? HomeScreen(onLogout: _onLogout, token: _userData!['token'] ?? '')
+        ? HomeScreen(
+            onLogout: _onLogout,
+            token: _userData!['token'] ?? '',
+            userId: _userData!['id'],
+          )
         : AuthScreen(onSuccess: _onLoginSuccess);
   }
 }
