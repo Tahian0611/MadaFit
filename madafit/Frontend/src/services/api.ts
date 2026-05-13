@@ -20,6 +20,30 @@ const getApiBaseUrl = (): string => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+/**
+ * Helper pour obtenir l'URL complète d'une image.
+ * Résout les chemins relatifs en utilisant l'origine de l'API ou du site.
+ */
+export const getFullImageUrl = (path?: string | null): string => {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+
+  // S'assurer d'avoir un slash au début
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+
+  // Si on est en local avec le proxy Vite, le chemin relatif /uploads est géré
+  // Sinon on peut avoir besoin de préfixer par le domaine de l'API
+  const baseUrl = import.meta.env.VITE_API_URL || "";
+  
+  if (baseUrl.startsWith("http")) {
+    const url = new URL(baseUrl);
+    // On prend l'origine (domaine) sans le /api
+    return `${url.origin}${cleanPath}`;
+  }
+
+  return cleanPath;
+};
+
 let isAuthenticating = false;
 
 function buildQueryString(params?: QueryParams): string {

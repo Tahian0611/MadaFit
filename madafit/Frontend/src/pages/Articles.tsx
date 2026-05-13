@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import {
   Plus, Trash2, Pencil, Eye, EyeOff, Newspaper, X, Loader2, Calendar, Upload,
 } from "lucide-react";
-import api, { uploadImage } from "@/services/api";
+import api, { uploadImage, getFullImageUrl } from "@/services/api";
 import { extractHydraMembers } from "@/lib/madafit";
 import type { Article, ArticleCategory } from "@/types/entities";
 
@@ -174,6 +174,24 @@ export default function Articles() {
         <div className="flex items-center justify-center py-20">
           <Loader2 size={28} className="animate-spin text-muted-foreground" />
         </div>
+      ) : articlesQuery.isError ? (
+        <div
+          className="flex flex-col items-center justify-center py-20 text-center bg-destructive/5 rounded-2xl border border-dashed border-destructive/20"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mb-4">
+            <X size={28} className="text-destructive" />
+          </div>
+          <p className="text-lg font-bold text-destructive">Erreur de chargement</p>
+          <p className="text-sm text-muted-foreground/60 mt-1 max-w-xs mx-auto">
+            {articlesQuery.error instanceof Error ? articlesQuery.error.message : "Impossible de récupérer les articles."}
+          </p>
+          <button
+            onClick={() => articlesQuery.refetch()}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-destructive hover:opacity-90"
+          >
+            Réessayer
+          </button>
+        </div>
       ) : articles.length === 0 ? (
         <div
           className="flex flex-col items-center justify-center py-20 text-center bg-card rounded-2xl border border-dashed"
@@ -208,7 +226,7 @@ export default function Articles() {
                 {article.imageUrl ? (
                   <div className="h-40 overflow-hidden bg-muted/20">
                     <img
-                      src={article.imageUrl}
+                      src={getFullImageUrl(article.imageUrl)}
                       alt={article.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       onError={(e) => {
@@ -405,7 +423,7 @@ export default function Articles() {
                 {form.imageUrl && (
                   <div className="relative">
                     <img
-                      src={form.imageUrl}
+                      src={getFullImageUrl(form.imageUrl)}
                       alt="Aperçu"
                       className="h-32 w-full object-cover rounded-lg border"
                       style={{ borderColor: "hsl(var(--border))" }}
