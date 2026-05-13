@@ -14,18 +14,8 @@ security:
             security: false
 
         # ← AJOUT : Login en premier, sans JWT
-        api_login:
-            pattern: ^/api/login$
-            stateless: true
-            json_login:
-                check_path: /api/login
-                username_path: email
-                password_path: password
-                success_handler: lexik_jwt_authentication.handler.authentication_success
-                failure_handler: lexik_jwt_authentication.handler.authentication_failure
-
         public_api:
-            pattern: ^/api/(register|forgot-password|reset-password|subscription_plans|check-email)$
+            pattern: ^/api/(login|register|forgot-password|reset-password|subscription_plans|check-email|articles|article_categories)$
             stateless: true
             security: false
 
@@ -46,6 +36,8 @@ security:
         - { path: ^/api/reset-password,     roles: PUBLIC_ACCESS }
         - { path: ^/api/check-email,        roles: PUBLIC_ACCESS }
         - { path: ^/api/subscription_plans, roles: PUBLIC_ACCESS, methods: [GET] }
+        - { path: ^/api/articles,           roles: PUBLIC_ACCESS, methods: [GET] }
+        - { path: ^/api/article_categories,  roles: PUBLIC_ACCESS, methods: [GET] }
         # - { path: ^/api/notifications,       roles: PUBLIC_ACCESS, methods: [GET] }
         - { path: ^/api,                    roles: IS_AUTHENTICATED_FULLY }
 

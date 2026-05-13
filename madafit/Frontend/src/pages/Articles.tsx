@@ -24,7 +24,7 @@ const EMPTY_FORM: Partial<Article> = {
   content:     "",
   imageUrl:    "",
   category:    "news",
-  isPublished: false,
+  isPublished: true,
 };
 
 export default function Articles() {
@@ -362,6 +362,28 @@ export default function Articles() {
                       <option key={c.value} value={c.value}>{c.label}</option>
                     ))}
                   </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">Statut</label>
+                  <div className="flex items-center gap-3 h-[42px]">
+                    <button
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, isPublished: !f.isPublished }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                        form.isPublished ? "bg-primary" : "bg-muted"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          form.isPublished ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm font-medium">
+                      {form.isPublished ? "Publié (visible APK)" : "Brouillon (caché)"}
+                    </span>
+                  </div>
                 </div>
               </div>
 

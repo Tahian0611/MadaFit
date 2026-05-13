@@ -1,11 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
 import 'Accueil.dart';
 import 'api_config.dart';
+import 'http_overrides.dart';
 
 void main() {
+  HttpOverrides.global = MyHttpOverrides();
   runApp(const MadafitApp());
 }
 
