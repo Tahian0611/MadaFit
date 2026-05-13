@@ -9,34 +9,61 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use ApiPlatform\Metadata\ApiResource;
 
+use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Validator\Constraints as Assert;
+use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
+
 #[ORM\Entity(repositoryClass: ProductRepository::class)]
-#[ApiResource]
+#[ApiResource(
+    normalizationContext: ['groups' => ['product:read']],
+    denormalizationContext: ['groups' => ['product:write']],
+    security: "is_granted('ROLE_USER')",
+    description: 'Produits en stock (boissons, barres protéinées, etc.).'
+)]
+#[ApiFilter(SearchFilter::class, properties: ['name' => 'partial', 'category' => 'exact'])]
+#[ApiFilter(OrderFilter::class, properties: ['name', 'salePrice'])]
 class Product
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['product:read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 200)]
+    #[Groups(['product:read', 'product:write'])]
+    #[Assert\NotBlank]
     private ?string $name = null;
 
     #[ORM\Column(length: 100)]
+    #[Groups(['product:read', 'product:write'])]
+    #[Assert\NotBlank]
     private ?string $category = null;
 
     #[ORM\Column]
+    #[Groups(['product:read', 'product:write'])]
+    #[Assert\PositiveOrZero]
     private ?float $purchasePrice = null;
 
     #[ORM\Column]
+    #[Groups(['product:read', 'product:write'])]
+    #[Assert\PositiveOrZero]
     private ?float $salePrice = null;
 
     #[ORM\Column]
+    #[Groups(['product:read', 'product:write'])]
+    #[Assert\PositiveOrZero]
     private ?int $initialStock = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    #[Groups(['product:read', 'product:write'])]
     private ?\DateTimeImmutable $registrationDate = null;
 
     #[ORM\Column]
+    #[Groups(['product:read', 'product:write'])]
+    #[Assert\PositiveOrZero]
     private ?int $currentStock = null;
 
     /**

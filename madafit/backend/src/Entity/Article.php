@@ -15,6 +15,9 @@ use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Validator\Constraints as Assert;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use App\State\AuthorProcessor;
 
 #[ORM\Entity(repositoryClass: ArticleRepository::class)]
 #[ORM\HasLifecycleCallbacks]
@@ -22,17 +25,19 @@ use Symfony\Component\Serializer\Attribute\Groups;
     operations: [
         new GetCollection(),
         new Get(),
-        new Post(),
-        new Patch(),
-        new Delete(),
+        new Post(processor: AuthorProcessor::class, security: "is_granted('ROLE_ADMIN')"),
+        new Patch(processor: AuthorProcessor::class, security: "is_granted('ROLE_ADMIN')"),
+        new Delete(security: "is_granted('ROLE_ADMIN')"),
     ],
     normalizationContext: ['groups' => ['article:read']],
     denormalizationContext: ['groups' => ['article:write']],
+    description: 'Articles, actualités et promotions de MadaFit.'
 )]
 // ✅ Filtres : ?isPublished=true et ?order[publishedAt]=desc pour l'APK
 #[ApiFilter(BooleanFilter::class, properties: ['isPublished'])]
 #[ApiFilter(OrderFilter::class, properties: ['publishedAt', 'createdAt'], arguments: ['orderParameterName' => 'order'])]
-class Article
+#[ApiFilter(SearchFilter::class, properties: ['title' => 'partial', 'category' => 'exact'])]
+class Article implements AuthoredInterface
 {
     public const CATEGORY_NEWS   = 'news';
     public const CATEGORY_PROMO  = 'promo';
@@ -47,14 +52,18 @@ class Article
 
     #[ORM\Column(length: 255)]
     #[Groups(['article:read', 'article:write'])]
+    #[Assert\NotBlank]
+    #[Assert\Length(min: 5, max: 255)]
     private string $title;
 
     #[ORM\Column(type: Types::TEXT)]
     #[Groups(['article:read', 'article:write'])]
+    #[Assert\NotBlank]
     private string $content;
 
     #[ORM\Column(length: 500, nullable: true)]
     #[Groups(['article:read', 'article:write'])]
+    #[Assert\Url]
     private ?string $imageUrl = null;
 
     #[ORM\Column(length: 50, nullable: true)]
@@ -79,6 +88,7 @@ class Article
 
     #[ORM\ManyToOne(targetEntity: User::class, fetch: 'EAGER')]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    #[Groups(['article:read'])]
     private ?User $author = null;
 
     #[ORM\PrePersist]

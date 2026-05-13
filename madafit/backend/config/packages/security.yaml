@@ -13,7 +13,6 @@ security:
             pattern: ^/(_profiler|_wdt|assets|build)/
             security: false
 
-        # ← AJOUT : Login en premier, sans JWT
         public_api:
             pattern: ^/api/(login|register|forgot-password|reset-password|subscription_plans|check-email|articles|article_categories)$
             stateless: true
@@ -37,8 +36,7 @@ security:
         - { path: ^/api/check-email,        roles: PUBLIC_ACCESS }
         - { path: ^/api/subscription_plans, roles: PUBLIC_ACCESS, methods: [GET] }
         - { path: ^/api/articles,           roles: PUBLIC_ACCESS, methods: [GET] }
-        - { path: ^/api/article_categories,  roles: PUBLIC_ACCESS, methods: [GET] }
-        # - { path: ^/api/notifications,       roles: PUBLIC_ACCESS, methods: [GET] }
+        - { path: ^/api/article_categories, roles: PUBLIC_ACCESS, methods: [GET] }
         - { path: ^/api,                    roles: IS_AUTHENTICATED_FULLY }
 
 when@test:

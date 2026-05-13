@@ -7,34 +7,52 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use ApiPlatform\Metadata\ApiResource;
 
+use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Validator\Constraints as Assert;
+
 #[ORM\Entity(repositoryClass: PaymentRepository::class)]
-#[ApiResource]
+#[ApiResource(
+    normalizationContext: ['groups' => ['payment:read']],
+    denormalizationContext: ['groups' => ['payment:write']],
+    security: "is_granted('ROLE_ADMIN')",
+    description: 'Historique des paiements des membres.'
+)]
 class Payment
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['payment:read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 50, nullable: true)]
+    #[Groups(['payment:read', 'payment:write'])]
     private ?string $memberId = null;
 
     #[ORM\Column(length: 200, nullable: true)]
+    #[Groups(['payment:read', 'payment:write'])]
     private ?string $memberName = null;
 
     #[ORM\Column]
+    #[Groups(['payment:read', 'payment:write'])]
+    #[Assert\PositiveOrZero]
     private ?float $amount = null;
 
     #[ORM\Column(length: 50)]
+    #[Groups(['payment:read', 'payment:write'])]
+    #[Assert\NotBlank]
     private ?string $method = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE)]
+    #[Groups(['payment:read', 'payment:write'])]
     private ?\DateTimeImmutable $date = null;
 
     #[ORM\Column(length: 50, nullable: true)]
+    #[Groups(['payment:read', 'payment:write'])]
     private ?string $subscription = null;
 
     #[ORM\Column(length: 100, nullable: true)]
+    #[Groups(['payment:read', 'payment:write'])]
     private ?string $receiptNo = null;
 
     public function getId(): ?int

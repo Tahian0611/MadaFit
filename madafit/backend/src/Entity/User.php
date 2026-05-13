@@ -20,6 +20,10 @@ use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Delete;
 
+use Symfony\Component\Validator\Constraints as Assert;
+use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
 #[UniqueEntity(fields: ['email'], message: 'Cet email est déjà utilisé.')]
@@ -27,14 +31,19 @@ use ApiPlatform\Metadata\Delete;
     operations: [
         new GetCollection(),
         new Get(),
-        new Post(processor: UserPasswordProcessor::class),
-        new Patch(processor: UserPasswordProcessor::class),
-        new Delete(),
+        new Post(processor: UserPasswordProcessor::class, validationContext: ['groups' => ['Default', 'user:create']]),
+        new Patch(
+            processor: UserPasswordProcessor::class, 
+            security: "is_granted('ROLE_ADMIN') or object == user",
+            validationContext: ['groups' => ['Default', 'user:update']]
+        ),
+        new Delete(security: "is_granted('ROLE_ADMIN')"),
     ],
     normalizationContext: ['groups' => ['user:read']],
     denormalizationContext: ['groups' => ['user:write']],
+    description: 'Gestion des utilisateurs et membres de MadaFit.'
 )]
-#[UniqueEntity(fields: ['email'], message: 'There is already an account with this email')]
+#[ApiFilter(SearchFilter::class, properties: ['email' => 'partial', 'firstName' => 'partial', 'lastName' => 'partial', 'memberId' => 'exact'])]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]
@@ -45,13 +54,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(length: 180)]
     #[Groups(['user:read', 'user:write'])]
+    #[Assert\NotBlank]
+    #[Assert\Email]
     private ?string $email = null;
 
     /**
      * @var list<string> The user roles
      */
     #[ORM\Column]
-    #[Groups(['user:read', 'user:write'])]
+    #[Groups(['user:read', 'admin:write'])]
     private array $roles = [];
 
     /**
@@ -59,6 +70,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      */
     #[ORM\Column]
     #[Groups(['user:write'])]
+    #[Assert\NotBlank(groups: ['user:create'])]
+    #[Assert\Length(min: 6)]
     private ?string $password = null;
 
     #[ORM\Column(length: 50, unique: true, nullable: true)]
@@ -75,10 +88,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(length: 100)]
     #[Groups(['user:read', 'user:write'])]
+    #[Assert\NotBlank]
+    #[Assert\Length(max: 100)]
     private ?string $firstName = null;
 
     #[ORM\Column(length: 100)]
     #[Groups(['user:read', 'user:write'])]
+    #[Assert\NotBlank]
+    #[Assert\Length(max: 100)]
     private ?string $lastName = null;
 
     #[ORM\Column(length: 20, nullable: true)]
