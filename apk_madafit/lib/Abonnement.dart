@@ -160,70 +160,95 @@ class _AbonnementPageState extends State<AbonnementPage> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Colors.redAccent),
-            )
-          : _error != null
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    color: Colors.redAccent,
-                    size: 50,
-                  ),
-                  const SizedBox(height: 15),
-                  Text(_error!, style: const TextStyle(color: Colors.white70)),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _fetchPlans,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
+      body: RefreshIndicator(
+        onRefresh: _fetchPlans,
+        color: Colors.redAccent,
+        backgroundColor: const Color(0xFF151515),
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.redAccent),
+              )
+            : _error != null
+            ? SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.redAccent,
+                          size: 50,
+                        ),
+                        const SizedBox(height: 15),
+                        Text(_error!, style: const TextStyle(color: Colors.white70)),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: _fetchPlans,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent,
+                          ),
+                          child: const Text("Réessayer"),
+                        ),
+                      ],
                     ),
-                    child: const Text("Réessayer"),
                   ),
-                ],
+                ),
+              )
+            : SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 10),
+                    _buildHeader(),
+                    const SizedBox(height: 30),
+                    ..._plans.map((plan) => _buildSubscriptionCard(plan)),
+                    const SizedBox(height: 20),
+                    _buildPaymentInfo(),
+                    SizedBox(
+                      height: systemBottomPadding + footerNavbarHeight + 20,
+                    ),
+                  ],
+                ),
               ),
-            )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 10),
-                  _buildHeader(),
-                  const SizedBox(height: 30),
-                  ..._plans.map((plan) => _buildSubscriptionCard(plan)),
-                  const SizedBox(height: 20),
-                  _buildPaymentInfo(),
-                  SizedBox(
-                    height: systemBottomPadding + footerNavbarHeight + 20,
-                  ),
-                ],
-              ),
-            ),
+      ),
     );
   }
 
   Widget _buildHeader() {
-    return Column(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          "CHOISISSEZ VOTRE\nDESTIN.",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
-            height: 1.1,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "CHOISISSEZ VOTRE\nDESTIN.",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "Peu importe votre niveau, nous avons le plan parfait pour vous faire progresser.",
+                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 10),
-        Text(
-          "Peu importe votre niveau, nous avons le plan parfait pour vous faire progresser.",
-          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
+        IconButton(
+          onPressed: _fetchPlans,
+          icon: const Icon(Icons.refresh, color: Colors.redAccent, size: 28),
+          tooltip: "Actualiser les offres",
         ),
       ],
     );

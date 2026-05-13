@@ -6,35 +6,46 @@ use App\Repository\SubscriptionPlanRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use ApiPlatform\Metadata\ApiResource;
+use Symfony\Component\Serializer\Attribute\Groups;
 
 #[ORM\Entity(repositoryClass: SubscriptionPlanRepository::class)]
-#[ApiResource]
+#[ApiResource(
+    normalizationContext: ['groups' => ['subscription:read']],
+)]
 class SubscriptionPlan
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['subscription:read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 100)]
+    #[Groups(['subscription:read'])]
     private ?string $name = null;
 
     #[ORM\Column(length: 50)]
+    #[Groups(['subscription:read'])]
     private ?string $type = null;
 
     #[ORM\Column]
+    #[Groups(['subscription:read'])]
     private ?int $duration = null;
 
     #[ORM\Column]
+    #[Groups(['subscription:read'])]
     private ?float $price = null;
 
     #[ORM\Column(type: Types::JSON, nullable: true)]
+    #[Groups(['subscription:read'])]
     private ?array $features = null;
 
     #[ORM\Column(length: 50, nullable: true)]
+    #[Groups(['subscription:read'])]
     private ?string $color = null;
 
     #[ORM\Column(nullable: true)]
+    #[Groups(['subscription:read'])]
     private ?bool $popular = null;
 
     public function getId(): ?int

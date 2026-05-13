@@ -976,13 +976,23 @@ class _AuthScreenState extends State<AuthScreen> {
           color: Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Row(
+        child: Column(
           children: [
-            Icon(Icons.info_outline, color: Colors.white38, size: 18),
-            SizedBox(width: 10),
-            Text(
-              "Aucune formule disponible.",
-              style: TextStyle(color: Colors.white38, fontSize: 14),
+            const Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.white38, size: 18),
+                SizedBox(width: 10),
+                Text(
+                  "Aucune formule disponible.",
+                  style: TextStyle(color: Colors.white38, fontSize: 14),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: _fetchPlans,
+              icon: const Icon(Icons.refresh, size: 18, color: Colors.redAccent),
+              label: const Text("Réessayer", style: TextStyle(color: Colors.redAccent)),
             ),
           ],
         ),
@@ -998,41 +1008,61 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     // ───────────────────────────────────────────────────────────────
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
-      ),
-      child: DropdownButtonFormField<Map<String, dynamic>>(
-        value: _selectedPlan,
-        dropdownColor: Colors.grey.shade900,
-        decoration: const InputDecoration(
-          prefixIcon: Icon(
-            Icons.workspace_premium,
-            color: Colors.redAccent,
-            size: 20,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        TextButton.icon(
+          onPressed: _plansLoading ? null : _fetchPlans,
+          icon: Icon(
+            Icons.refresh,
+            size: 14,
+            color: _plansLoading ? Colors.white24 : Colors.redAccent,
           ),
-          labelText: "Formule d'abonnement *",
-          labelStyle: TextStyle(color: Colors.white70, fontSize: 15),
-          border: InputBorder.none,
-        ),
-        style: const TextStyle(color: Colors.white),
-        items: _plans.map((plan) {
-          final price = plan['price'] as num? ?? 0;
-          final name = plan['name'] as String? ?? 'Formule';
-          return DropdownMenuItem<Map<String, dynamic>>(
-            value: plan,
-            child: Text(
-              '$name — ${_formatPrice(price.toInt())} Ar',
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+          label: Text(
+            "Actualiser les offres",
+            style: TextStyle(
+              fontSize: 12,
+              color: _plansLoading ? Colors.white24 : Colors.redAccent,
             ),
-          );
-        }).toList(),
-        onChanged: (plan) => setState(() => _selectedPlan = plan),
-        validator: (val) => val == null ? "Veuillez choisir une formule" : null,
-      ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+          ),
+          child: DropdownButtonFormField<Map<String, dynamic>>(
+            value: _selectedPlan,
+            dropdownColor: Colors.grey.shade900,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(
+                Icons.workspace_premium,
+                color: Colors.redAccent,
+                size: 20,
+              ),
+              labelText: "Formule d'abonnement *",
+              labelStyle: TextStyle(color: Colors.white70, fontSize: 15),
+              border: InputBorder.none,
+            ),
+            style: const TextStyle(color: Colors.white),
+            items: _plans.map((plan) {
+              final price = plan['price'] as num? ?? 0;
+              final name = plan['name'] as String? ?? 'Formule';
+              return DropdownMenuItem<Map<String, dynamic>>(
+                value: plan,
+                child: Text(
+                  '$name — ${_formatPrice(price.toInt())} Ar',
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
+              );
+            }).toList(),
+            onChanged: (plan) => setState(() => _selectedPlan = plan),
+            validator: (val) => val == null ? "Veuillez choisir une formule" : null,
+          ),
+        ),
+      ],
     );
   }
 
