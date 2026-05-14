@@ -14,6 +14,7 @@ import {
   extractHydraMembers,
   formatCurrency,
   formatDate,
+  formatTime,
 } from "@/lib/madafit";
 
 export default function Dashboard() {
@@ -365,7 +366,7 @@ export default function Dashboard() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold text-foreground">
-                      {a.checkIn ? String(a.checkIn).substring(0, 5) : "—"}
+                      {formatTime(a.checkIn)}
                     </p>
                     <p className="text-[10px] text-muted-foreground uppercase">
                       {formatDate(a.date)}

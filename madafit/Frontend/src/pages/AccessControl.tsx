@@ -7,7 +7,14 @@ import { toast } from "sonner";
 import { createPortal } from "react-dom";
 import { refreshNotifications } from '@/services/api';
 import api from "@/services/api";
-import { extractHydraMembers, getFullName, normalizeMemberStatus, formatDate } from "@/lib/madafit";
+import { 
+  extractHydraMembers, 
+  getFullName, 
+  normalizeMemberStatus, 
+  formatDate, 
+  formatTime,
+  isMemberAccessAuthorized 
+} from "@/lib/madafit";
 import type { User, AttendanceRecord } from "@/types/entities";
 
 export default function AccessControl() {
@@ -17,8 +24,8 @@ export default function AccessControl() {
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [showAllModal, setShowAllModal] = useState(false);
   const qrScannerRef = useRef<Html5Qrcode | null>(null);
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [isKioskMode, setIsKioskMode] = useState(false);
+  const [currentScanTime, setCurrentScanTime] = useState<string | null>(null);
   const lastScanTime = useRef<number>(0);
 
   const queryClient = useQueryClient();
@@ -56,7 +63,7 @@ export default function AccessControl() {
 
     const startScanner = async () => {
       try {
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         const element = document.getElementById("qr-reader");
         if (!element) return;
 
@@ -75,11 +82,12 @@ export default function AccessControl() {
               const foundUser = users.find((u) => u.memberId === memberId);
               if (foundUser) {
                 lastScanTime.current = now;
-                setSelectedUser(foundUser);
-
                 const nowObj = new Date();
-                const dateStr = nowObj.toISOString().split("T")[0];
                 const timeStr = nowObj.toTimeString().split(" ")[0];
+                const dateStr = nowObj.toISOString().split("T")[0];
+
+                setSelectedUser(foundUser);
+                setCurrentScanTime(timeStr);
 
                 checkInMutation.mutate({
                   user: `/api/users/${foundUser.id}`,
@@ -101,13 +109,7 @@ export default function AccessControl() {
 
     if (users.length > 0) startScanner();
 
-    const handleFsChange = () => {
-      setIsFullScreen(!!document.fullscreenElement);
-    };
-    document.addEventListener("fullscreenchange", handleFsChange);
-
     return () => {
-      document.removeEventListener("fullscreenchange", handleFsChange);
       if (scanner) {
         try {
           if (scanner.isScanning) scanner.stop().catch(() => {});
@@ -117,17 +119,10 @@ export default function AccessControl() {
         qrScannerRef.current = null;
       }
     };
-  }, [users.length]);
+  }, [users.length, isKioskMode]);
 
   const toggleFullScreen = () => {
-    if (!sectionRef.current) return;
-    if (!document.fullscreenElement) {
-      sectionRef.current.requestFullscreen().catch((err) => {
-        toast.error(`Erreur: ${err.message}`);
-      });
-    } else {
-      document.exitFullscreen();
-    }
+    setIsKioskMode(!isKioskMode);
   };
 
   useEffect(() => {
@@ -140,20 +135,20 @@ export default function AccessControl() {
     );
   }, [users, search]);
 
-  const lastScanUser = useMemo(() => {
-    if (!lastScan) return null;
-    return users.find((u) => {
-      const scanUser = lastScan.user as string | User;
-      if (typeof scanUser === "string") return scanUser === `/api/users/${u.id}`;
-      return scanUser?.id === u.id || lastScan.memberId === u.memberId;
-    });
-  }, [lastScan, users]);
+  // Timer pour réinitialiser l'affichage après un scan
+  useEffect(() => {
+    if (selectedUser) {
+      const timer = setTimeout(() => {
+        setSelectedUser(null);
+        setCurrentScanTime(null);
+      }, 10000); // 10 secondes d'affichage
+      return () => clearTimeout(timer);
+    }
+  }, [selectedUser]);
 
-  const displayUser = selectedUser || lastScanUser;
+  const displayUser = selectedUser; // On n'affiche plus le dernier scan par défaut
 
-  const isAccessDenied =
-    displayUser &&
-    normalizeMemberStatus((displayUser as User).status) !== "active";
+  const isAccessDenied = displayUser && !isMemberAccessAuthorized(displayUser as User);
 
   const getRecordAccessStatus = (record: AttendanceRecord): "authorized" | "denied" => {
     const matchedUser = users.find((u) => {
@@ -165,7 +160,7 @@ export default function AccessControl() {
       return isIriMatch || record.memberId === u.memberId;
     });
     if (!matchedUser) return "denied";
-    return normalizeMemberStatus(matchedUser.status) === "active" ? "authorized" : "denied";
+    return isMemberAccessAuthorized(matchedUser) ? "authorized" : "denied";
   };
 
   const getMemberRecords = (member: User) =>
@@ -179,6 +174,190 @@ export default function AccessControl() {
       return isUserMatch || record.memberId === member.memberId;
     });
 
+  // ── CONTENU DU SCANNER (REUTILISABLE) ──────────────────────────────────
+  const renderScannerContent = () => (
+    <div 
+      className={`flex flex-col md:flex-row h-full w-full bg-card overflow-hidden relative ${
+        isKioskMode ? "" : "rounded-2xl border border-border/50 shadow-xl"
+      }`}
+    >
+      {/* Bouton pour activer/quitter le plein écran */}
+      <button
+        onClick={toggleFullScreen}
+        className="absolute top-4 right-4 z-[60] p-2.5 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60 transition-all shadow-lg"
+        title={isKioskMode ? "Quitter le plein écran" : "Passer en plein écran"}
+      >
+        {isKioskMode ? <X size={18} /> : <Maximize2 size={18} />}
+      </button>
+
+      {/* Partie Gauche : Scanner QR */}
+      <div className="relative bg-black w-full md:w-[45%] min-h-[250px] md:min-h-full flex items-center justify-center overflow-hidden border-b md:border-b-0 md:border-r border-border/50">
+        <div
+          id="qr-reader"
+          className="absolute inset-0 w-full h-full object-cover opacity-80"
+          style={{ border: "none" }}
+        />
+        <div className="absolute inset-0 z-10 pointer-events-none border border-primary/20">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 sm:w-56 sm:h-56 border-2 border-primary/40 rounded-2xl">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-primary/40 shadow-[0_0_15px_rgba(var(--primary-rgb),0.6)] animate-scan-line" />
+          </div>
+        </div>
+        <div className="z-20 absolute top-3 left-3 flex items-center gap-2 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
+          <div className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-[9px] text-white font-bold uppercase tracking-wider">SCANNER ACTIF</span>
+        </div>
+        <div className="absolute bottom-3 right-3 z-20">
+          <QrCode size={20} className="text-primary/60" />
+        </div>
+      </div>
+
+      {/* Partie Droite : Infos Membre */}
+      <div
+        className={`w-full md:w-[55%] p-5 md:p-7 flex flex-col justify-between bg-gradient-to-br from-card via-card to-muted/20 relative transition-all duration-300 ${
+          isAccessDenied ? "access-denied-flash" : ""
+        }`}
+      >
+        {isAccessDenied && (
+          <div className="absolute inset-0 pointer-events-none z-0">
+            <div className="absolute inset-0 border-2 border-red-500/50 animate-pulse" />
+            <div className="absolute top-3 right-3 flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-500/15 border border-red-500/30">
+              <span className="flex h-1.5 w-1.5 rounded-full bg-red-700 animate-ping" />
+              <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">
+                Alerte Accès
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div className="relative z-10">
+          {displayUser ? (
+            <div className="space-y-5">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl bg-muted border-2 border-background shadow-xl overflow-hidden shrink-0 aspect-square">
+                  <img
+                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${(displayUser as User).email}`}
+                    alt="Avatar"
+                    className="w-full h-full object-cover transform hover:scale-110 transition-transform duration-500"
+                  />
+                </div>
+                <div className="flex-1 text-center sm:text-left space-y-1.5">
+                  <h3 className="text-xl md:text-2xl font-black text-foreground tracking-tight leading-tight uppercase">
+                    {getFullName(displayUser as User)}
+                  </h3>
+                  <p className="text-muted-foreground font-bold md:text-base">{(displayUser as User).memberId}</p>
+                  <div className="flex items-center justify-center sm:justify-start gap-2 mt-2">
+                    <span className="badge-active px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                      {normalizeMemberStatus((displayUser as User).status).toUpperCase()}
+                    </span>
+                    <span className="px-2 py-1 rounded-lg bg-muted border border-border text-[10px] font-mono text-muted-foreground">
+                      {(displayUser as User).rfidCard}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-8">
+                <div className="p-4 rounded-2xl bg-muted/30 border border-border/50 backdrop-blur-sm group hover:bg-muted/50 transition-all duration-300">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                      <Clock size={14} />
+                    </div>
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.1em]">Dernier passage</p>
+                  </div>
+                  <p className="font-black text-foreground text-base pl-1">
+                    {formatTime(currentScanTime || lastScan?.checkIn)}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-muted/30 border border-border/50 backdrop-blur-sm group hover:bg-muted/50 transition-all duration-300">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={`p-1.5 rounded-lg ${
+                      normalizeMemberStatus((displayUser as User).status) === "active"
+                        ? "bg-green-500/10 text-green-500"
+                        : "bg-red-500/10 text-red-500"
+                    }`}>
+                      <UserCheck size={14} />
+                    </div>
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.1em]">Status Membre</p>
+                  </div>
+                  <p
+                    className={`font-black text-base pl-1 ${
+                      normalizeMemberStatus((displayUser as User).status) === "active"
+                        ? "text-green-500"
+                        : "text-red-500"
+                    }`}
+                  >
+                    {normalizeMemberStatus((displayUser as User).status).toUpperCase()}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className={`relative py-6 px-8 rounded-3xl border overflow-hidden flex items-center justify-between mt-6 transition-all duration-500 ${
+                  normalizeMemberStatus((displayUser as User).status) === "active"
+                    ? "bg-green-500/5 border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.05)]"
+                    : "bg-red-500/10 border-red-500/30 shadow-[0_0_30px_rgba(239,68,68,0.1)]"
+                }`}
+              >
+                <div className="absolute top-0 left-0 w-1 h-full bg-current opacity-50" />
+                <span
+                  className={`font-black tracking-[0.3em] uppercase text-lg md:text-xl ${
+                    normalizeMemberStatus((displayUser as User).status) === "active"
+                      ? "text-green-500"
+                      : "text-red-500"
+                  }`}
+                >
+                  {normalizeMemberStatus((displayUser as User).status) === "active"
+                    ? "Accès Autorisé"
+                    : "Accès Refusé"}
+                </span>
+                <div
+                  className={`h-4 w-4 rounded-full relative ${
+                    normalizeMemberStatus((displayUser as User).status) === "active"
+                      ? "bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]"
+                      : "bg-red-500 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.8)]"
+                  }`}
+                >
+                   {normalizeMemberStatus((displayUser as User).status) !== "active" && (
+                     <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-75" />
+                   )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in duration-700">
+              <div className="relative group">
+                <div className="absolute -inset-4 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-all duration-500" />
+                <Wifi size={56} className="text-primary/20 animate-pulse relative z-10" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="h-14 w-14 rounded-full border-2 border-primary/5 border-t-primary/40 animate-spin" />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <h4 className="font-black text-foreground text-lg uppercase tracking-[0.2em]">Système en attente</h4>
+                <p className="text-muted-foreground text-xs font-medium max-w-[200px] mx-auto leading-relaxed">
+                  Présentez un badge RFID ou un QR Code pour valider l'entrée
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {displayUser && (
+           <div className="mt-6 flex justify-center sm:justify-start">
+              <div className="p-2 bg-white rounded-xl border border-border shadow-sm">
+                <QRCodeSVG
+                  value={`MADAFIT:${(displayUser as User).memberId}`}
+                  size={90}
+                  className="w-16 h-16 md:w-20 md:h-20"
+                />
+              </div>
+           </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <>
       <style>{`
@@ -188,6 +367,15 @@ export default function AccessControl() {
         }
         .access-denied-flash {
           animation: alert-flash 0.8s ease-in-out infinite;
+        }
+        @keyframes scan-line {
+          0% { top: 0; opacity: 0; }
+          5% { opacity: 1; }
+          95% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
+        .animate-scan-line {
+          animation: scan-line 3s ease-in-out infinite;
         }
       `}</style>
 
@@ -217,171 +405,34 @@ export default function AccessControl() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-
-          <div 
-            ref={sectionRef}
-            className={`xl:col-span-3 rounded-l-xl border bg-card overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[450px] md:min-h-[85vh] xl:min-h-[450px] relative ${
-              isFullScreen ? "p-4 md:p-10 bg-background" : ""
-            }`}
-          >
-            {/* Fullscreen toggle button */}
-            <button
-              onClick={toggleFullScreen}
-              className="absolute top-4 right-4 z-[60] p-3 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60 transition-all shadow-xl"
-              title={isFullScreen ? "Quitter le plein écran" : "Passer en plein écran"}
-            >
-              {isFullScreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-            </button>
-
-            <div className="relative bg-black w-full md:w-1/2 min-h-[300px] md:min-h-full flex items-center justify-center overflow-hidden">
-              <div
-                id="qr-reader"
-                className="absolute inset-0 w-full h-full object-cover opacity-80"
-                style={{ border: "none" }}
-              />
-              <div className="absolute inset-0 z-10 pointer-events-none border border-primary/30">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-64 sm:h-64 md:w-80 md:h-80 border-2 border-primary/50 rounded-2xl">
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-primary/50 shadow-[0_0_20px_rgba(var(--primary-rgb),0.8)] animate-scan-line" />
-                </div>
-              </div>
-              <div className="z-20 absolute top-4 left-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
-                <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-[10px] text-white font-bold uppercase tracking-wider">SCANNER ACTIF</span>
-              </div>
-              <div className="absolute bottom-4 right-4 z-20">
-                <QrCode size={24} className="text-primary/70" />
-              </div>
-            </div>
-
-            <div
-              className={`w-full md:w-1/2 p-6 sm:p-8 flex flex-col justify-between bg-gradient-to-br from-card to-muted/30 relative transition-all duration-300 ${
-                isAccessDenied ? "access-denied-flash" : ""
-              }`}
-            >
-              {isAccessDenied && (
-                <div className="absolute inset-0 pointer-events-none z-0">
-                  <div className="absolute inset-0 border-2 border-red-500/50 animate-pulse" />
-                  <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/15 border border-red-500/30">
-                    <span className="flex h-2 w-2 rounded-full bg-red-700 animate-ping" />
-                    <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">
-                      Alerte Accès
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <div className="relative z-10">
-                {displayUser ? (
-                  <div className="space-y-6">
-                    <div className="flex flex-col sm:flex-row items-center gap-6">
-                      <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl bg-muted border-2 border-primary/20 overflow-hidden shadow-xl shrink-0">
-                        <img
-                          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${(displayUser as User).email}`}
-                          alt="Avatar"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 text-center sm:text-left">
-                        <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground leading-tight">
-                          {getFullName(displayUser as User)}
-                        </h3>
-                        <p className="text-muted-foreground font-medium md:text-lg">{(displayUser as User).memberId}</p>
-                        <div className="flex items-center justify-center sm:justify-start gap-2 mt-2">
-                          <span className="badge-active px-3 py-1 rounded-full text-[10px] md:text-xs font-bold">
-                            {normalizeMemberStatus((displayUser as User).status).toUpperCase()}
-                          </span>
-                          <span className="text-[10px] md:text-xs font-mono text-muted-foreground">
-                            {(displayUser as User).rfidCard}
-                          </span>
-                        </div>
-                        <div className="mt-4 p-2 bg-white rounded-xl inline-block border border-border shadow-sm">
-                          <QRCodeSVG
-                            value={`MADAFIT:${(displayUser as User).memberId}`}
-                            size={120}
-                            className="w-16 h-16 sm:w-20 sm:h-20 md:w-32 md:h-32"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 rounded-2xl bg-background border border-border">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Dernier scan</p>
-                        <p className="font-bold text-foreground flex items-center gap-2 text-sm sm:text-base">
-                          <Clock size={14} className="text-primary" />
-                          {displayUser === lastScanUser
-                            ? lastScan?.checkIn
-                              ? lastScan.checkIn.substring(0, 5)
-                              : "À l'instant"
-                            : "Consultation"}
-                        </p>
-                      </div>
-                      <div className="p-4 rounded-2xl bg-background border border-border">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Status Carte</p>
-                        <p
-                          className={`font-bold flex items-center gap-2 text-sm sm:text-base ${
-                            normalizeMemberStatus((displayUser as User).status) === "active"
-                              ? "text-green-500"
-                              : "text-red-500"
-                          }`}
-                        >
-                          {normalizeMemberStatus((displayUser as User).status) === "active" ? (
-                            <UserCheck size={14} />
-                          ) : (
-                            <UserX size={14} />
-                          )}
-                          {normalizeMemberStatus((displayUser as User).status).toUpperCase()}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div
-                      className={`py-6 px-8 rounded-2xl border flex items-center justify-between ${
-                        normalizeMemberStatus((displayUser as User).status) === "active"
-                          ? "bg-green-500/10 border-green-500/20"
-                          : "bg-red-500/20 border-red-500/40 animate-pulse"
-                      }`}
-                    >
-                      <span
-                        className={`font-black tracking-[0.2em] uppercase text-sm sm:text-base ${
-                          normalizeMemberStatus((displayUser as User).status) === "active"
-                            ? "text-green-500"
-                            : "text-red-500"
-                        }`}
-                      >
-                        {normalizeMemberStatus((displayUser as User).status) === "active"
-                          ? "Accès Autorisé"
-                          : "Accès Refusé"}
-                      </span>
-                      <div
-                        className={`h-4 w-4 rounded-full ${
-                          normalizeMemberStatus((displayUser as User).status) === "active"
-                            ? "bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)]"
-                            : "bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.9)] animate-ping"
-                        }`}
-                      />
-                    </div>
-                  </div>
-                               ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-center space-y-4 py-10">
-                    <div className="relative">
-                      <Wifi size={48} className="text-primary/30 animate-pulse" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="h-12 w-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-                      </div>
-                    </div>
-                    <p className="font-black text-muted-foreground uppercase tracking-widest text-xs animate-pulse">
-                      En attente d'un membre...
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-stretch">
+          {/* Section Normale sur la page */}
+          <div className="xl:col-span-3 min-h-[420px]">
+             {!isKioskMode && renderScannerContent()}
           </div>
 
+          {/* PORTAIL : Affichage en mode "Modale Plein Écran" */}
+          {isKioskMode && createPortal(
+            <div className="fixed inset-0 z-[999] bg-background flex items-center justify-center p-4 sm:p-10 overflow-hidden">
+              <div className="absolute inset-0 bg-red-900 backdrop-blur-md" />
+              <div className="relative w-full h-full max-w-[1100px] max-h-[650px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-3xl sm:rounded-[40px] border border-white/10">
+                {renderScannerContent()}
+                
+                {/* Bouton de fermeture flottant discret mais accessible */}
+                <button 
+                  onClick={toggleFullScreen}
+                  className="absolute bottom-6 right-6 z-[1000] flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-red-500/90 hover:bg-red-600 text-white font-black shadow-[0_15px_30px_rgba(239,68,68,0.3)] transition-all active:scale-95 border border-white/20 backdrop-blur-md group"
+                >
+                  <X size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+                  <span className="text-xs tracking-[0.1em] uppercase">Quitter le Scan</span>
+                </button>
+              </div>
+            </div>,
+            document.body
+          )}
+
           {/* Stats column */}
-            <div className="grid grid-cols-2 xl:grid-cols-1 gap-4 md:hidden xl:grid">
+          <div className="grid grid-cols-2 xl:grid-cols-1 gap-4 md:hidden xl:grid">
             <div
               className="p-6 rounded-3xl text-white shadow-xl shadow-primary/20 flex flex-col justify-between min-h-[140px] overflow-hidden relative"
               style={{ background: "var(--gradient-hero)" }}
@@ -630,7 +681,7 @@ function AttendanceTable({
                   {formatDate(record.date)}
                 </div>
                 <div className="text-base font-black text-primary">
-                  {record.checkIn ? record.checkIn.substring(0, 5) : "--:--"}
+                  {formatTime(record.checkIn)}
                 </div>
               </td>
               <td className="p-5">

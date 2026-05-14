@@ -51,6 +51,34 @@ export function normalizeMemberStatus(status?: string | null): MemberStatus {
   return "suspended";
 }
 
+/**
+ * Vérifie si l'accès est autorisé pour un membre.
+ * Gère une marge de tolérance de 5 jours après l'expiration.
+ */
+export function isMemberAccessAuthorized(user: User): boolean {
+  const status = normalizeMemberStatus(user.status);
+  
+  // Si le membre est actif, l'accès est autorisé
+  if (status === "active") return true;
+  
+  // Si le membre est expiré, on vérifie la date d'expiration (+5 jours de marge)
+  if (status === "expired" && user.expiryDate) {
+    const expiry = new Date(user.expiryDate);
+    const now = new Date();
+    
+    // On ajoute 5 jours de grâce à la date d'expiration
+    const gracePeriodEnd = new Date(expiry);
+    gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 5);
+    
+    // Si la période de grâce n'est pas encore passée, on autorise
+    if (now <= gracePeriodEnd) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 export function normalizeSubscriptionType(subscription?: string | null): string {
   const value = (subscription ?? "").toLowerCase().trim();
   if (["monthly", "mensuel", "abonnement mensuel", "session"].includes(value)) return "monthly";
@@ -78,6 +106,48 @@ export function formatDate(dateStr?: string | null) {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+export function formatTime(timeStr?: string | null) {
+  if (!timeStr || timeStr === "00:00" || timeStr === "00:00:00") return "--:--:--";
+
+  // Cas 1: C'est un format ISO ou contient une date (ex: "2024-05-14T19:50:00Z" ou "2024-05-14 19:50:00")
+  if (timeStr.includes("-") || timeStr.includes("T")) {
+    // On s'assure que la chaîne est traitée comme UTC si elle n'a pas de zone spécifiée
+    let isoStr = timeStr.replace(" ", "T");
+    if (!isoStr.includes("Z") && !isoStr.includes("+") && isoStr.includes("T")) {
+      isoStr += "Z"; // On force UTC pour le parsing
+    }
+    
+    const d = new Date(isoStr);
+    if (!isNaN(d.getTime())) {
+      if (d.getFullYear() <= 1970 && d.getHours() === 0 && d.getMinutes() === 0) {
+         return "--:--:--";
+      }
+      // On force l'heure de Madagascar pour l'affichage
+      return d.toLocaleTimeString("fr-FR", { 
+        timeZone: "Indian/Antananarivo",
+        hour: "2-digit", 
+        minute: "2-digit", 
+        second: "2-digit",
+        hour12: false 
+      });
+    }
+  }
+
+  // Cas 2: C'est déjà un format simple HH:mm...
+  // Si c'est juste du texte sans date, on ne peut pas facilement convertir la timezone sans date de référence.
+  // Mais on essaye de garder la précision.
+  if (/^\d{1,2}:\d{2}/.test(timeStr) && !timeStr.includes("-")) {
+    return timeStr.length >= 8 ? timeStr.substring(0, 8) : timeStr.substring(0, 5);
+  }
+
+  // Fallback
+  if (timeStr.length >= 5 && timeStr.includes(":")) {
+    return timeStr.length >= 8 ? timeStr.substring(0, 8) : timeStr.substring(0, 5);
+  }
+
+  return (timeStr.startsWith("1970") && timeStr.includes("00:00")) ? "--:--:--" : timeStr;
 }
 
 export function formatDateTime(dateStr?: string | null) {

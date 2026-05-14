@@ -779,30 +779,9 @@ class _AbonnementPageState extends State<AbonnementPage> {
                                     ),
                                   ),
                                 ],
-                              ),
-                              if (balance > 0)
-                                ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => PayementPage(
-                                          token: widget.token,
-                                          userId: widget.userId!,
-                                        ),
-                                      ),
-                                    ).then((_) => _fetchUser());
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.redAccent,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                                    minimumSize: const Size(0, 32),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                  ),
-                                  child: const Text("PAYER", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                                 ),
-                            ],
-                          ),
+                              ],
+                            ),
                           if (price > 0) ...[
                             const SizedBox(height: 8),
                             ClipRRect(
