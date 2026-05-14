@@ -100,13 +100,13 @@ class _AuthScreenState extends State<AuthScreen> {
 
   // Controllers inscription étape 1
   final _regPhoneController = TextEditingController();
-  String _regActivity = 'musculation';
+  List<String> _selectedActivities = ['musculation'];
   String _regAccessType = 'abonnement';
   String? _regDob;
 
   // ── PLANS DEPUIS LA BD ───────────────────────────────────────────────────
   List<Map<String, dynamic>> _plans = [];
-  Map<String, dynamic>? _selectedPlan;
+  List<Map<String, dynamic>> _selectedPlans = [];
   bool _plansLoading = false;
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -149,14 +149,16 @@ class _AuthScreenState extends State<AuthScreen> {
             data['member'] ?? data['hydra:member'] ?? [];
         print('🟡 Formules trouvées: ${members.length}');
 
-        setState(() {
-          _plans = members
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
-          if (_plans.isNotEmpty) _selectedPlan = _plans.first;
-          print('🔴 _plans length: ${_plans.length}');
-          print('🔴 _selectedPlan: $_selectedPlan');
-        });
+          setState(() {
+            _plans = members
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+            // Initialiser avec la première offre par défaut si vide
+            if (_selectedPlans.isEmpty && _plans.isNotEmpty) {
+              _selectedPlans = [_plans.first];
+            }
+            print('🔴 _plans length: ${_plans.length}');
+          });
       } else {
         print('❌ HTTP ${response.statusCode}: ${response.body}');
         _showSnackBar("Erreur serveur: ${response.statusCode}");
@@ -369,8 +371,13 @@ class _AuthScreenState extends State<AuthScreen> {
   void _submitRegister() async {
     if (!_registerStep1Key.currentState!.validate()) return;
 
-    if (_regAccessType == 'abonnement' && _selectedPlan == null) {
-      _showSnackBar("Veuillez sélectionner une formule d'abonnement.");
+    if (_selectedActivities.isEmpty) {
+      _showSnackBar("Veuillez sélectionner au moins une activité.");
+      return;
+    }
+
+    if (_regAccessType == 'abonnement' && _selectedPlans.isEmpty) {
+      _showSnackBar("Veuillez sélectionner au moins une formule d'abonnement.");
       return;
     }
 
@@ -378,10 +385,15 @@ class _AuthScreenState extends State<AuthScreen> {
 
     try {
       final int totalPayments = _regAccessType == 'abonnement'
-          ? ((_selectedPlan?['price'] as num?)?.toInt() ?? 0)
+          ? _selectedPlans.fold(0, (sum, p) => sum + ((p['price'] as num?)?.toInt() ?? 0))
           : 0;
+      
+      final String subscriptionName = _regAccessType == 'abonnement'
+          ? _selectedPlans.map((p) => p['name'] as String? ?? '').join(', ')
+          : 'Séance simple';
+
       final String subscriptionType = _regAccessType == 'abonnement'
-          ? (_selectedPlan?['type'] as String? ?? 'monthly')
+          ? (_selectedPlans.first['type'] as String? ?? 'monthly')
           : 'session';
 
       final response = await http.post(
@@ -396,9 +408,11 @@ class _AuthScreenState extends State<AuthScreen> {
           'firstName': _regFirstNameController.text.trim(),
           'lastName': _regLastNameController.text.trim(),
           'phone': _regPhoneController.text.trim(),
-          'activity': _regActivity,
+          'activities': _selectedActivities,
+          'activity': _selectedActivities.isNotEmpty ? _selectedActivities.first : '',
           'accessType': _regAccessType,
           'dob': _regDob,
+          'subscription': subscriptionName,
           'totalPayments': totalPayments,
           'subscriptionType': subscriptionType,
         }),
@@ -838,13 +852,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 _buildDateField(),
                 const SizedBox(height: 15),
 
-                _buildDropdown(
-                  label: "Activité",
-                  icon: Icons.sports_gymnastics,
-                  value: _regActivity,
-                  items: _activityLabels,
-                  onChanged: (val) => setState(() => _regActivity = val!),
-                ),
+                _buildActivitySelector(),
                 const SizedBox(height: 15),
 
                 _buildDropdown(
@@ -858,7 +866,10 @@ class _AuthScreenState extends State<AuthScreen> {
                   onChanged: (val) {
                     setState(() {
                       _regAccessType = val!;
-                      if (val == 'seance') _selectedPlan = null;
+                      if (val == 'seance') _selectedPlans = [];
+                      if (val == 'abonnement' && _selectedPlans.isEmpty && _plans.isNotEmpty) {
+                        _selectedPlans = [_plans.first];
+                      }
                     });
                   },
                 ),
@@ -871,7 +882,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ],
 
                 // Récap plan sélectionné
-                if (_regAccessType == 'abonnement' && _selectedPlan != null)
+                if (_regAccessType == 'abonnement' && _selectedPlans.isNotEmpty)
                   _buildPlanSummary(),
 
                 const SizedBox(height: 25),
@@ -953,172 +964,319 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  // ── SÉLECTEUR DE PLAN (depuis la BD) ─────────────────────────────────────
-  Widget _buildPlanSelector() {
-    if (_plansLoading) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Row(
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                color: Colors.redAccent,
-                strokeWidth: 2,
-              ),
-            ),
-            SizedBox(width: 12),
-            Text(
-              "Chargement des formules...",
-              style: TextStyle(color: Colors.white54, fontSize: 14),
-            ),
-          ],
-        ),
-      );
-    }
+  Widget _buildActivitySelector() {
+    final Map<String, IconData> activityIcons = {
+      'musculation': Icons.fitness_center,
+      'cardio': Icons.directions_run,
+      'yoga': Icons.self_improvement,
+      'crossfit': Icons.sports_gymnastics,
+      'boxe': Icons.sports_mma,
+      'natation': Icons.pool,
+    };
 
-    if (_plans.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.white38, size: 18),
-                SizedBox(width: 10),
-                Text(
-                  "Aucune formule disponible.",
-                  style: TextStyle(color: Colors.white38, fontSize: 14),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            TextButton.icon(
-              onPressed: _fetchPlans,
-              icon: const Icon(Icons.refresh, size: 18, color: Colors.redAccent),
-              label: const Text("Réessayer", style: TextStyle(color: Colors.redAccent)),
-            ),
-          ],
-        ),
-      );
-    }
+    final String summary = _selectedActivities.isEmpty
+        ? 'Aucune activité sélectionnée'
+        : _selectedActivities.map((k) => _activityLabels[k] ?? k).join(', ');
 
-    // ── CORRECTION : S'assurer que _selectedPlan vient de _plans ──
-    final bool isValidSelection = _plans.any(
-      (p) => p['id'] == _selectedPlan?['id'],
-    );
-    if (!isValidSelection && _plans.isNotEmpty) {
-      _selectedPlan = _plans.first;
-    }
-    // ───────────────────────────────────────────────────────────────
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        TextButton.icon(
-          onPressed: _plansLoading ? null : _fetchPlans,
-          icon: Icon(
-            Icons.refresh,
-            size: 14,
-            color: _plansLoading ? Colors.white24 : Colors.redAccent,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _selectedActivities.isEmpty
+              ? Colors.redAccent.withOpacity(0.5)
+              : Colors.redAccent.withOpacity(0.2),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: ExpansionTile(
+          leading: const Icon(Icons.sports_gymnastics, color: Colors.redAccent, size: 20),
+          title: const Text(
+            "Activités pratiquées *",
+            style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
           ),
-          label: Text(
-            "Actualiser les offres",
+          subtitle: Text(
+            summary,
             style: TextStyle(
-              fontSize: 12,
-              color: _plansLoading ? Colors.white24 : Colors.redAccent,
+              color: _selectedActivities.isEmpty
+                  ? Colors.redAccent.withOpacity(0.7)
+                  : Colors.white54,
+              fontSize: 11,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
-          ),
-          child: DropdownButtonFormField<Map<String, dynamic>>(
-            value: _selectedPlan,
-            dropdownColor: Colors.grey.shade900,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(
-                Icons.workspace_premium,
-                color: Colors.redAccent,
-                size: 20,
-              ),
-              labelText: "Formule d'abonnement *",
-              labelStyle: TextStyle(color: Colors.white70, fontSize: 15),
-              border: InputBorder.none,
-            ),
-            style: const TextStyle(color: Colors.white),
-            items: _plans.map((plan) {
-              final price = plan['price'] as num? ?? 0;
-              final name = plan['name'] as String? ?? 'Formule';
-              return DropdownMenuItem<Map<String, dynamic>>(
-                value: plan,
-                child: Text(
-                  '$name — ${_formatPrice(price.toInt())} Ar',
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+          iconColor: Colors.redAccent,
+          collapsedIconColor: Colors.white38,
+          backgroundColor: Colors.transparent,
+          collapsedBackgroundColor: Colors.transparent,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+          childrenPadding: EdgeInsets.zero,
+          children: [
+            Divider(color: Colors.white.withOpacity(0.08), height: 1),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 210),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: activityIcons.entries.toList().asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final key = entry.value.key;
+                    final icon = entry.value.value;
+                    final label = _activityLabels[key] ?? key;
+                    final isSelected = _selectedActivities.contains(key);
+
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (index > 0) Divider(color: Colors.white.withOpacity(0.05), height: 1),
+                        CheckboxListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                          secondary: Icon(icon,
+                            color: isSelected ? Colors.redAccent : Colors.white38,
+                            size: 20,
+                          ),
+                          title: Text(
+                            label,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.white70,
+                              fontSize: 13,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                          value: isSelected,
+                          activeColor: Colors.redAccent,
+                          checkColor: Colors.white,
+                          onChanged: (bool? checked) {
+                            setState(() {
+                              if (checked == true) {
+                                _selectedActivities.add(key);
+                              } else {
+                                _selectedActivities.remove(key);
+                              }
+                            });
+                          },
+                        ),
+                      ],
+                    );
+                  }).toList(),
                 ),
-              );
-            }).toList(),
-            onChanged: (plan) => setState(() => _selectedPlan = plan),
-            validator: (val) => val == null ? "Veuillez choisir une formule" : null,
-          ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
+    );
+  }
+  // \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+  // \u2500\u2500 S\u00c9LECTEUR DE PLAN (depuis la BD) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  Widget _buildPlanSelector() {
+    // Nettoyer la sélection si les plans changent
+    _selectedPlans.removeWhere((selected) => !_plans.any((p) => p['id'] == selected['id']));
+    if (_selectedPlans.isEmpty && _plans.isNotEmpty) {
+      _selectedPlans = [_plans.first];
+    }
+
+    final String summary = _plansLoading
+        ? 'Chargement...'
+        : _plans.isEmpty
+            ? 'Aucune offre disponible'
+            : _selectedPlans.isEmpty
+                ? 'Aucune offre sélectionnée'
+                : _selectedPlans.map((p) => p['name'] as String? ?? '').join(', ');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _selectedPlans.isEmpty
+              ? Colors.redAccent.withOpacity(0.5)
+              : Colors.redAccent.withOpacity(0.2),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: ExpansionTile(
+          leading: const Icon(Icons.workspace_premium, color: Colors.redAccent, size: 20),
+          title: const Text(
+            "Formules d'abonnement *",
+            style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(
+            summary,
+            style: TextStyle(
+              color: _selectedPlans.isEmpty
+                  ? Colors.redAccent.withOpacity(0.7)
+                  : Colors.white54,
+              fontSize: 11,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_plansLoading)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(color: Colors.redAccent, strokeWidth: 2),
+                )
+              else
+                GestureDetector(
+                  onTap: _fetchPlans,
+                  child: const Icon(Icons.refresh, color: Colors.redAccent, size: 18),
+                ),
+              const SizedBox(width: 4),
+              const Icon(Icons.expand_more, color: Colors.white38, size: 20),
+            ],
+          ),
+          iconColor: Colors.transparent,
+          collapsedIconColor: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          collapsedBackgroundColor: Colors.transparent,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+          childrenPadding: EdgeInsets.zero,
+          children: [
+            Divider(color: Colors.white.withOpacity(0.08), height: 1),
+            if (_plans.isEmpty && !_plansLoading)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.white38, size: 18),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        "Aucune formule disponible.",
+                        style: TextStyle(color: Colors.white38, fontSize: 13),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _fetchPlans,
+                      child: const Text("Réessayer", style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 210),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: _plans.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final plan = entry.value;
+                      final isSelected = _selectedPlans.any((p) => p['id'] == plan['id']);
+                      final price = plan['price'] as num? ?? 0;
+                      final name = plan['name'] as String? ?? 'Formule';
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (index > 0) Divider(color: Colors.white.withOpacity(0.05), height: 1),
+                          CheckboxListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                            secondary: Icon(
+                              Icons.workspace_premium,
+                              color: isSelected ? Colors.redAccent : Colors.white24,
+                              size: 18,
+                            ),
+                            title: Text(
+                              name,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : Colors.white70,
+                                fontSize: 13,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${_formatPrice(price.toInt())} Ar',
+                              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                            ),
+                            value: isSelected,
+                            activeColor: Colors.redAccent,
+                            checkColor: Colors.white,
+                            onChanged: (bool? checked) {
+                              setState(() {
+                                if (checked == true) {
+                                  _selectedPlans.add(plan);
+                                } else {
+                                  _selectedPlans.removeWhere((p) => p['id'] == plan['id']);
+                                }
+                              });
+                            },
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
   // ── RÉCAPITULATIF DU PLAN ─────────────────────────────────────────────────
   Widget _buildPlanSummary() {
-    final price = (_selectedPlan!['price'] as num?)?.toInt() ?? 0;
-    final duration = _selectedPlan!['duration'] as int? ?? 1;
-    final name = _selectedPlan!['name'] as String? ?? '';
+    final totalPrice = _selectedPlans.fold(0, (sum, p) => sum + ((p['price'] as num?)?.toInt() ?? 0));
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.redAccent.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.redAccent.withOpacity(0.25)),
+        color: Colors.redAccent.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.redAccent.withOpacity(0.3), width: 1.5),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
             children: [
+              Icon(Icons.shopping_cart_checkout, color: Colors.redAccent, size: 18),
+              SizedBox(width: 8),
               Text(
-                name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-              Text(
-                '$duration mois',
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                "RÉCAPITULATIF",
+                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1),
               ),
             ],
           ),
-          Text(
-            '${_formatPrice(price)} Ar',
-            style: const TextStyle(
-              color: Colors.redAccent,
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
+          const SizedBox(height: 12),
+          ..._selectedPlans.map((p) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(p['name'] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                Text('${_formatPrice((p['price'] as num?)?.toInt() ?? 0)} Ar', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+              ],
             ),
+          )),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Divider(color: Colors.white10),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("TOTAL À PAYER", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(
+                '${_formatPrice(totalPrice)} Ar',
+                style: const TextStyle(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 22,
+                ),
+              ),
+            ],
           ),
         ],
       ),
