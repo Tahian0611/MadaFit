@@ -55,12 +55,23 @@ class _AbonnementPageState extends State<AbonnementPage> {
   bool _isLoading = true;
   String? _error;
 
+  // Promo code state
+  final TextEditingController _promoController = TextEditingController();
+  Map<String, dynamic>? _appliedPromo;
+  bool _isValidatingPromo = false;
+
   static final String _baseUrl = ApiConfig.baseUrl;
 
   @override
   void initState() {
     super.initState();
     _fetchPlans();
+  }
+
+  @override
+  void dispose() {
+    _promoController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchPlans() async {
@@ -94,7 +105,7 @@ class _AbonnementPageState extends State<AbonnementPage> {
           });
         } catch (e) {
           setState(() {
-            _error = 'Format de réponse invalide (HTML reçu au lieu de JSON ?). Détails: $e';
+            _error = 'Format de réponse invalide. Détails: $e';
             _isLoading = false;
           });
         }
@@ -112,8 +123,65 @@ class _AbonnementPageState extends State<AbonnementPage> {
     }
   }
 
+  Future<void> _validatePromoCode() async {
+    final code = _promoController.text.trim();
+    if (code.isEmpty) return;
+
+    setState(() {
+      _isValidatingPromo = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/promo_codes/validate'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'code': code}),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _appliedPromo = data;
+          _isValidatingPromo = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✓ Code promo appliqué !'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _appliedPromo = null;
+          _isValidatingPromo = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Code promo invalide ou expiré'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isValidatingPromo = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e')),
+        );
+      }
+    }
+  }
+
   String _formatPrice(double price) {
-    // price is never null (default 0.0)
     final str = price.toInt().toString();
     final buffer = StringBuffer();
     for (var i = 0; i < str.length; i++) {
@@ -121,6 +189,19 @@ class _AbonnementPageState extends State<AbonnementPage> {
       buffer.write(str[i]);
     }
     return buffer.toString();
+  }
+
+  double _calculateDiscountedPrice(double originalPrice) {
+    if (_appliedPromo == null) return originalPrice;
+
+    double discountedPrice = originalPrice;
+    if (_appliedPromo!['discountPercentage'] != null) {
+      discountedPrice -= (originalPrice * (_appliedPromo!['discountPercentage'] / 100));
+    } else if (_appliedPromo!['discountAmount'] != null) {
+      discountedPrice -= _appliedPromo!['discountAmount'];
+    }
+
+    return discountedPrice > 0 ? discountedPrice : 0;
   }
 
   String _formatPeriod(int duration) {
@@ -152,7 +233,6 @@ class _AbonnementPageState extends State<AbonnementPage> {
       return;
     }
 
-    // Afficher un loader
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -162,6 +242,13 @@ class _AbonnementPageState extends State<AbonnementPage> {
     );
 
     try {
+      final body = {
+        'subscription': plan.name,
+      };
+      if (_appliedPromo != null) {
+        body['promotion'] = _appliedPromo!['code'];
+      }
+
       final response = await http.patch(
         Uri.parse('$_baseUrl/users/${widget.userId}'),
         headers: {
@@ -169,12 +256,10 @@ class _AbonnementPageState extends State<AbonnementPage> {
           'Content-Type': 'application/merge-patch+json',
           'Accept': 'application/ld+json',
         },
-        body: jsonEncode({
-          'subscription': plan.name,
-        }),
+        body: jsonEncode(body),
       ).timeout(const Duration(seconds: 10));
 
-      if (mounted) Navigator.of(context).pop(); // Fermer le loader
+      if (mounted) Navigator.of(context).pop();
 
       if (response.statusCode == 200 || response.statusCode == 204) {
         if (mounted) {
@@ -257,6 +342,8 @@ class _AbonnementPageState extends State<AbonnementPage> {
                   children: [
                     const SizedBox(height: 10),
                     _buildHeader(),
+                    const SizedBox(height: 20),
+                    _buildPromoSection(),
                     const SizedBox(height: 30),
                     ..._plans.map((plan) => _buildSubscriptionCard(plan)),
                     const SizedBox(height: 20),
@@ -306,9 +393,94 @@ class _AbonnementPageState extends State<AbonnementPage> {
     );
   }
 
+  Widget _buildPromoSection() {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "CODE PROMO",
+            style: TextStyle(
+              color: Colors.white38,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _promoController,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: "Entrez un code...",
+                    hintStyle: const TextStyle(color: Colors.white24),
+                    filled: true,
+                    fillColor: Colors.black26,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 0),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                height: 45,
+                child: ElevatedButton(
+                  onPressed: _isValidatingPromo ? null : _validatePromoCode,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white10,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: _isValidatingPromo
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text("APPLIQUER"),
+                ),
+              ),
+            ],
+          ),
+          if (_appliedPromo != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                const SizedBox(width: 5),
+                Text(
+                  "Réduction de ${_appliedPromo!['discountPercentage'] != null ? '${_appliedPromo!['discountPercentage']}%' : '${_appliedPromo!['discountAmount']} Ar'} appliquée !",
+                  style: const TextStyle(color: Colors.green, fontSize: 12),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => setState(() => _appliedPromo = null),
+                  child: const Text("Supprimer", style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildSubscriptionCard(SubscriptionPlan plan) {
     final Color planColor = _getColorFromHex(plan.color);
-    final String priceFormatted = _formatPrice(plan.price);
+    final double originalPrice = plan.price;
+    final double discountedPrice = _calculateDiscountedPrice(originalPrice);
     final String period = _formatPeriod(plan.duration);
 
     return Container(
@@ -366,13 +538,27 @@ class _AbonnementPageState extends State<AbonnementPage> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      "$priceFormatted Ar",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_appliedPromo != null && discountedPrice < originalPrice)
+                          Text(
+                            "${_formatPrice(originalPrice)} Ar",
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 16,
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                        Text(
+                          "${_formatPrice(discountedPrice)} Ar",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
                     ),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 5, left: 4),
@@ -410,7 +596,6 @@ class _AbonnementPageState extends State<AbonnementPage> {
                   ),
                 ),
                 const SizedBox(height: 25),
-                // ── BOUTON D'ACTION ──────────────────────────────────────────
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -468,3 +653,4 @@ class _AbonnementPageState extends State<AbonnementPage> {
     );
   }
 }
+
