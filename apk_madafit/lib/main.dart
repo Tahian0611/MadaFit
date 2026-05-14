@@ -6,6 +6,7 @@ import 'dart:math';
 import 'Accueil.dart';
 import 'api_config.dart';
 import 'http_overrides.dart';
+import 'ResetPassword.dart';
 
 void main() {
   HttpOverrides.global = MyHttpOverrides();
@@ -459,7 +460,7 @@ class _AuthScreenState extends State<AuthScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              "Entrez votre email pour recevoir un lien de récupération.",
+              "Entrez votre email pour recevoir un code de vérification.",
               style: TextStyle(color: Colors.white, fontSize: 14),
             ),
             const SizedBox(height: 20),
@@ -483,6 +484,17 @@ class _AuthScreenState extends State<AuthScreen> {
             onPressed: () async {
               final email = resetEmailController.text.trim();
               if (email.isNotEmpty) {
+                Navigator.pop(context); // Close dialog
+                _showSnackBar("Si ce compte existe, un code a été envoyé.");
+                
+                // Navigate to the new reset page
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ResetPasswordPage(email: email),
+                  ),
+                );
+
                 try {
                   await http.post(
                     Uri.parse('$_baseUrl/forgot-password'),
@@ -490,9 +502,6 @@ class _AuthScreenState extends State<AuthScreen> {
                     body: jsonEncode({'email': email}),
                   );
                 } catch (_) {}
-                if (!mounted) return;
-                Navigator.pop(context);
-                _showSnackBar("Si ce compte existe, un email a été envoyé.");
               }
             },
             child: const Text("Envoyer", style: TextStyle(color: Colors.white)),

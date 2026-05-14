@@ -181,32 +181,72 @@ class SecurityController extends AbstractController
         $user = $userRepository->findOneBy(['email' => $email]);
 
         if ($user) {
-            $token = bin2hex(random_bytes(32));
-            $user->setResetToken($token);
+            // Generate a 6-digit numeric code for mobile usage
+            $code = (string) random_int(100000, 999999);
+            $user->setResetToken($code);
             $entityManager->flush();
 
-            $resetLink = $request->getSchemeAndHttpHost() . "/api/reset-password/$token";
-
             $emailMessage = (new Email())
-                ->from('support@madafit.mg')
+                ->from($_ENV['MAILER_FROM'] ?? 'support@madafit.mg')
                 ->to($user->getEmail())
-                ->subject('Réinitialisation de mot de passe - MadaFit')
+                ->subject('Code de réinitialisation - MadaFit')
                 ->html("
-                    <div style='font-family: sans-serif; line-height: 1.5;'>
-                        <h3>Bonjour {$user->getFirstName()},</h3>
-                        <p>Vous avez demandé à réinitialiser votre mot de passe <strong>MadaFit</strong>.</p>
-                        <p><a href='$resetLink' style='display:inline-block;background:#e74c3c;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;'>Changer mon mot de passe</a></p>
+                    <div style='font-family: sans-serif; line-height: 1.6; color: #333;'>
+                        <div style='max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+                            <h2 style='color: #e74c3c; text-align: center;'>Réinitialisation MadaFit</h2>
+                            <p>Bonjour <strong>{$user->getFirstName()}</strong>,</p>
+                            <p>Voici votre code de vérification pour changer votre mot de passe :</p>
+                            <div style='background: #f9f9f9; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;'>
+                                <span style='font-size: 32px; font-weight: bold; letter-spacing: 10px; color: #2c3e50;'>$code</span>
+                            </div>
+                            <p style='font-size: 13px; color: #7f8c8d;'>Ce code est confidentiel. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>
+                            <hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>
+                            <p style='text-align: center; font-weight: bold;'>L'équipe MadaFit</p>
+                        </div>
                     </div>
                 ");
 
             try {
                 $mailer->send($emailMessage);
             } catch (\Exception $e) {
-                return $this->json(['error' => 'Erreur envoi email'], 500);
+                return $this->json(['error' => 'Erreur envoi email: ' . $e->getMessage()], 500);
             }
         }
 
-        return $this->json(['status' => 'success', 'message' => 'Si ce compte existe, un email a été envoyé.']);
+        return $this->json(['status' => 'success', 'message' => 'Un code de vérification a été envoyé par e-mail.']);
+    }
+
+    #[Route('/api/reset-password-mobile', name: 'api_reset_password_mobile', methods: ['POST'])]
+    public function resetPasswordMobile(
+        Request $request,
+        UserRepository $userRepository,
+        EntityManagerInterface $entityManager,
+        UserPasswordHasherInterface $passwordHasher
+    ): Response {
+        $data = json_decode($request->getContent(), true);
+        $email = $data['email'] ?? '';
+        $code = $data['code'] ?? '';
+        $newPassword = $data['password'] ?? '';
+
+        if (!$email || !$code || !$newPassword) {
+            return $this->json(['error' => 'Données incomplètes'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $user = $userRepository->findOneBy(['email' => $email, 'resetToken' => $code]);
+
+        if (!$user) {
+            return $this->json(['error' => 'Code invalide ou expiré'], Response::HTTP_BAD_REQUEST);
+        }
+
+        if (strlen($newPassword) < 6) {
+            return $this->json(['error' => 'Le mot de passe doit faire au moins 6 caractères'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $user->setPassword($passwordHasher->hashPassword($user, $newPassword));
+        $user->setResetToken(null);
+        $entityManager->flush();
+
+        return $this->json(['status' => 'success', 'message' => 'Mot de passe mis à jour avec succès.']);
     }
 
     #[Route('/api/reset-password/{token}', name: 'api_reset_password', methods: ['GET', 'POST'])]
