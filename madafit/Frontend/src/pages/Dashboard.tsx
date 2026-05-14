@@ -128,7 +128,7 @@ export default function Dashboard() {
               <div>
                 <h3 className="font-bold text-foreground">Revenus mensuels</h3>
                 <p className="text-xs text-muted-foreground">
-                  Abonnements + bénéfice produits — 6 derniers mois
+                  Abonnements + Ventes produits — 6 derniers mois
                 </p>
               </div>
               <div className="p-2 bg-primary/10 rounded-lg">

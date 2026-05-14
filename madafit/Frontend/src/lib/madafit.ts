@@ -129,8 +129,8 @@ export function computeDashboardStats(
   const productMap: Record<number, Product> = {};
   products.forEach((p) => { if (p.id !== undefined) productMap[p.id] = p; });
 
-  // Calcule le bénéfice net des ventes de produits pour un mois donné
-  const getMovementProfitForMonth = (monthVal: number, yearVal: number): number => {
+  // Calcule le revenu total des ventes de produits pour un mois donné
+  const getMovementRevenueForMonth = (monthVal: number, yearVal: number): number => {
     return transactions
       .filter((tx) => {
         if (tx.type !== "sale" && tx.type !== "credit") return false;
@@ -142,8 +142,7 @@ export function computeDashboardStats(
         const product = productId !== null ? productMap[productId] : null;
         if (!product) return sum;
         const unitPrice = tx.unitPrice ?? product.salePrice ?? 0;
-        const purchasePrice = product.purchasePrice ?? 0;
-        return sum + Math.max(0, (unitPrice - purchasePrice) * tx.quantity);
+        return sum + (unitPrice * tx.quantity);
       }, 0);
   };
 
@@ -162,23 +161,23 @@ export function computeDashboardStats(
     .filter((p) => new Date(p.date) >= sixMonthsAgo)
     .reduce((sum, p) => sum + (p.amount ?? 0), 0);
 
-  let movementProfit6m = 0;
+  let movementRevenue6m = 0;
   for (let i = 0; i < 6; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    movementProfit6m += getMovementProfitForMonth(d.getMonth(), d.getFullYear());
+    movementRevenue6m += getMovementRevenueForMonth(d.getMonth(), d.getFullYear());
   }
 
-  const totalRevenue = paymentRevenue6m + movementProfit6m;
+  const totalRevenue = paymentRevenue6m + movementRevenue6m;
 
   const revenueCurrentMonth =
     payments.filter((p) => { const d = new Date(p.date); return d.getMonth() === currentMonth && d.getFullYear() === currentYear; })
     .reduce((sum, p) => sum + (p.amount ?? 0), 0)
-    + getMovementProfitForMonth(currentMonth, currentYear);
+    + getMovementRevenueForMonth(currentMonth, currentYear);
 
   const revenueLastMonth =
     payments.filter((p) => { const d = new Date(p.date); return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear; })
     .reduce((sum, p) => sum + (p.amount ?? 0), 0)
-    + getMovementProfitForMonth(lastMonth, lastMonthYear);
+    + getMovementRevenueForMonth(lastMonth, lastMonthYear);
 
   const revenueDiff = revenueLastMonth === 0 ? 100 : Math.round(((revenueCurrentMonth - revenueLastMonth) / revenueLastMonth) * 100);
 
@@ -208,7 +207,7 @@ export function computeDashboardStats(
     const rev = payments
       .filter((p) => { const pd = new Date(p.date); return pd.getMonth() === monthVal && pd.getFullYear() === yearVal; })
       .reduce((sum, p) => sum + (p.amount ?? 0), 0)
-      + getMovementProfitForMonth(monthVal, yearVal);
+      + getMovementRevenueForMonth(monthVal, yearVal);
 
     const att = attendance.filter((a) => { const ad = new Date(a.date); return ad.getMonth() === monthVal && ad.getFullYear() === yearVal; }).length;
 
@@ -282,8 +281,8 @@ export function computeReportsStats(
   const productMap: Record<number, Product> = {};
   products.forEach((p) => { if (p.id !== undefined) productMap[p.id] = p; });
 
-  // Calcule le bénéfice net des ventes de produits pour un mois donné
-  const getMovementProfitForMonth = (monthVal: number, yearVal: number): number => {
+  // Calcule le revenu total des ventes de produits pour un mois donné
+  const getMovementRevenueForMonth = (monthVal: number, yearVal: number): number => {
     return transactions
       .filter((tx) => {
         if (tx.type !== "sale" && tx.type !== "credit") return false;
@@ -295,8 +294,7 @@ export function computeReportsStats(
         const product = productId !== null ? productMap[productId] : null;
         if (!product) return sum;
         const unitPrice = tx.unitPrice ?? product.salePrice ?? 0;
-        const purchasePrice = product.purchasePrice ?? 0;
-        return sum + Math.max(0, (unitPrice - purchasePrice) * tx.quantity);
+        return sum + (unitPrice * tx.quantity);
       }, 0);
   };
 
@@ -335,7 +333,7 @@ export function computeReportsStats(
     const monthVal = d.getMonth();
     const yearVal = d.getFullYear();
     if (monthlyRevenue[key] !== undefined) {
-      monthlyRevenue[key] += getMovementProfitForMonth(monthVal, yearVal);
+      monthlyRevenue[key] += getMovementRevenueForMonth(monthVal, yearVal);
     }
   }
 
