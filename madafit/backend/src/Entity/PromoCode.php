@@ -6,6 +6,8 @@ use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Delete;
 use App\Repository\PromoCodeRepository;
 use App\Controller\ValidatePromoCodeController;
 use Doctrine\ORM\Mapping as ORM;
@@ -22,6 +24,12 @@ use Symfony\Component\Validator\Constraints as Assert;
             security: "is_granted('ROLE_ADMIN')"
         ),
         new Post(
+            security: "is_granted('ROLE_ADMIN')"
+        ),
+        new Patch(
+            security: "is_granted('ROLE_ADMIN')"
+        ),
+        new Delete(
             security: "is_granted('ROLE_ADMIN')"
         ),
         new Post(
@@ -121,7 +129,7 @@ class PromoCode
         return $this;
     }
 
-    public function isActive(): ?bool
+    public function getIsActive(): ?bool
     {
         return $this->isActive;
     }

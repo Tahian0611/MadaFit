@@ -210,6 +210,20 @@ export interface VisitRecord {
 }
 
 // ============================================================================
+// PROMO CODE ENTITY
+// ============================================================================
+export interface PromoCode {
+  id?: number;
+  code: string;
+  discountPercentage?: number;
+  discountAmount?: number;
+  expiryDate: string; // ISO 8601 date
+  isActive: boolean;
+  maxUses?: number;
+  currentUses?: number;
+}
+
+// ============================================================================
 // DAILY SUMMARY ROW ENTITY
 // ============================================================================
 export interface DailySummaryRow {

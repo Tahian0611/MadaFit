@@ -7,6 +7,7 @@ import type {
   Payment,
   PaymentRecord,
   Product,
+  PromoCode,
   QueryParams,
   SubscriptionPlan,
   Transaction,
@@ -237,6 +238,7 @@ export const transactionApi      = createCrudApi<Transaction>("transactions");
 export const visitRecordApi      = createCrudApi<VisitRecord>("visit_records");
 export const dailySummaryRowApi  = createCrudApi<DailySummaryRow>("daily_summary_rows");
 export const articleApi          = createCrudApi<Article>("articles");
+export const promoCodeApi        = createCrudApi<PromoCode>("promo_codes");
 
 export const notificationApi = {
   async getAll(params?: { page?: number; itemsPerPage?: number }): Promise<{
@@ -326,6 +328,7 @@ export const api = {
   visitRecords:      visitRecordApi,
   dailySummaryRows:  dailySummaryRowApi,
   articles:          articleApi,
+  promoCodes:        promoCodeApi,
   stockReports: {
     getSummary: async (params: { from: string; to: string }): Promise<StockReportSummary> => {
       const token = localStorage.getItem("madafit_token");

@@ -24,6 +24,7 @@ import {
   Users,
   Wifi,
   Newspaper,
+  Ticket,
 } from "lucide-react";
 import logoImg from "@/assets/madafit-logo.png";
 import api from "@/services/api";
@@ -42,6 +43,7 @@ const ADMIN_NAV_ITEMS = [
   { icon: BarChart3,       label: "Rapports",         path: "/reports" },
   { icon: HistoryIcon,     label: "Historique",       path: "/history" },
   { icon: Newspaper,       label: "Articles",         path: "/articles" },
+  { icon: Ticket,          label: "Codes Promo",      path: "/promo-codes" },
 ];
 
 // ── Items accueil (réception) ─────────────────────────────────────────────────

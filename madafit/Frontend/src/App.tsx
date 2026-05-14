@@ -21,6 +21,7 @@ import ReportsStock  from "./pages/Reports_stock";
 import History       from "./pages/History";
 import Login         from "./pages/Login";
 import Articles      from "./pages/Articles";
+import PromoCodes     from "./pages/PromoCodes";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 
 const queryClient = new QueryClient({
@@ -140,6 +141,7 @@ const App = () => {
                         <Route path="/reports"   element={<AdminOnly><Reports /></AdminOnly>} />
                         <Route path="/settings"  element={<AdminOnly><Settings /></AdminOnly>} />
                         <Route path="/articles"  element={<AdminOnly><Articles /></AdminOnly>} />
+                        <Route path="/promo-codes" element={<AdminOnly><PromoCodes /></AdminOnly>} />
 
                         <Route path="*" element={<NotFound />} />
                       </Routes>
