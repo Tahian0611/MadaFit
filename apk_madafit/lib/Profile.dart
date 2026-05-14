@@ -293,7 +293,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 Colors.grey,
                 () => _navigateTo(
                   context,
-                  SettingsPage(token: widget.token, userData: _user),
+                  SettingsPage(
+                    token: widget.token,
+                    userData: _user,
+                    onLogout: widget.onLogout,
+                  ),
                 ),
               ),
 

@@ -9,8 +9,9 @@ import 'Confidentiality.dart';
 class SettingsPage extends StatelessWidget {
   final String? token;
   final Map<String, dynamic>? userData;
+  final VoidCallback? onLogout;
 
-  const SettingsPage({super.key, this.token, this.userData});
+  const SettingsPage({super.key, this.token, this.userData, this.onLogout});
 
   @override
   Widget build(BuildContext context) {
@@ -165,7 +166,13 @@ class SettingsPage extends StatelessWidget {
             child: const Text("Annuler", style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              if (onLogout != null) {
+                onLogout!();
+                Navigator.pop(context); // Back to previous page (Profile) which will be replaced by AuthScreen
+              }
+            },
             child: const Text("Confirmer", style: TextStyle(color: Colors.redAccent)),
           ),
         ],
