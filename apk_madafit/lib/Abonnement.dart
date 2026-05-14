@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'api_config.dart';
+import 'Payement.dart';
 
 class SubscriptionPlan {
   final int id;
@@ -55,7 +56,8 @@ class _AbonnementPageState extends State<AbonnementPage> {
   bool _isLoading = true;
   String? _error;
 
-  // Promo code state
+  // User & Payment state
+  Map<String, dynamic>? _user;
   final TextEditingController _promoController = TextEditingController();
   Map<String, dynamic>? _appliedPromo;
   bool _isValidatingPromo = false;
@@ -66,6 +68,27 @@ class _AbonnementPageState extends State<AbonnementPage> {
   void initState() {
     super.initState();
     _fetchPlans();
+    _fetchUser();
+  }
+
+  Future<void> _fetchUser() async {
+    if (widget.userId == null) return;
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/users/${widget.userId}'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Accept': 'application/ld+json',
+        },
+      );
+      if (response.statusCode == 200) {
+        setState(() {
+          _user = jsonDecode(response.body);
+        });
+      }
+    } catch (e) {
+      print('Erreur fetch user: $e');
+    }
   }
 
   @override
@@ -344,7 +367,20 @@ class _AbonnementPageState extends State<AbonnementPage> {
                     _buildHeader(),
                     const SizedBox(height: 20),
                     _buildPromoSection(),
+                    const SizedBox(height: 20),
+                    if (_user != null && (_user?['subscription'] ?? '').toString().isNotEmpty)
+                      _buildCurrentSubscriptions(),
                     const SizedBox(height: 30),
+                    const Text(
+                      "OFFRES DISPONIBLES",
+                      style: TextStyle(
+                        color: Colors.white38,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 15),
                     ..._plans.map((plan) => _buildSubscriptionCard(plan)),
                     const SizedBox(height: 20),
                     _buildPaymentInfo(),
@@ -624,6 +660,170 @@ class _AbonnementPageState extends State<AbonnementPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCurrentSubscriptions() {
+    final String subRaw = _user?['subscription'] ?? '';
+    final List<String> subs = subRaw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    final List<dynamic> payments = _user?['paymentRecords'] ?? [];
+
+    // Calculer le solde total pour le résumé de l'accordéon
+    double totalBalance = 0;
+    for (var s in subs) {
+      final plan = _plans.firstWhere((p) => p.name == s, orElse: () => SubscriptionPlan(id: 0, name: s, type: '', duration: 0, price: 0, features: [], popular: false));
+      double paidForThis = 0;
+      for (var p in payments) {
+        if (p['subscription'] == s) paidForThis += (p['amount'] as num?)?.toDouble() ?? 0.0;
+      }
+      totalBalance += (plan.price - paidForThis);
+    }
+
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: ExpansionTile(
+            initiallyExpanded: true,
+            backgroundColor: Colors.transparent,
+            collapsedBackgroundColor: Colors.transparent,
+            iconColor: Colors.redAccent,
+            collapsedIconColor: Colors.redAccent,
+            title: const Text(
+              "VOS ABONNEMENTS CHOISIS",
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+            subtitle: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    "${subs.length} OFFRE${subs.length > 1 ? 'S' : ''}",
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 9, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  totalBalance > 0 ? "Solde : ${_formatPrice(totalBalance)} Ar" : "Tout est payé ✓",
+                  style: TextStyle(
+                    color: totalBalance > 0 ? Colors.orangeAccent : Colors.greenAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Column(
+                  children: subs.map((s) {
+                    final plan = _plans.firstWhere((p) => p.name == s, orElse: () => SubscriptionPlan(id: 0, name: s, type: '', duration: 0, price: 0, features: [], popular: false));
+                    final double price = plan.price;
+                    double paidForThis = 0;
+                    for (var p in payments) {
+                      if (p['subscription'] == s) paidForThis += (p['amount'] as num?)?.toDouble() ?? 0.0;
+                    }
+                    final double balance = price - paidForThis;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: balance > 0 ? Colors.white.withOpacity(0.05) : Colors.greenAccent.withOpacity(0.1)),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(s, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                              ),
+                              if (balance <= 0 && price > 0)
+                                const Icon(Icons.verified, color: Colors.greenAccent, size: 16),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text("Restant", style: TextStyle(color: Colors.white38, fontSize: 9)),
+                                  Text(
+                                    "${_formatPrice(balance > 0 ? balance : 0)} Ar",
+                                    style: TextStyle(
+                                      color: balance > 0 ? Colors.orangeAccent : Colors.greenAccent,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (balance > 0)
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => PayementPage(
+                                          token: widget.token,
+                                          userId: widget.userId!,
+                                        ),
+                                      ),
+                                    ).then((_) => _fetchUser());
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.redAccent,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                                    minimumSize: const Size(0, 32),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  child: const Text("PAYER", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                ),
+                            ],
+                          ),
+                          if (price > 0) ...[
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(5),
+                              child: LinearProgressIndicator(
+                                value: (paidForThis / price).clamp(0.0, 1.0),
+                                backgroundColor: Colors.white10,
+                                valueColor: AlwaysStoppedAnimation<Color>(balance > 0 ? Colors.orangeAccent : Colors.greenAccent),
+                                minHeight: 3,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

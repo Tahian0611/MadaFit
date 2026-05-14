@@ -288,6 +288,24 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               _buildActionCard(
+                "Mes offres d'abonnement",
+                Icons.workspace_premium,
+                Colors.redAccent,
+                () => _navigateTo(
+                  context,
+                  UserOffresPage(token: widget.token, user: _user),
+                ),
+              ),
+              _buildActionCard(
+                "Mes activités",
+                Icons.sports_gymnastics,
+                Colors.greenAccent,
+                () => _navigateTo(
+                  context,
+                  UserActivitesPage(user: _user),
+                ),
+              ),
+              _buildActionCard(
                 "Paramètres",
                 Icons.settings_outlined,
                 Colors.grey,
@@ -364,6 +382,402 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+      ),
+    );
+  }
+}
+
+// ============================================================
+//  PAGE MES OFFRES
+// ============================================================
+class UserOffresPage extends StatelessWidget {
+  final String token;
+  final Map<String, dynamic>? user;
+
+  const UserOffresPage({super.key, required this.token, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    // Parser les offres (champ 'subscription' = noms séparés par des virgules)
+    final String rawSubscription = user?['subscription'] ?? '';
+    final List<String> offres = rawSubscription.isNotEmpty
+        ? rawSubscription.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+        : [];
+    final int totalPayments = (user?['totalPayments'] as num?)?.toInt() ?? 0;
+    final String accessType = user?['accessType'] ?? '';
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.workspace_premium, color: Colors.redAccent, size: 18),
+            SizedBox(width: 8),
+            Text(
+              'MES OFFRES',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.5,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.red.shade900, Colors.transparent],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Résumé paiement ──────────────────────────────────
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.red.shade900.withOpacity(0.8), const Color(0xFF1A0000)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.workspace_premium, color: Colors.redAccent, size: 40),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'TOTAL SOUSCRIT',
+                    style: TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 2),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _formatPrice(totalPayments),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const Text(
+                    'Ariary',
+                    style: TextStyle(color: Colors.white54, fontSize: 13),
+                  ),
+                  if (accessType.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        accessType == 'abonnement' ? '🏷️ Abonnement' : '🏷️ Séance simple',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 30),
+
+            // ── Liste des offres ────────────────────────────────
+            if (offres.isEmpty)
+              Center(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 30),
+                    Icon(Icons.inbox_rounded, color: Colors.white12, size: 60),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Aucune offre enregistrée',
+                      style: TextStyle(color: Colors.white24, fontSize: 14),
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              const Text(
+                'DÉTAIL DES OFFRES',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...offres.asMap().entries.map((entry) {
+                final i = entry.key;
+                final offre = entry.value;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.redAccent.withOpacity(0.15)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${i + 1}',
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          offre,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatPrice(int price) {
+    final str = price.toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) buffer.write(' ');
+      buffer.write(str[i]);
+    }
+    return buffer.toString();
+  }
+}
+
+// ============================================================
+//  PAGE MES ACTIVITÉS
+// ============================================================
+class UserActivitesPage extends StatelessWidget {
+  final Map<String, dynamic>? user;
+
+  const UserActivitesPage({super.key, required this.user});
+
+  static const Map<String, IconData> _activityIcons = {
+    'musculation': Icons.fitness_center,
+    'cardio': Icons.directions_run,
+    'yoga': Icons.self_improvement,
+    'crossfit': Icons.sports_gymnastics,
+    'boxe': Icons.sports_mma,
+    'natation': Icons.pool,
+  };
+
+  static const Map<String, String> _activityLabels = {
+    'musculation': 'Musculation',
+    'cardio': 'Cardio',
+    'yoga': 'Yoga',
+    'crossfit': 'CrossFit',
+    'boxe': 'Boxe',
+    'natation': 'Natation',
+  };
+
+  static const Map<String, Color> _activityColors = {
+    'musculation': Colors.redAccent,
+    'cardio': Colors.orangeAccent,
+    'yoga': Colors.purpleAccent,
+    'crossfit': Colors.blueAccent,
+    'boxe': Colors.deepOrangeAccent,
+    'natation': Colors.cyanAccent,
+  };
+
+  List<String> _parseActivities() {
+    // Essayer d'abord le champ 'activities' (liste)
+    final dynamic activitiesRaw = user?['activities'];
+    if (activitiesRaw is List && activitiesRaw.isNotEmpty) {
+      return activitiesRaw.map((a) => a.toString().trim()).where((s) => s.isNotEmpty).toList();
+    }
+    // Sinon parser le champ 'activity' (string CSV)
+    final String raw = user?['activity'] ?? '';
+    return raw.isNotEmpty
+        ? raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+        : [];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activities = _parseActivities();
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.sports_gymnastics, color: Colors.greenAccent, size: 18),
+            SizedBox(width: 8),
+            Text(
+              'MES ACTIVITÉS',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.5,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.green.shade900.withOpacity(0.5), Colors.transparent],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: activities.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.sports_gymnastics, color: Colors.white12, size: 70),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Aucune activité enregistrée',
+                      style: TextStyle(color: Colors.white24, fontSize: 15),
+                    ),
+                  ],
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${activities.length} activité${activities.length > 1 ? "s" : ""} inscrite${activities.length > 1 ? "s" : ""}',
+                    style: const TextStyle(
+                      color: Colors.white38,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ...activities.map((key) {
+                    final label = _activityLabels[key] ?? key;
+                    final icon = _activityIcons[key] ?? Icons.sports;
+                    final color = _activityColors[key] ?? Colors.white;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF111111),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: color.withOpacity(0.25)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withOpacity(0.08),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(icon, color: color, size: 26),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  label.toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Activité enregistrée',
+                                  style: TextStyle(
+                                    color: color.withOpacity(0.7),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.verified_rounded, color: color, size: 22),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
       ),
     );
   }

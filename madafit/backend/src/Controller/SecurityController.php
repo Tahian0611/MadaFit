@@ -117,10 +117,25 @@ class SecurityController extends AbstractController
             $user->setExpiryDate($now->modify('+1 month'));
         }
 
-        $user->setActivity($data['activity'] ?? 'musculation');
+        // Activités : double stockage pour compatibilité (CSV et JSON)
+        $activitiesArray = $data['activities'] ?? [];
+        if (!is_array($activitiesArray) && isset($data['activity'])) {
+            $activitiesArray = [$data['activity']];
+        }
+        
+        if (count($activitiesArray) > 0) {
+            $cleanActivities = array_map('trim', $activitiesArray);
+            $user->setActivities($cleanActivities);
+            // On force le CSV dans le champ legacy (max 50 chars)
+            $csv = implode(',', $cleanActivities);
+            $user->setActivity(strlen($csv) > 50 ? substr($csv, 0, 47) . '...' : $csv);
+        }
+
         $user->setTotalPayments((int) ($data['totalPayments'] ?? 0));
 
-        $user->setSubscription($data['subscriptionType'] ?? ($accessType === 'seance' ? 'session' : 'monthly'));
+        // Offres : le mobile envoie 'subscription' (CSV)
+        $sub = $data['subscription'] ?? ($accessType === 'seance' ? 'Séance simple' : 'Abonnement mensuel');
+        $user->setSubscription(strlen($sub) > 50 ? substr($sub, 0, 47) . '...' : $sub);
 
         $user->setMemberId('MF-' . substr((string) time(), -6));
         $user->setRfidCard('RF' . substr((string) time(), -6));
@@ -317,13 +332,24 @@ class SecurityController extends AbstractController
         }
 
         return $this->json([
-            'id'        => $user->getId(),
-            'email'     => $user->getEmail(),
-            'firstName' => $user->getFirstName(),
-            'lastName'  => $user->getLastName(),
-            'roles'     => $user->getRoles(),
-            'memberId'  => $user->getMemberId(),
-            'status'    => $user->getStatus(),
+            'id'            => $user->getId(),
+            'email'         => $user->getEmail(),
+            'firstName'     => $user->getFirstName(),
+            'lastName'      => $user->getLastName(),
+            'roles'         => $user->getRoles(),
+            'memberId'      => $user->getMemberId(),
+            'status'        => $user->getStatus(),
+            'activity'      => $user->getActivity(),
+            'activities'    => array_filter(array_map('trim', explode(',', $user->getActivity() ?? ''))),
+            'subscription'  => $user->getSubscription(),
+            'totalPayments' => $user->getTotalPayments(),
+            'accessType'    => $user->getAccessType(),
+            'phone'         => $user->getPhone(),
+            'coach'         => $user->getCoach(),
+            'dob'           => $user->getDob()?->format('Y-m-d'),
+            'startDate'     => $user->getStartDate()?->format('Y-m-d'),
+            'expiryDate'    => $user->getExpiryDate()?->format('Y-m-d'),
+            'weeklyGoalProgress' => 0.0, // Champ non présent en base, valeur par défaut pour l'app
         ]);
     }
 
