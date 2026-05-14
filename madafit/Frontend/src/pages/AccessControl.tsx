@@ -1,7 +1,7 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Wifi, QrCode, UserCheck, UserX, Clock, X, History } from "lucide-react";
+import { Search, Wifi, QrCode, UserCheck, UserX, Clock, X, History, Maximize2, Minimize2 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { toast } from "sonner";
 import { createPortal } from "react-dom";
@@ -17,6 +17,8 @@ export default function AccessControl() {
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [showAllModal, setShowAllModal] = useState(false);
   const qrScannerRef = useRef<Html5Qrcode | null>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const lastScanTime = useRef<number>(0);
 
   const queryClient = useQueryClient();
@@ -99,7 +101,13 @@ export default function AccessControl() {
 
     if (users.length > 0) startScanner();
 
+    const handleFsChange = () => {
+      setIsFullScreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFsChange);
+
     return () => {
+      document.removeEventListener("fullscreenchange", handleFsChange);
       if (scanner) {
         try {
           if (scanner.isScanning) scanner.stop().catch(() => {});
@@ -110,6 +118,17 @@ export default function AccessControl() {
       }
     };
   }, [users.length]);
+
+  const toggleFullScreen = () => {
+    if (!sectionRef.current) return;
+    if (!document.fullscreenElement) {
+      sectionRef.current.requestFullscreen().catch((err) => {
+        toast.error(`Erreur: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
   useEffect(() => {
     if (attendance.length > 0) setLastScan(attendance[0]);
@@ -133,7 +152,7 @@ export default function AccessControl() {
   const displayUser = selectedUser || lastScanUser;
 
   const isAccessDenied =
-    displayUser !== null &&
+    displayUser &&
     normalizeMemberStatus((displayUser as User).status) !== "active";
 
   const getRecordAccessStatus = (record: AttendanceRecord): "authorized" | "denied" => {
@@ -200,16 +219,29 @@ export default function AccessControl() {
 
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
 
-          <div className="xl:col-span-3 rounded-3xl border bg-card overflow-hidden shadow-2xl flex flex-col lg:flex-row min-h-[450px]">
+          <div 
+            ref={sectionRef}
+            className={`xl:col-span-3 rounded-l-xl border bg-card overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[450px] md:min-h-[85vh] xl:min-h-[450px] relative ${
+              isFullScreen ? "p-4 md:p-10 bg-background" : ""
+            }`}
+          >
+            {/* Fullscreen toggle button */}
+            <button
+              onClick={toggleFullScreen}
+              className="absolute top-4 right-4 z-[60] p-3 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60 transition-all shadow-xl"
+              title={isFullScreen ? "Quitter le plein écran" : "Passer en plein écran"}
+            >
+              {isFullScreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+            </button>
 
-            <div className="relative bg-black w-full lg:w-1/2 min-h-[300px] lg:min-h-full flex items-center justify-center overflow-hidden">
+            <div className="relative bg-black w-full md:w-1/2 min-h-[300px] md:min-h-full flex items-center justify-center overflow-hidden">
               <div
                 id="qr-reader"
                 className="absolute inset-0 w-full h-full object-cover opacity-80"
                 style={{ border: "none" }}
               />
               <div className="absolute inset-0 z-10 pointer-events-none border border-primary/30">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-64 sm:h-64 border-2 border-primary/50 rounded-2xl">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-64 sm:h-64 md:w-80 md:h-80 border-2 border-primary/50 rounded-2xl">
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-primary/50 shadow-[0_0_20px_rgba(var(--primary-rgb),0.8)] animate-scan-line" />
                 </div>
               </div>
@@ -223,7 +255,7 @@ export default function AccessControl() {
             </div>
 
             <div
-              className={`w-full lg:w-1/2 p-6 sm:p-8 flex flex-col justify-between bg-gradient-to-br from-card to-muted/30 relative transition-all duration-300 ${
+              className={`w-full md:w-1/2 p-6 sm:p-8 flex flex-col justify-between bg-gradient-to-br from-card to-muted/30 relative transition-all duration-300 ${
                 isAccessDenied ? "access-denied-flash" : ""
               }`}
             >
@@ -243,7 +275,7 @@ export default function AccessControl() {
                 {displayUser ? (
                   <div className="space-y-6">
                     <div className="flex flex-col sm:flex-row items-center gap-6">
-                      <div className="w-24 h-24 rounded-2xl bg-muted border-2 border-primary/20 overflow-hidden shadow-xl shrink-0">
+                      <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl bg-muted border-2 border-primary/20 overflow-hidden shadow-xl shrink-0">
                         <img
                           src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${(displayUser as User).email}`}
                           alt="Avatar"
@@ -251,23 +283,23 @@ export default function AccessControl() {
                         />
                       </div>
                       <div className="flex-1 text-center sm:text-left">
-                        <h3 className="text-xl sm:text-2xl font-black text-foreground leading-tight">
+                        <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground leading-tight">
                           {getFullName(displayUser as User)}
                         </h3>
-                        <p className="text-muted-foreground font-medium">{(displayUser as User).memberId}</p>
+                        <p className="text-muted-foreground font-medium md:text-lg">{(displayUser as User).memberId}</p>
                         <div className="flex items-center justify-center sm:justify-start gap-2 mt-2">
-                          <span className="badge-active px-3 py-1 rounded-full text-[10px] font-bold">
+                          <span className="badge-active px-3 py-1 rounded-full text-[10px] md:text-xs font-bold">
                             {normalizeMemberStatus((displayUser as User).status).toUpperCase()}
                           </span>
-                          <span className="text-[10px] font-mono text-muted-foreground">
+                          <span className="text-[10px] md:text-xs font-mono text-muted-foreground">
                             {(displayUser as User).rfidCard}
                           </span>
                         </div>
                         <div className="mt-4 p-2 bg-white rounded-xl inline-block border border-border shadow-sm">
                           <QRCodeSVG
                             value={`MADAFIT:${(displayUser as User).memberId}`}
-                            size={80}
-                            className="w-16 h-16 sm:w-20 sm:h-20"
+                            size={120}
+                            className="w-16 h-16 sm:w-20 sm:h-20 md:w-32 md:h-32"
                           />
                         </div>
                       </div>
@@ -305,7 +337,7 @@ export default function AccessControl() {
                     </div>
 
                     <div
-                      className={`py-4 px-6 rounded-2xl border flex items-center justify-between ${
+                      className={`py-6 px-8 rounded-2xl border flex items-center justify-between ${
                         normalizeMemberStatus((displayUser as User).status) === "active"
                           ? "bg-green-500/10 border-green-500/20"
                           : "bg-red-500/20 border-red-500/40 animate-pulse"
@@ -349,7 +381,7 @@ export default function AccessControl() {
           </div>
 
           {/* Stats column */}
-          <div className="grid grid-cols-2 xl:grid-cols-1 gap-4">
+            <div className="grid grid-cols-2 xl:grid-cols-1 gap-4 md:hidden xl:grid">
             <div
               className="p-6 rounded-3xl text-white shadow-xl shadow-primary/20 flex flex-col justify-between min-h-[140px] overflow-hidden relative"
               style={{ background: "var(--gradient-hero)" }}
