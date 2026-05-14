@@ -15,9 +15,11 @@ import {
   getFullName,
   normalizeMemberStatus,
   normalizeSubscriptionType,
+  calculateSubscriptionProgress,
   type MemberStatus,
+  type SubscriptionType,
 } from "@/lib/madafit";
-import type { User } from "@/types/entities";
+import type { User, SubscriptionPlan } from "@/types/entities";
 
 const STATUS_FILTERS: { value: "all" | MemberStatus; label: string }[] = [
   { value: "all", label: "Tous" },
@@ -39,8 +41,8 @@ export default function Members() {
 
   
   // Dans ta fonction de création :
-  const handleCreateMember = async (memberData) => {
-    await userApi.create(memberData);
+  const handleCreateMember = async (memberData: any) => {
+    await api.users.create(memberData);
     refreshNotifications(); // ← La notification apparaîtra en 1-2 secondes max
   };
   
@@ -49,7 +51,7 @@ export default function Members() {
     queryKey: ["subscription-plans"],
     queryFn: () => api.subscriptionPlans.getAll({ itemsPerPage: 100 }),
   });
-  const plans = extractHydraMembers(plansQuery.data);
+  const plans = extractHydraMembers<SubscriptionPlan>(plansQuery.data);
   // ─────────────────────────────────────────────────────────────────────────
 
   const deleteMutation = useMutation({
@@ -77,7 +79,7 @@ export default function Members() {
   });
   // ─────────────────────────────────────────────────────────────────────────
 
-  const members = extractHydraMembers(usersQuery.data);
+  const members = extractHydraMembers<User>(usersQuery.data);
 
   const filteredMembers = useMemo(() => {
     return members.filter((member) => {
@@ -273,7 +275,16 @@ export default function Members() {
                             {member.rfidCard || "Non assignée"}
                           </span>
                         </td>
-                        <td>{formatDate(member.expiryDate)}</td>
+                        <td>
+                          <div className="flex flex-col gap-1">
+                            <span>{formatDate(member.expiryDate)}</span>
+                            {member.startDate && member.expiryDate && (
+                              <span className="text-[10px] text-muted-foreground font-medium">
+                                {Math.round(calculateSubscriptionProgress(member.startDate, member.expiryDate) * 100)}% utilisé
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td>
                           <button
                             className="p-2 rounded-lg hover:bg-destructive/10 text-destructive"
@@ -379,7 +390,27 @@ export default function Members() {
                     ) : null}
                   </div>
                 </div>
-                {/* ─────────────────────────────────────────── */}
+                {/* ── PROGRESSION DU TEMPS ── */}
+                {selectedMember.startDate && selectedMember.expiryDate && (
+                  <div className="space-y-2 py-2 border-t" style={{ borderColor: "hsl(var(--border))" }}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Progression abonnement</span>
+                      <span className="font-bold text-primary">
+                        {Math.round(calculateSubscriptionProgress(selectedMember.startDate, selectedMember.expiryDate) * 100)}%
+                      </span>
+                    </div>
+                    <div className="h-2 w-full bg-muted rounded-full overflow-hidden border">
+                      <div 
+                        className="h-full bg-primary transition-all duration-500"
+                        style={{ 
+                          width: `${calculateSubscriptionProgress(selectedMember.startDate, selectedMember.expiryDate) * 100}%`,
+                          background: calculateSubscriptionProgress(selectedMember.startDate, selectedMember.expiryDate) > 0.9 ? "hsl(var(--destructive))" : "hsl(var(--primary))"
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {/* ─────────────────────────── */}
 
                 {/* ═══════════════════════════════════════════════════════════════════
                     FORMATAGE INTERNATIONAL DES PAIEMENTS

@@ -79,6 +79,28 @@ export function isMemberAccessAuthorized(user: User): boolean {
   return false;
 }
 
+/**
+ * Calcule le pourcentage de progression d'un abonnement.
+ * Retourne une valeur entre 0 et 1.
+ */
+export function calculateSubscriptionProgress(startDate?: string | Date | null, expiryDate?: string | Date | null): number {
+  if (!startDate || !expiryDate) return 0;
+  
+  const start = new Date(startDate);
+  const end = new Date(expiryDate);
+  const now = new Date();
+  
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+  
+  const total = end.getTime() - start.getTime();
+  if (total <= 0) return 0;
+  
+  const elapsed = now.getTime() - start.getTime();
+  const progress = elapsed / total;
+  
+  return Math.min(Math.max(progress, 0), 1);
+}
+
 export function normalizeSubscriptionType(subscription?: string | null): string {
   const value = (subscription ?? "").toLowerCase().trim();
   if (["monthly", "mensuel", "abonnement mensuel", "session"].includes(value)) return "monthly";

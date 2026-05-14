@@ -9,6 +9,7 @@ import {
 import { refreshNotifications } from "@/services/api";
 import api from "@/services/api";
 import { useAuth } from "@/hooks/useAuth";
+import type { User, Payment, AttendanceRecord, SubscriptionPlan } from "@/types/entities";
 import {
   computeDashboardStats,
   extractHydraMembers,
@@ -55,13 +56,13 @@ export default function Dashboard() {
 
   const stats = useMemo(() => {
     return computeDashboardStats(
-      extractHydraMembers(usersQuery.data),
-      extractHydraMembers(paymentsQuery.data),
-      extractHydraMembers(attendanceQuery.data),
-      extractHydraMembers(plansQuery.data),
+      extractHydraMembers<User>(usersQuery.data),
+      extractHydraMembers<Payment>(paymentsQuery.data),
+      extractHydraMembers<AttendanceRecord>(attendanceQuery.data),
+      extractHydraMembers<SubscriptionPlan>(plansQuery.data),
       [],
-      extractHydraMembers(transactionsQuery.data),
-      extractHydraMembers(productsQuery.data)
+      extractHydraMembers<any>(transactionsQuery.data),
+      extractHydraMembers<any>(productsQuery.data)
     );
   }, [
     usersQuery.data,

@@ -5,6 +5,7 @@ import 'Settings.dart';
 import 'QRCode.dart';
 import 'Payement.dart';
 import 'api_config.dart';
+import 'Abonnement.dart';
 
 class ProfilePage extends StatefulWidget {
   final VoidCallback? onLogout;
@@ -390,21 +391,70 @@ class _ProfilePageState extends State<ProfilePage> {
 // ============================================================
 //  PAGE MES OFFRES
 // ============================================================
-class UserOffresPage extends StatelessWidget {
+// ============================================================
+//  PAGE MES OFFRES
+// ============================================================
+class UserOffresPage extends StatefulWidget {
   final String token;
   final Map<String, dynamic>? user;
 
   const UserOffresPage({super.key, required this.token, required this.user});
 
   @override
+  State<UserOffresPage> createState() => _UserOffresPageState();
+}
+
+class _UserOffresPageState extends State<UserOffresPage> {
+  List<SubscriptionPlan> _plans = [];
+  Map<String, dynamic>? _userData;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _userData = widget.user;
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    final baseUrl = ApiConfig.baseUrl;
+    final headers = {
+      'Authorization': 'Bearer ${widget.token}',
+      'Accept': 'application/ld+json',
+    };
+
+    try {
+      // 1. Fetch Plans
+      final plansRes = await http.get(Uri.parse('$baseUrl/subscription_plans'), headers: headers);
+      if (plansRes.statusCode == 200) {
+        final data = jsonDecode(plansRes.body);
+        final List<dynamic> members = data['member'] ?? data['hydra:member'] ?? [];
+        _plans = members.map((json) => SubscriptionPlan.fromJson(json)).toList();
+      }
+
+      // 2. Fetch fresh user data (to get payments)
+      if (widget.user?['id'] != null) {
+        final userRes = await http.get(Uri.parse('$baseUrl/users/${widget.user!['id']}'), headers: headers);
+        if (userRes.statusCode == 200) {
+          _userData = jsonDecode(userRes.body);
+        }
+      }
+    } catch (e) {
+      print('Erreur fetch data: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Parser les offres (champ 'subscription' = noms séparés par des virgules)
-    final String rawSubscription = user?['subscription'] ?? '';
-    final List<String> offres = rawSubscription.isNotEmpty
+    final String rawSubscription = _userData?['subscription'] ?? '';
+    final List<String> subs = rawSubscription.isNotEmpty
         ? rawSubscription.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
         : [];
-    final int totalPayments = (user?['totalPayments'] as num?)?.toInt() ?? 0;
-    final String accessType = user?['accessType'] ?? '';
+    final int totalPayments = (_userData?['totalPayments'] as num?)?.toInt() ?? 0;
+    final List<dynamic> payments = _userData?['paymentRecords'] ?? [];
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -415,176 +465,211 @@ class UserOffresPage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.workspace_premium, color: Colors.redAccent, size: 18),
-            SizedBox(width: 8),
-            Text(
-              'MES OFFRES',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.5,
-                fontSize: 16,
-              ),
-            ),
-          ],
+        title: const Text(
+          'MES OFFRES',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.5, fontSize: 16),
         ),
         centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.red.shade900, Colors.transparent],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
-        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Résumé paiement ──────────────────────────────────
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.red.shade900.withOpacity(0.8), const Color(0xFF1A0000)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.red.withOpacity(0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  const Icon(Icons.workspace_premium, color: Colors.redAccent, size: 40),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'TOTAL SOUSCRIT',
-                    style: TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 2),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _formatPrice(totalPayments),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 36,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const Text(
-                    'Ariary',
-                    style: TextStyle(color: Colors.white54, fontSize: 13),
-                  ),
-                  if (accessType.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
+      body: _isLoading 
+          ? const Center(child: CircularProgressIndicator(color: Colors.redAccent))
+          : RefreshIndicator(
+              onRefresh: _fetchData,
+              color: Colors.redAccent,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Résumé paiement
+                    _buildSummaryCard(totalPayments),
+
+                    const SizedBox(height: 30),
+
+                    if (subs.isEmpty)
+                      _buildEmptyState()
+                    else ...[
+                      const Text(
+                        'VOS ABONNEMENTS ACTIFS',
+                        style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5),
                       ),
-                      child: Text(
-                        accessType == 'abonnement' ? '🏷️ Abonnement' : '🏷️ Séance simple',
-                        style: const TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ),
+                      const SizedBox(height: 15),
+                      ...subs.map((s) => _buildSubscriptionCard(s, payments)),
+                    ],
+                    const SizedBox(height: 100),
                   ],
-                ],
+                ),
               ),
             ),
+    );
+  }
 
-            const SizedBox(height: 30),
+  Widget _buildSummaryCard(int total) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.red.shade900.withOpacity(0.8), const Color(0xFF1A0000)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.workspace_premium, color: Colors.redAccent, size: 40),
+          const SizedBox(height: 12),
+          const Text('TOTAL SOUSCRIT', style: TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 2)),
+          const SizedBox(height: 6),
+          Text(_formatPrice(total), style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900)),
+          const Text('Ariary', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        ],
+      ),
+    );
+  }
 
-            // ── Liste des offres ────────────────────────────────
-            if (offres.isEmpty)
-              Center(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 30),
-                    Icon(Icons.inbox_rounded, color: Colors.white12, size: 60),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Aucune offre enregistrée',
-                      style: TextStyle(color: Colors.white24, fontSize: 14),
+  Widget _buildSubscriptionCard(String s, List<dynamic> payments) {
+    final plan = _plans.firstWhere((p) => p.name == s, 
+      orElse: () => SubscriptionPlan(id: 0, name: s, type: '', duration: 0, price: 0, features: [], popular: false));
+    
+    final double price = plan.price.toDouble();
+    double paidForThis = 0;
+    for (var p in payments) {
+      if (p['subscription'] == s) paidForThis += (p['amount'] as num?)?.toDouble() ?? 0.0;
+    }
+    final double balance = price - paidForThis;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: balance > 0 ? Colors.orangeAccent.withOpacity(0.2) : Colors.greenAccent.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(s.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14)),
+              ),
+              if (balance <= 0 && price > 0)
+                const Icon(Icons.verified, color: Colors.greenAccent, size: 20),
+            ],
+          ),
+          const SizedBox(height: 15),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Reste à payer", style: TextStyle(color: Colors.white38, fontSize: 10)),
+                  Text(
+                    "${_formatPrice(balance.toInt() > 0 ? balance.toInt() : 0)} Ar",
+                    style: TextStyle(
+                      color: balance > 0 ? Colors.orangeAccent : Colors.greenAccent,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
                     ),
-                  ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: (balance > 0 ? Colors.orangeAccent : Colors.greenAccent).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              )
-            else ...[
-              const Text(
-                'DÉTAIL DES OFFRES',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
+                child: Text(
+                  balance > 0 ? "PARTIEL" : "PAYÉ",
+                  style: TextStyle(
+                    color: balance > 0 ? Colors.orangeAccent : Colors.greenAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
-              ...offres.asMap().entries.map((entry) {
-                final i = entry.key;
-                final offre = entry.value;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.redAccent.withOpacity(0.15)),
-                  ),
-                  child: Row(
+            ],
+          ),
+          
+          if (price > 0) ...[
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Paiement effectué", style: TextStyle(color: Colors.white38, fontSize: 10)),
+                Text("${((paidForThis / price) * 100).toInt()}%", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: (paidForThis / price).clamp(0.0, 1.0),
+                backgroundColor: Colors.white.withOpacity(0.05),
+                valueColor: AlwaysStoppedAnimation<Color>(balance > 0 ? Colors.orangeAccent : Colors.greenAccent),
+                minHeight: 6,
+              ),
+            ),
+          ],
+
+          // Progression du temps
+          if (_userData?['startDate'] != null && _userData?['expiryDate'] != null) ...[
+            const SizedBox(height: 20),
+            () {
+              final start = DateTime.parse(_userData?['startDate']);
+              final end = DateTime.parse(_userData?['expiryDate']);
+              final now = DateTime.now();
+              final total = end.difference(start).inSeconds;
+              final elapsed = now.difference(start).inSeconds;
+              final double progress = total > 0 ? (elapsed / total).clamp(0.0, 1.0) : 0.0;
+              final int percent = (progress * 100).toInt();
+              
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${i + 1}',
-                            style: const TextStyle(
-                              color: Colors.redAccent,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          offre,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20),
+                      const Text("Validité (temps écoulé)", style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                      Text("$percent%", style: TextStyle(color: progress >= 0.9 ? Colors.redAccent : Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                     ],
                   ),
-                );
-              }),
-            ],
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: Colors.white.withOpacity(0.05),
+                      valueColor: AlwaysStoppedAnimation<Color>(progress >= 0.9 ? Colors.redAccent : Colors.blueAccent),
+                      minHeight: 6,
+                    ),
+                  ),
+                ],
+              );
+            }(),
           ],
-        ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        children: const [
+          SizedBox(height: 50),
+          Icon(Icons.inbox_rounded, color: Colors.white12, size: 80),
+          SizedBox(height: 15),
+          Text('Aucune offre enregistrée', style: TextStyle(color: Colors.white24, fontSize: 16)),
+        ],
       ),
     );
   }
