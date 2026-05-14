@@ -124,11 +124,19 @@ class _HomeScreenState extends State<HomeScreen> {
   final ValueNotifier<int> _notificationCountNotifier = ValueNotifier<int>(0);
 
   final List<String> _titles = [
-    "ARTICLES",
+    "ACTUALITÉS",
     "À PROPOS",
     "NOS OFFRES",
     "MON PROFIL",
     "NOTIFICATIONS",
+  ];
+
+  final List<IconData> _pageIcons = [
+    Icons.newspaper_rounded,
+    Icons.info_rounded,
+    Icons.workspace_premium,
+    Icons.person_rounded,
+    Icons.notifications_rounded,
   ];
 
   late final List<Widget> _pages;
@@ -199,47 +207,125 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.red.shade900,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 12.0),
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: const Color(0xFF660000),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(64),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF8B0000),
+                Colors.red.shade800,
+                const Color(0xFF6B0000),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.shade900.withOpacity(0.6),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  // ── Logo MadaFit ─────────────────────────────
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.fitness_center,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // ── Titre + icône page ────────────────────────
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'MADAFIT',
+                          style: TextStyle(
+                            color: Colors.white38,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 3,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Icon(
+                              _pageIcons[_selectedIndex],
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _titles[_selectedIndex],
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── Déconnexion ───────────────────────────────
+                  GestureDetector(
+                    onTap: widget.onLogout,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.logout_rounded, color: Colors.white, size: 14),
+                          SizedBox(width: 5),
+                          Text(
+                            'Quitter',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
-              ),
-              child: const Icon(
-                Icons.fitness_center,
-                color: Colors.white,
-                size: 20,
               ),
             ),
           ),
         ),
-        title: Text(
-          _titles[_selectedIndex],
-          style: const TextStyle(
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.2,
-          ),
-        ),
-        centerTitle: true,
-        elevation: 4,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.power_settings_new),
-            onPressed: widget.onLogout,
-          ),
-        ],
       ),
       body: Stack(
         children: [
@@ -264,16 +350,17 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildNavItem(0, Icons.home_filled),
-                  _buildNavItem(1, Icons.language),
-                  _buildNavItem(2, Icons.add_circle),
-                  _buildNavItem(3, Icons.person),
+                  _buildNavItem(0, Icons.newspaper_rounded, label: 'Actus'),
+                  _buildNavItem(1, Icons.info_rounded, label: 'Infos'),
+                  _buildNavItem(2, Icons.workspace_premium, label: 'Offres'),
+                  _buildNavItem(3, Icons.person_rounded, label: 'Profil'),
                   ValueListenableBuilder<int>(
                     valueListenable: _notificationCountNotifier,
                     builder: (context, count, child) {
                       return _buildNavItem(
                         4,
-                        Icons.notifications,
+                        Icons.notifications_rounded,
+                        label: 'Alertes',
                         badge: count,
                       );
                     },
@@ -287,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, {int badge = 0}) {
+  Widget _buildNavItem(int index, IconData icon, {int badge = 0, String label = ''}) {
     bool isSelected = _selectedIndex == index;
 
     return GestureDetector(
@@ -299,12 +386,12 @@ class _HomeScreenState extends State<HomeScreen> {
         alignment: Alignment.center,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              height: 4,
-              width: isSelected ? 28 : 0,
+              duration: const Duration(milliseconds: 250),
+              height: 3,
+              width: isSelected ? 24 : 0,
               decoration: BoxDecoration(
                 color: Colors.redAccent,
                 borderRadius: BorderRadius.circular(2),
@@ -312,32 +399,32 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? [
                         const BoxShadow(
                           color: Colors.redAccent,
-                          blurRadius: 10,
+                          blurRadius: 8,
                           spreadRadius: 1,
                         ),
                       ]
                     : [],
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             SizedBox(
               width: 44,
-              height: 36,
+              height: 32,
               child: Stack(
                 alignment: Alignment.center,
                 clipBehavior: Clip.none,
                 children: [
                   if (isSelected)
                     Container(
-                      height: 35,
-                      width: 35,
+                      height: 32,
+                      width: 32,
                       decoration: BoxDecoration(
                         shape: BoxShape.rectangle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.red.withOpacity(0.2),
-                            blurRadius: 15,
-                            spreadRadius: 10,
+                            color: Colors.red.withOpacity(0.25),
+                            blurRadius: 14,
+                            spreadRadius: 8,
                           ),
                         ],
                       ),
@@ -345,24 +432,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   Icon(
                     icon,
                     color: isSelected ? Colors.redAccent : Colors.grey.shade600,
-                    size: isSelected ? 28 : 24,
+                    size: isSelected ? 26 : 22,
                   ),
                   if (badge > 0)
                     Positioned(
                       right: 0,
                       top: -2,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 1,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
                           color: Colors.redAccent,
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF151515),
-                            width: 2,
-                          ),
+                          border: Border.all(color: const Color(0xFF151515), width: 2),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.5),
@@ -371,10 +452,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ],
                         ),
-                        constraints: const BoxConstraints(
-                          minWidth: 18,
-                          minHeight: 18,
-                        ),
+                        constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
                         child: Center(
                           child: Text(
                             badge > 99 ? '99+' : '$badge',
@@ -390,6 +468,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                 ],
               ),
+            ),
+            const SizedBox(height: 2),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                color: isSelected ? Colors.redAccent : Colors.grey.shade600,
+                fontSize: 9,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                letterSpacing: 0.5,
+              ),
+              child: Text(label.toUpperCase()),
             ),
           ],
         ),
