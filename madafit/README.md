@@ -101,5 +101,5 @@ Propriétaire - Tous droits réservés à Eray Digital.
 ## 👨‍💻 Développeurs
 Ce projet a été développé par :
 - **Fabrice Faniry RANDT**
-- **Tahina R.**
+- **Tahiana R.**
 

@@ -13,7 +13,8 @@ import {
   normalizeMemberStatus, 
   formatDate, 
   formatTime,
-  isMemberAccessAuthorized 
+  isMemberAccessAuthorized,
+  extractIdFromIri
 } from "@/lib/madafit";
 import type { User, AttendanceRecord } from "@/types/entities";
 
@@ -55,6 +56,20 @@ export default function AccessControl() {
     },
   });
 
+  const checkOutMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { checkOut: string } }) =>
+      api.attendanceRecords.update(id, data as any),
+    onSuccess: () => {
+      toast.success("Sortie enregistrée !");
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      refreshNotifications();
+    },
+    onError: (err: unknown) => {
+      console.error("Erreur sortie:", err);
+      toast.error("Erreur lors de la sortie.");
+    },
+  });
+
   const users = extractHydraMembers(usersQuery.data) as User[];
   const attendance = extractHydraMembers(attendanceQuery.data) as AttendanceRecord[];
 
@@ -84,19 +99,37 @@ export default function AccessControl() {
                 lastScanTime.current = now;
                 const nowObj = new Date();
                 const timeStr = nowObj.toTimeString().split(" ")[0];
-                const dateStr = nowObj.toISOString().split("T")[0];
+                const dateStr = `${nowObj.getFullYear()}-${String(nowObj.getMonth() + 1).padStart(2, '0')}-${String(nowObj.getDate()).padStart(2, '0')}`;
 
                 setSelectedUser(foundUser);
                 setCurrentScanTime(timeStr);
 
-                checkInMutation.mutate({
-                  user: `/api/users/${foundUser.id}`,
-                  memberId: foundUser.memberId || "",
-                  memberName: getFullName(foundUser),
-                  rfidCard: foundUser.rfidCard || "",
-                  date: dateStr,
-                  checkIn: timeStr,
-                });
+                // Logique de Toggle: On cherche une entrée ACTIVE (sans sortie) pour AUJOURD'HUI
+                // On s'assure de prendre la plus récente pour éviter les conflits si plusieurs existent
+                const userRecords = attendance.filter(
+                  (a) => extractIdFromIri(a.user) === foundUser.id && 
+                         (typeof a.date === 'string' ? a.date.substring(0, 10) : '') === dateStr
+                );
+                
+                const activeRecord = userRecords.find((a) => !a.checkOut);
+
+                if (activeRecord && activeRecord.id) {
+                  // Si l'entrée vient d'être créée (moins de 10s), on ignore pour éviter les doubles scans fantômes
+                  // Mais ici on fait confiance au throttle de 5s
+                  checkOutMutation.mutate({
+                    id: activeRecord.id,
+                    data: { checkOut: timeStr },
+                  });
+                } else {
+                  checkInMutation.mutate({
+                    user: `/api/users/${foundUser.id}`,
+                    memberId: foundUser.memberId || "",
+                    memberName: getFullName(foundUser),
+                    rfidCard: foundUser.rfidCard || "",
+                    date: dateStr,
+                    checkIn: timeStr,
+                  });
+                }
               }
             }
           },
@@ -262,10 +295,12 @@ export default function AccessControl() {
                     <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                       <Clock size={14} />
                     </div>
-                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.1em]">Dernier passage</p>
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.1em]">
+                      {currentScanTime ? (attendance.find(a => !a.checkOut && extractIdFromIri(a.user) === displayUser?.id) ? "Heure de Sortie" : "Heure d'Entrée") : "Dernier passage"}
+                    </p>
                   </div>
                   <p className="font-black text-foreground text-base pl-1">
-                    {formatTime(currentScanTime || lastScan?.checkIn)}
+                    {formatTime(currentScanTime || (lastScan?.checkOut || lastScan?.checkIn))}
                   </p>
                 </div>
 
@@ -442,7 +477,12 @@ export default function AccessControl() {
                 Membres en salle
               </p>
               <h4 className="text-4xl sm:text-5xl font-black">
-                {attendance.filter((r) => !r.checkOut).length}
+                {Array.from(new Set(
+                  attendance
+                    .filter((r) => !r.checkOut && (typeof r.date === 'string' ? r.date.substring(0, 10) : '') === new Date().toISOString().split("T")[0])
+                    .map(r => extractIdFromIri(r.user))
+                    .filter(Boolean)
+                )).length}
               </h4>
             </div>
             <div className="p-6 rounded-3xl bg-card border border-border shadow-lg flex flex-col justify-between min-h-[140px] overflow-hidden relative">
@@ -680,13 +720,19 @@ function AttendanceTable({
                 <div className="text-[10px] font-bold opacity-50 uppercase">
                   {formatDate(record.date)}
                 </div>
-                <div className="text-base font-black text-primary">
+                <div className="text-base font-black text-primary flex items-center gap-2">
                   {formatTime(record.checkIn)}
+                  {record.checkOut && (
+                    <>
+                      <span className="text-muted-foreground font-normal text-xs">→</span>
+                      <span>{formatTime(record.checkOut)}</span>
+                    </>
+                  )}
                 </div>
               </td>
               <td className="p-5">
                 <span
-                  className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
+                  className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
                     record.checkOut
                       ? "bg-orange-500/10 text-orange-500 border-orange-500/20"
                       : "bg-green-500/10 text-green-500 border-green-500/20"

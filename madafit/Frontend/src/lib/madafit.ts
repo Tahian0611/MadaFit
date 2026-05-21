@@ -283,10 +283,17 @@ export function computeDashboardStats(
 
   // inGymNow : seulement aujourd'hui, sans checkout
   const todayStr = now.toISOString().split("T")[0];
-  const inGymNow = attendance.filter((a) => {
-    const aDate = typeof a.date === "string" ? a.date.substring(0, 10) : new Date(a.date).toISOString().split("T")[0];
-    return aDate === todayStr && !a.checkOut;
-  }).length;
+  const inGymNow = Array.from(
+    new Set(
+      attendance
+        .filter((a) => {
+          const aDate = typeof a.date === "string" ? a.date.substring(0, 10) : new Date(a.date).toISOString().split("T")[0];
+          return aDate === todayStr && !a.checkOut;
+        })
+        .map((a) => extractIdFromIri(a.user))
+        .filter(Boolean)
+    )
+  ).length;
 
   // Données graphiques 6 mois
   const monthlyData: any[] = [];

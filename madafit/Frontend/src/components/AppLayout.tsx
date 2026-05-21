@@ -50,7 +50,6 @@ const ADMIN_NAV_ITEMS = [
 const RECEPTION_NAV_ITEMS = [
   { icon: LayoutDashboard, label: "Tableau de bord",  path: "/" },
   { icon: Users,           label: "Membres",          path: "/members" },
-  { icon: UserPlus,        label: "Inscription",      path: "/register" },
   { icon: Wifi,            label: "Controle d'acces", path: "/access" },
   { icon: Tag,             label: "Offres",           path: "/plans" },
   { icon: RefreshCw,       label: "Abonnements",      path: "/subscriptions" },
