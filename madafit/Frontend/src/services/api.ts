@@ -268,6 +268,34 @@ export const notificationApi = {
   },
 };
 
+export const backupApi = {
+  async getAll(): Promise<any[]> {
+    return fetchFromApi("/backups");
+  },
+  async generate(): Promise<{ success: boolean; message: string; filename?: string }> {
+    return fetchFromApi("/backups", { method: "POST" });
+  },
+  async delete(filename: string): Promise<{ success: boolean; message?: string }> {
+    return fetchFromApi(`/backups/${filename}`, { method: "DELETE" });
+  },
+  async download(filename: string): Promise<void> {
+    const token = localStorage.getItem("madafit_token");
+    const response = await fetch(`${API_BASE_URL}/backups/download/${filename}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error("Erreur lors du téléchargement");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+};
+
 // ─── Upload image ─────────────────────────────────────────────────────────────
 export async function uploadImage(file: File): Promise<string> {
   const token = localStorage.getItem("madafit_token");
@@ -329,6 +357,7 @@ export const api = {
   dailySummaryRows:  dailySummaryRowApi,
   articles:          articleApi,
   promoCodes:        promoCodeApi,
+  backups:           backupApi,
   stockReports: {
     getSummary: async (params: { from: string; to: string }): Promise<StockReportSummary> => {
       const token = localStorage.getItem("madafit_token");

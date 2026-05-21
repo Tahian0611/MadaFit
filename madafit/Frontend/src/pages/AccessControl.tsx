@@ -1,7 +1,7 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Wifi, QrCode, UserCheck, UserX, Clock, X, History, Maximize2, Minimize2, BarChart3, Calendar, Download, FileText, Activity, Users, LogIn } from "lucide-react";
+import { Search, Wifi, QrCode, UserCheck, UserX, Clock, X, History, Maximize2, Minimize2, BarChart3, Calendar, Download, FileText, Activity, Users, LogIn, Lock, Unlock } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { toast } from "sonner";
 import { createPortal } from "react-dom";
@@ -53,8 +53,36 @@ export default function AccessControl() {
   }, []);
   const qrScannerRef = useRef<Html5Qrcode | null>(null);
   const [isKioskMode, setIsKioskMode] = useState(false);
+  const [isScreenLocked, setIsScreenLocked] = useState(false);
+  const [showLockButton, setShowLockButton] = useState(true);
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [currentScanTime, setCurrentScanTime] = useState<string | null>(null);
   const lastScanTime = useRef<number>(0);
+
+  useEffect(() => {
+    const resetIdleTimer = () => {
+      setShowLockButton(true);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        setShowLockButton(false);
+      }, 3000);
+    };
+
+    resetIdleTimer();
+
+    window.addEventListener('mousemove', resetIdleTimer);
+    window.addEventListener('mousedown', resetIdleTimer);
+    window.addEventListener('touchstart', resetIdleTimer);
+    window.addEventListener('keydown', resetIdleTimer);
+
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      window.removeEventListener('mousemove', resetIdleTimer);
+      window.removeEventListener('mousedown', resetIdleTimer);
+      window.removeEventListener('touchstart', resetIdleTimer);
+      window.removeEventListener('keydown', resetIdleTimer);
+    };
+  }, []);
 
   const queryClient = useQueryClient();
 
@@ -686,14 +714,7 @@ export default function AccessControl() {
               <div className="relative w-full h-full max-w-[1100px] max-h-[650px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-3xl sm:rounded-[40px] border border-white/10">
                 {renderScannerContent()}
                 
-                {/* Bouton de fermeture flottant discret mais accessible */}
-                <button 
-                  onClick={toggleFullScreen}
-                  className="absolute bottom-6 right-6 z-[1000] flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-red-500/90 hover:bg-red-600 text-white font-black shadow-[0_15px_30px_rgba(239,68,68,0.3)] transition-all active:scale-95 border border-white/20 backdrop-blur-md group"
-                >
-                  <X size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-                  <span className="text-xs tracking-[0.1em] uppercase">Quitter le Scan</span>
-                </button>
+
               </div>
             </div>,
             document.body
@@ -1197,6 +1218,43 @@ export default function AccessControl() {
         </div>,
         document.body
       )}
+      {/* Overlay de verrouillage d'écran */}
+      {isScreenLocked && (
+        <div 
+          className="fixed inset-0 z-[1500]" 
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toast.warning("L'écran est verrouillé", { id: "screen-locked" });
+          }}
+          onMouseDownCapture={(e) => {
+            e.stopPropagation();
+          }}
+          onTouchStartCapture={(e) => {
+            e.stopPropagation();
+          }}
+        />
+      )}
+
+      {/* Bouton de verrouillage/déverrouillage (Cadenas) */}
+      <button
+        onClick={() => {
+          setIsScreenLocked(!isScreenLocked);
+          if (!isScreenLocked) {
+            toast.success("Écran verrouillé");
+          } else {
+            toast.success("Écran déverrouillé");
+          }
+        }}
+        className={`fixed bottom-6 right-6 z-[2000] flex items-center justify-center w-14 h-14 rounded-full shadow-2xl transition-all duration-500 ${
+          isScreenLocked 
+            ? "bg-red-500 hover:bg-red-600 text-white shadow-[0_10px_30px_rgba(239,68,68,0.4)]" 
+            : "bg-black/40 hover:bg-black/60 text-white/80 hover:text-white backdrop-blur-md border border-white/10"
+        } ${!showLockButton ? "opacity-0 translate-y-10 pointer-events-none" : "opacity-100 translate-y-0"}`}
+        title={isScreenLocked ? "Déverrouiller l'écran" : "Verrouiller l'écran"}
+      >
+        {isScreenLocked ? <Lock size={24} /> : <Unlock size={24} />}
+      </button>
     </>
   );
 }

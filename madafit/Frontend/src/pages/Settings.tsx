@@ -28,6 +28,7 @@ import {
   Loader2,
   Check,
   X,
+  Trash2,
 } from "lucide-react";
 
 // ── Initialisation thème (module-level, s'exécute au démarrage) ───────────────
@@ -108,6 +109,36 @@ export default function Settings() {
   const payments   = extractHydraMembers(paymentsQuery.data);
   const attendance = extractHydraMembers(attendanceQuery.data);
   const products   = extractHydraMembers(productsQuery.data);
+
+  const backupsQuery = useQuery({ queryKey: ["backups"], queryFn: () => api.backups.getAll() });
+  const backups = backupsQuery.data || [];
+
+  const generateBackupMutation = useMutation({
+    mutationFn: () => api.backups.generate(),
+    onSuccess: () => {
+      toast.success("Sauvegarde générée");
+      queryClient.invalidateQueries({ queryKey: ["backups"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteBackupMutation = useMutation({
+    mutationFn: (filename: string) => api.backups.delete(filename),
+    onSuccess: () => {
+      toast.success("Sauvegarde supprimée");
+      queryClient.invalidateQueries({ queryKey: ["backups"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const handleDownloadBackup = async (filename: string) => {
+    try {
+      await api.backups.download(filename);
+      toast.success("Téléchargement lancé");
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
 
   const sessionUser = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("madafit_user") || "{}"); }
@@ -711,6 +742,73 @@ export default function Settings() {
                       </button>
                     </div>
                   ))}
+                </div>
+
+                {/* Section Base de données */}
+                <div className="pt-6 border-t mt-6" style={{ borderColor: "hsl(var(--border))" }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-sm font-bold text-foreground">Sauvegardes de la base de données (SQL)</p>
+                      <p className="text-xs text-muted-foreground">Une sauvegarde automatique mensuelle est configurée. Vous pouvez aussi en générer une manuellement.</p>
+                    </div>
+                    <button
+                      onClick={() => generateBackupMutation.mutate()}
+                      disabled={generateBackupMutation.isPending}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
+                      style={{ background: "var(--gradient-hero)" }}
+                    >
+                      {generateBackupMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
+                      Générer une sauvegarde
+                    </button>
+                  </div>
+
+                  <div className="rounded-xl border overflow-hidden" style={{ borderColor: "hsl(var(--border))" }}>
+                    <table className="w-full text-xs text-left">
+                      <thead style={{ background: "hsl(var(--muted) / 0.5)" }}>
+                        <tr>
+                          <th className="py-2.5 px-4 font-semibold text-muted-foreground">Fichier</th>
+                          <th className="py-2.5 px-4 font-semibold text-muted-foreground">Date</th>
+                          <th className="py-2.5 px-4 font-semibold text-muted-foreground">Taille</th>
+                          <th className="py-2.5 px-4 font-semibold text-muted-foreground text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/40">
+                        {backupsQuery.isLoading ? (
+                          <tr><td colSpan={4} className="py-4 text-center text-muted-foreground">Chargement...</td></tr>
+                        ) : backups.length === 0 ? (
+                          <tr><td colSpan={4} className="py-4 text-center text-muted-foreground">Aucune sauvegarde disponible.</td></tr>
+                        ) : (
+                          backups.map((bkp: any) => (
+                            <tr key={bkp.filename} className="hover:bg-muted/30 transition-colors">
+                              <td className="py-2.5 px-4 font-medium text-foreground">{bkp.filename}</td>
+                              <td className="py-2.5 px-4 text-muted-foreground">{new Date(bkp.date).toLocaleString("fr-FR")}</td>
+                              <td className="py-2.5 px-4 text-muted-foreground">{(bkp.size / 1024).toFixed(2)} KB</td>
+                              <td className="py-2.5 px-4 text-right space-x-2">
+                                <button
+                                  onClick={() => handleDownloadBackup(bkp.filename)}
+                                  className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                                  title="Télécharger"
+                                >
+                                  <Download size={14} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm("Voulez-vous vraiment supprimer cette sauvegarde ?")) {
+                                      deleteBackupMutation.mutate(bkp.filename);
+                                    }
+                                  }}
+                                  className="p-1.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+                                  title="Supprimer"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
