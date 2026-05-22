@@ -4,6 +4,7 @@ import { CheckCircle2, CalendarCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { refreshNotifications } from '@/services/api';
+import type { SubscriptionPlan, SubscriptionType } from "@/types/entities";
 import {
   ACTIVITY_LABELS,
   SUBSCRIPTION_LABELS,
@@ -119,7 +120,7 @@ export default function Register() {
     queryFn: () => api.subscriptionPlans.getAll({ itemsPerPage: 100 }),
   });
 
-  const plans = extractHydraMembers(plansQuery.data);
+  const plans = extractHydraMembers<SubscriptionPlan>(plansQuery.data);
 
   const selectedPlan = useMemo(
   () => plans.find((plan) => String(plan.id) === form.subscription),
@@ -235,7 +236,7 @@ export default function Register() {
         status: "active",
         memberId: `MF-${Date.now().toString().slice(-6)}`,
         rfidCard: `RF${Date.now().toString().slice(-6)}`,
-        subscription: form.accessType === "abonnement" && selectedPlan ? normalizeSubscriptionType(selectedPlan.type) : "session",
+        subscription: (form.accessType === "abonnement" && selectedPlan ? normalizeSubscriptionType(selectedPlan.type) : "monthly") as SubscriptionType,
         activities: form.activities,
         activity: form.activities[0] ?? null,
         accessType: form.accessType,

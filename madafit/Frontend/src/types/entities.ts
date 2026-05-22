@@ -56,6 +56,7 @@ export interface User {
   visitCount?: number;
   inGym?: boolean;
   notes?: string;
+  password?: string;
   // ═══════════════════════════════════════════════════════════════════════
   // INJECTION : activities (tableau) + activity conservé pour compatibilité
   // ═══════════════════════════════════════════════════════════════════════
