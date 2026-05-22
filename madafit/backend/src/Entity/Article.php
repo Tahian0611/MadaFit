@@ -63,7 +63,6 @@ class Article implements AuthoredInterface
 
     #[ORM\Column(length: 500, nullable: true)]
     #[Groups(['article:read', 'article:write'])]
-    #[Assert\Url]
     private ?string $imageUrl = null;
 
     #[ORM\Column(length: 50, nullable: true)]
