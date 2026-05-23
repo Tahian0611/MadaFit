@@ -181,7 +181,7 @@ export function CreateUserExample() {
         ...formData,
         roles: ['ROLE_USER'],
       });
-      console.log('User created:', newUser);
+      
       alert('User created successfully!');
       setFormData({ email: '', firstName: '', lastName: '', password: '' });
     } catch (err) {

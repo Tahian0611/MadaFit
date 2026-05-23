@@ -14,7 +14,7 @@ security:
             security: false
 
         public_api:
-            pattern: ^/api/(login|register|forgot-password|reset-password|subscription_plans|check-email|articles|article_categories)$
+            pattern: ^/api/(login|register|forgot-password|reset-password|subscription_plans|check-email)$
             stateless: true
             security: false
 

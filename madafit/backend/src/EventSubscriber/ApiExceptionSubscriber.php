@@ -20,13 +20,19 @@ class ApiExceptionSubscriber implements EventSubscriberInterface
         }
 
         $exception = $event->getThrowable();
-        $message = $exception->getMessage();
+
+        // Laisser ApiPlatform gérer ses propres exceptions HTTP (4xx)
+        // Elles ont déjà un format JSON correct (hydra:description, violations, etc.)
+        if ($exception instanceof HttpExceptionInterface && $exception->getStatusCode() < 500) {
+            return;
+        }
+
         $statusCode = $exception instanceof HttpExceptionInterface ? $exception->getStatusCode() : 500;
 
-        // Custom JSON response
+        // Custom JSON response uniquement pour les erreurs 5xx inattendues
         $response = new JsonResponse([
-            'error' => $message,
-            'code' => $statusCode,
+            'error'   => $exception->getMessage(),
+            'code'    => $statusCode,
             'message' => 'Une erreur est survenue sur le serveur.',
         ], $statusCode);
 
