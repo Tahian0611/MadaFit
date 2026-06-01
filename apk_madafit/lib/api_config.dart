@@ -11,10 +11,10 @@ class ApiConfig {
   static const String _devUrl = 'https://$_localIp:8000/api';
 
   /// The base URL for the API.
-  /// Detects automatically if in Debug or Release mode.
+  /// Force l'utilisation de l'URL de production pour l'APK.
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: kReleaseMode ? _prodUrl : _devUrl,
+    defaultValue: _prodUrl, // Forcer l'URL de production ici
   );
 
   /// Helper to get the full URL for an image.
