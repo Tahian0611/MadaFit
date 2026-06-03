@@ -53,7 +53,7 @@ class Article implements AuthoredInterface
     #[ORM\Column(length: 255)]
     #[Groups(['article:read', 'article:write'])]
     #[Assert\NotBlank]
-    #[Assert\Length(min: 5, max: 255)]
+    #[Assert\Length(max: 255)]
     private string $title;
 
     #[ORM\Column(type: Types::TEXT)]
