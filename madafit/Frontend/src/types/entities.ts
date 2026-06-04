@@ -7,7 +7,7 @@
 // ============================================================================
 // SHARED TYPES
 // ============================================================================
-export type MemberStatus = "active" | "expired" | "suspended";
+export type MemberStatus = "active" | "expired" | "suspended" | "pending";
 export type SubscriptionType = "monthly" | "quarterly" | "annual" | "vip" | "coaching";
 export type AccessType = "abonnement" | "seance";
 export type CardStatus = "active" | "inactive" | "lost";
@@ -45,7 +45,7 @@ export interface User {
   emergencyPhone?: string;
   medicalNotes?: string;
   joinDate?: string; // ISO 8601 date
-  subscription?: SubscriptionType;
+  subscription?: string | null;
   status?: MemberStatus;
   expiryDate?: string; // ISO 8601 date
   startDate?: string; // ISO 8601 date
@@ -155,7 +155,7 @@ export interface PaymentRecord {
   method: string;
   subscription?: string;
   receiptNo?: string;
-  user?: User;
+  user?: User | string; // IRI ou objet User
 }
 
 // ============================================================================

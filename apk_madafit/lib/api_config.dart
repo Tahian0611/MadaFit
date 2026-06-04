@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 class ApiConfig {
   // 1. URL de Production
-  static const String _prodUrl = 'https://st-travelnosybe.com/api';
+  ///static const String _prodUrl = 'https://st-travelnosybe.com/api';
 
   // 2. URL de Développement (Local)
   // - Utilisez '10.0.2.2' pour l'émulateur Android
@@ -14,7 +14,7 @@ class ApiConfig {
   /// Force l'utilisation de l'URL de production pour l'APK.
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: _prodUrl, // Forcer l'URL de production ici
+    defaultValue: _devUrl, // Forcer l'URL de production ici
   );
 
   /// Helper to get the full URL for an image.

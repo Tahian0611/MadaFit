@@ -291,7 +291,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="flex-1 overflow-y-auto bg-background/50">
-          <div className="max-w-[1600px] mx-auto p-4 md:p-6 lg:p-8 animate-fade-in">
+          <div className="max-w-[1600px] mx-auto p-4 md:p-6 lg:p-4 animate-fade-in">
             {children}
           </div>
         </main>

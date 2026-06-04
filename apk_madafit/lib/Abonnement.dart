@@ -155,14 +155,16 @@ class _AbonnementPageState extends State<AbonnementPage> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/promo_codes/validate'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'code': code}),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/promo_codes/validate'),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'code': code}),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -197,9 +199,9 @@ class _AbonnementPageState extends State<AbonnementPage> {
         _isValidatingPromo = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -219,7 +221,8 @@ class _AbonnementPageState extends State<AbonnementPage> {
 
     double discountedPrice = originalPrice;
     if (_appliedPromo!['discountPercentage'] != null) {
-      discountedPrice -= (originalPrice * (_appliedPromo!['discountPercentage'] / 100));
+      discountedPrice -=
+          (originalPrice * (_appliedPromo!['discountPercentage'] / 100));
     } else if (_appliedPromo!['discountAmount'] != null) {
       discountedPrice -= _appliedPromo!['discountAmount'];
     }
@@ -265,22 +268,49 @@ class _AbonnementPageState extends State<AbonnementPage> {
     );
 
     try {
+      // IMPORTANT: ne pas écraser les abonnements actifs.
+      // On ajoute la nouvelle offre à la liste existante (CSV), si elle n'y est pas déjà.
+      final String rawExisting = (_user?['subscription'] ?? '').toString();
+      final List<String> existingSubs = rawExisting.isNotEmpty
+          ? rawExisting
+                .split(',')
+                .map((s) => s.trim())
+                .where((s) => s.isNotEmpty)
+                .toList()
+          : <String>[];
+
+      final String newSub = plan.name.trim();
+      final List<String> updatedSubs = <String>[...existingSubs];
+      if (!updatedSubs.contains(newSub)) {
+        updatedSubs.add(newSub);
+      }
+
+      final String updatedCsv = updatedSubs.join(',');
+
       final body = {
-        'subscription': plan.name,
+        // On ajoute la nouvelle offre MAIS on ne met pas tous les anciens en "pending".
+        // On garde l'état actuel côté backend, et on met seulement la nouvelle offre en attente.
+        // (Le backend doit gérer l'ajout d'une ligne/transaction avec status pending pour la nouvelle offre.)
+        'subscription': updatedCsv,
+        'status': 'active',
+        'newSubscriptionStatus': 'pending',
       };
+
       if (_appliedPromo != null) {
         body['promotion'] = _appliedPromo!['code'];
       }
 
-      final response = await http.patch(
-        Uri.parse('$_baseUrl/users/${widget.userId}'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/merge-patch+json',
-          'Accept': 'application/ld+json',
-        },
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .patch(
+            Uri.parse('$_baseUrl/users/${widget.userId}'),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Content-Type': 'application/merge-patch+json',
+              'Accept': 'application/ld+json',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (mounted) Navigator.of(context).pop();
 
@@ -288,7 +318,7 @@ class _AbonnementPageState extends State<AbonnementPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('✓ Vous avez choisi la formule : ${plan.name}'),
+              content: Text('✓ Offres mises à jour (ajout : ${plan.name})'),
               backgroundColor: Colors.green,
             ),
           );
@@ -306,9 +336,9 @@ class _AbonnementPageState extends State<AbonnementPage> {
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur réseau : $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur réseau : $e')));
       }
     }
   }
@@ -343,7 +373,10 @@ class _AbonnementPageState extends State<AbonnementPage> {
                           size: 50,
                         ),
                         const SizedBox(height: 15),
-                        Text(_error!, style: const TextStyle(color: Colors.white70)),
+                        Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
                         const SizedBox(height: 20),
                         ElevatedButton(
                           onPressed: _fetchPlans,
@@ -413,7 +446,10 @@ class _AbonnementPageState extends State<AbonnementPage> {
               const SizedBox(height: 10),
               Text(
                 "Peu importe votre niveau, nous avons le plan parfait pour vous faire progresser.",
-                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
@@ -459,7 +495,10 @@ class _AbonnementPageState extends State<AbonnementPage> {
                     hintStyle: const TextStyle(color: Colors.white24),
                     filled: true,
                     fillColor: Colors.black26,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 0),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 15,
+                      vertical: 0,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
@@ -475,13 +514,18 @@ class _AbonnementPageState extends State<AbonnementPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white10,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   child: _isValidatingPromo
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Text("APPLIQUER"),
                 ),
@@ -501,7 +545,10 @@ class _AbonnementPageState extends State<AbonnementPage> {
                 const Spacer(),
                 TextButton(
                   onPressed: () => setState(() => _appliedPromo = null),
-                  child: const Text("Supprimer", style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                  child: const Text(
+                    "Supprimer",
+                    style: TextStyle(color: Colors.redAccent, fontSize: 12),
+                  ),
                 ),
               ],
             ),
@@ -575,7 +622,8 @@ class _AbonnementPageState extends State<AbonnementPage> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (_appliedPromo != null && discountedPrice < originalPrice)
+                        if (_appliedPromo != null &&
+                            discountedPrice < originalPrice)
                           Text(
                             "${_formatPrice(originalPrice)} Ar",
                             style: const TextStyle(
@@ -687,4 +735,3 @@ class _AbonnementPageState extends State<AbonnementPage> {
     );
   }
 }
-

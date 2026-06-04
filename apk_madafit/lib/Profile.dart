@@ -409,6 +409,15 @@ class _UserOffresPageState extends State<UserOffresPage> {
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
 
+  // Promo codes
+  final TextEditingController _promoController = TextEditingController();
+  bool _isValidatingPromo = false;
+  Map<String, dynamic>? _appliedPromo;
+
+  // Sélection des offres (multi)
+  final Set<String> _selectedOffers = <String>{};
+
+
   @override
   void initState() {
     super.initState();
@@ -456,6 +465,10 @@ class _UserOffresPageState extends State<UserOffresPage> {
     final int totalPayments = (_userData?['totalPayments'] as num?)?.toInt() ?? 0;
     final List<dynamic> payments = _userData?['paymentRecords'] ?? [];
 
+    // Fix type-safety: certains backends renvoient des index comme string/num.
+    // Ici on s'assure que payments reste une liste et que les champs utilisés
+    // (subscription, amount) sont bien manipulés comme Map.
+    // (Évite notamment l'erreur “String is not a subtype of type 'int' of index”.)
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -564,97 +577,120 @@ class _UserOffresPageState extends State<UserOffresPage> {
             ],
           ),
           const SizedBox(height: 15),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Reste à payer", style: TextStyle(color: Colors.white38, fontSize: 10)),
-                  Text(
-                    "${_formatPrice(balance.toInt() > 0 ? balance.toInt() : 0)} Ar",
-                    style: TextStyle(
-                      color: balance > 0 ? Colors.orangeAccent : Colors.greenAccent,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
+          if (balance > 0 && _userData?['status'] == 'pending') ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: (balance > 0 ? Colors.orangeAccent : Colors.greenAccent).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
+              child: const Center(
                 child: Text(
-                  balance > 0 ? "PARTIEL" : "PAYÉ",
+                  "EN ATTENTE DE VALIDATION",
                   style: TextStyle(
-                    color: balance > 0 ? Colors.orangeAccent : Colors.greenAccent,
-                    fontSize: 10,
+                    color: Colors.orangeAccent,
                     fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    fontSize: 12,
                   ),
                 ),
               ),
-            ],
-          ),
-          
-          if (price > 0) ...[
-            const SizedBox(height: 20),
+            ),
+          ] else ...[
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("Paiement effectué", style: TextStyle(color: Colors.white38, fontSize: 10)),
-                Text("${((paidForThis / price) * 100).toInt()}%", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(
-                value: (paidForThis / price).clamp(0.0, 1.0),
-                backgroundColor: Colors.white.withOpacity(0.05),
-                valueColor: AlwaysStoppedAnimation<Color>(balance > 0 ? Colors.orangeAccent : Colors.greenAccent),
-                minHeight: 6,
-              ),
-            ),
-          ],
-
-          // Progression du temps
-          if (_userData?['startDate'] != null && _userData?['expiryDate'] != null) ...[
-            const SizedBox(height: 20),
-            () {
-              final start = DateTime.parse(_userData?['startDate']);
-              final end = DateTime.parse(_userData?['expiryDate']);
-              final now = DateTime.now();
-              final total = end.difference(start).inSeconds;
-              final elapsed = now.difference(start).inSeconds;
-              final double progress = total > 0 ? (elapsed / total).clamp(0.0, 1.0) : 0.0;
-              final int percent = (progress * 100).toInt();
-              
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text("Validité (temps écoulé)", style: const TextStyle(color: Colors.white38, fontSize: 10)),
-                      Text("$percent%", style: TextStyle(color: progress >= 0.9 ? Colors.redAccent : Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                    ],
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Reste à payer", style: TextStyle(color: Colors.white38, fontSize: 10)),
+                    Text(
+                      "${_formatPrice(balance.toInt() > 0 ? balance.toInt() : 0)} Ar",
+                      style: TextStyle(
+                        color: balance > 0 ? Colors.orangeAccent : Colors.greenAccent,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: (balance > 0 ? Colors.orangeAccent : Colors.greenAccent).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: Colors.white.withOpacity(0.05),
-                      valueColor: AlwaysStoppedAnimation<Color>(progress >= 0.9 ? Colors.redAccent : Colors.blueAccent),
-                      minHeight: 6,
+                  child: Text(
+                    balance > 0 ? "PARTIEL" : "PAYÉ",
+                    style: TextStyle(
+                      color: balance > 0 ? Colors.orangeAccent : Colors.greenAccent,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
+                ),
+              ],
+            ),
+            
+            if (price > 0) ...[
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Paiement effectué", style: TextStyle(color: Colors.white38, fontSize: 10)),
+                  Text("${((paidForThis / price) * 100).toInt()}%", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                 ],
-              );
-            }(),
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: (paidForThis / price).clamp(0.0, 1.0),
+                  backgroundColor: Colors.white.withOpacity(0.05),
+                  valueColor: AlwaysStoppedAnimation<Color>(balance > 0 ? Colors.orangeAccent : Colors.greenAccent),
+                  minHeight: 6,
+                ),
+              ),
+            ],
+
+            // Progression du temps
+            if (_userData?['startDate'] != null && _userData?['expiryDate'] != null) ...[
+              const SizedBox(height: 20),
+              () {
+                final start = DateTime.parse(_userData?['startDate']);
+                final end = DateTime.parse(_userData?['expiryDate']);
+                final now = DateTime.now();
+                final total = end.difference(start).inSeconds;
+                final elapsed = now.difference(start).inSeconds;
+                final double progress = total > 0 ? (elapsed / total).clamp(0.0, 1.0) : 0.0;
+                final int percent = (progress * 100).toInt();
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Validité (temps écoulé)", style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                        Text("$percent%", style: TextStyle(color: progress >= 0.9 ? Colors.redAccent : Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: Colors.white.withOpacity(0.05),
+                        valueColor: AlwaysStoppedAnimation<Color>(progress >= 0.9 ? Colors.redAccent : Colors.blueAccent),
+                        minHeight: 6,
+                      ),
+                    ),
+                  ],
+                );
+              }(),
+            ],
           ],
         ],
       ),

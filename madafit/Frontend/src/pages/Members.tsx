@@ -24,6 +24,7 @@ import type { User, SubscriptionPlan } from "@/types/entities";
 const STATUS_FILTERS: { value: "all" | MemberStatus; label: string }[] = [
   { value: "all", label: "Tous" },
   { value: "active", label: "Actifs" },
+  { value: "pending", label: "En attente" },
   { value: "expired", label: "Expires" },
   { value: "suspended", label: "Suspendus" },
 ];
@@ -80,6 +81,54 @@ export default function Members() {
   // ─────────────────────────────────────────────────────────────────────────
 
   const members = extractHydraMembers<User>(usersQuery.data);
+
+  // ── MUTATIONS VALIDATION ABONNEMENT ───────────────────────────────────────
+  const validerMutation = useMutation({
+    mutationFn: (id: number) => {
+      const today = new Date().toISOString().split("T")[0];
+      return api.users.update(id, { status: "active", startDate: today });
+    },
+    onSuccess: () => {
+      toast.success("Abonnement validé avec succès");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setSelectedMember(null);
+    },
+    onError: () => toast.error("Erreur lors de la validation"),
+  });
+
+  const payerMutation = useMutation({
+    mutationFn: async ({ id, amount, userIri, subscription }: { id: number, amount: number, userIri: string, subscription: string }) => {
+      const today = new Date().toISOString().split("T")[0];
+      await api.paymentRecords.create({
+        user: userIri,
+        amount: amount,
+        date: today,
+        method: "Espèces",
+        receiptNo: `VAL-${Date.now()}`,
+        subscription: subscription,
+      });
+      const currentUser = members.find(m => m.id === id);
+      const newTotal = (currentUser?.totalPayments || 0) + amount;
+      return api.users.update(id, { status: "active", startDate: today, totalPayments: newTotal });
+    },
+    onSuccess: () => {
+      toast.success("Paiement enregistré et abonnement validé");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setSelectedMember(null);
+    },
+    onError: () => toast.error("Erreur lors du paiement"),
+  });
+
+  const refuserMutation = useMutation({
+    mutationFn: (id: number) => api.users.update(id, { status: "suspended", subscription: null }),
+    onSuccess: () => {
+      toast.success("Demande refusée");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setSelectedMember(null);
+    },
+    onError: () => toast.error("Erreur lors du refus"),
+  });
+  // ─────────────────────────────────────────────────────────────────────────
 
   const filteredMembers = useMemo(() => {
     return members.filter((member) => {
@@ -265,7 +314,7 @@ export default function Members() {
                         </td>
                         {/* ═══════════════════════════════════════════════════════════════ */}
                         <td>
-                          <span className={status === "active" ? "badge-active" : status === "expired" ? "badge-expired" : "badge-suspended"}>
+                          <span className={status === "active" ? "badge-active" : status === "pending" ? "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-500/20 text-orange-500" : status === "expired" ? "badge-expired" : "badge-suspended"}>
                             {STATUS_LABELS[status]}
                           </span>
                         </td>
@@ -427,6 +476,64 @@ export default function Members() {
                 {/* ═══════════════════════════════════════════════════════════════════ */}
 
                 <InfoRow label="Notes" value={selectedMember.notes} />
+
+                {/* ── ACTIONS POUR LES DEMANDES EN ATTENTE ── */}
+                {normalizeMemberStatus(selectedMember.status) === "pending" && (
+                  <div className="pt-4 space-y-3 border-t" style={{ borderColor: "hsl(var(--border))" }}>
+                    <p className="text-sm font-bold text-foreground">Actions sur la demande</p>
+                    <div className="flex flex-col gap-2">
+                      <button 
+                        onClick={() => {
+                          if(window.confirm("Valider l'abonnement sans enregistrer de paiement ?")) {
+                            if(selectedMember.id) validerMutation.mutate(selectedMember.id);
+                          }
+                        }}
+                        className="w-full py-2 px-4 bg-primary text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
+                      >
+                        Valider & Commencer
+                      </button>
+                      <button 
+                        onClick={() => {
+                          const matchedPlan = plans.find(
+                            (plan) =>
+                              normalizeSubscriptionType(plan.type) ===
+                              normalizeSubscriptionType(selectedMember.subscription)
+                          );
+                          const defaultPrice = matchedPlan?.price || 0;
+                          const amountStr = window.prompt("Entrez le montant payé:", String(defaultPrice));
+                          if (amountStr !== null) {
+                            const amount = Number(amountStr);
+                            if (!isNaN(amount) && amount > 0) {
+                              if(selectedMember.id) {
+                                payerMutation.mutate({ 
+                                  id: selectedMember.id, 
+                                  amount, 
+                                  userIri: `/api/users/${selectedMember.id}`,
+                                  subscription: selectedMember.subscription || ""
+                                });
+                              }
+                            } else {
+                              toast.error("Montant invalide");
+                            }
+                          }
+                        }}
+                        className="w-full py-2 px-4 bg-green-600 text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
+                      >
+                        Payer & Valider
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if(window.confirm("Refuser cette demande et réinitialiser l'abonnement ?")) {
+                            if(selectedMember.id) refuserMutation.mutate(selectedMember.id);
+                          }
+                        }}
+                        className="w-full py-2 px-4 bg-destructive text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
+                      >
+                        Refuser
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

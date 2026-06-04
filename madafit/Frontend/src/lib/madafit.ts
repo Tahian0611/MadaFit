@@ -9,7 +9,7 @@ import type {
   User,
 } from "@/types/entities";
 
-export type MemberStatus = "active" | "expired" | "suspended";
+export type MemberStatus = "active" | "expired" | "suspended" | "pending";
 export type SubscriptionType = "monthly" | "quarterly" | "annual" | "vip" | "coaching";
 export type ActivityType = "musculation" | "cardio" | "danse" | "gym" | "cours_collectif";
 
@@ -33,6 +33,7 @@ export const STATUS_LABELS: Record<MemberStatus, string> = {
   active: "Actif",
   expired: "Expire",
   suspended: "Suspendu",
+  pending: "En attente",
 };
 
 export function extractHydraMembers<T>(response?: any): T[] {
@@ -48,6 +49,7 @@ export function normalizeMemberStatus(status?: string | null): MemberStatus {
   const value = (status ?? "").toLowerCase();
   if (["actif", "active"].includes(value)) return "active";
   if (["expire", "expired", "expiré", "expirée"].includes(value)) return "expired";
+  if (["pending", "en attente"].includes(value)) return "pending";
   return "suspended";
 }
 
