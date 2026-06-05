@@ -40,6 +40,11 @@ class StockReportService
         $activeProductsCount = 0;
 
         foreach ($products as $product) {
+            $cat = mb_strtolower($product->getCategory() ?? '');
+            if ($cat === 'autre' || $cat === 'autres') {
+                continue;
+            }
+
             $row = $this->calculateProductRow($product, $from, $to);
 
             if ($row->totalEntries > 0 || $row->totalExits > 0 || $row->revenue > 0) {

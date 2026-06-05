@@ -5,10 +5,10 @@ import { toast } from 'sonner';
 import jsPDF from 'jspdf';
 import api from '@/services/api';
 import { refreshNotifications } from '@/services/api';
-import { 
-  extractHydraMembers, 
-  formatCurrency, 
-  extractIdFromIri 
+import {
+  extractHydraMembers,
+  formatCurrency,
+  extractIdFromIri
 } from '@/lib/madafit';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,9 +35,9 @@ import type { Product, Transaction } from '@/types/entities';
 type Period = 'today' | 'week' | 'month' | 'custom';
 
 const periodLabelMap: Record<Period, string> = {
-  today:  "Aujourd'hui",
-  week:   'Cette semaine',
-  month:  'Ce mois',
+  today: "Aujourd'hui",
+  week: 'Cette semaine',
+  month: 'Ce mois',
   custom: 'Periode personnalisee',
 };
 
@@ -73,9 +73,11 @@ function getDateRange(period: Period, from: string, to: string): { from: Date; t
 
 const TX_TYPE_INFO: Record<string, { label: string; badgeClass: string; marker: string }> = {
   entry: { label: 'Entrée', badgeClass: 'bg-success/10 text-success', marker: 'bg-success' },
+  charge: { label: 'Charge', badgeClass: 'bg-success/10 text-success', marker: 'bg-success' },
   sale: { label: 'Vente', badgeClass: 'bg-accent/10 text-accent', marker: 'bg-accent' },
   non_sale_exit: { label: 'Sortie S/E', badgeClass: 'bg-destructive/10 text-destructive', marker: 'bg-destructive' },
   credit: { label: 'Crédit', badgeClass: 'bg-amber-500/10 text-amber-600', marker: 'bg-amber-500' },
+  other_charge: { label: 'Autre Chrg.', badgeClass: 'bg-destructive/10 text-destructive', marker: 'bg-destructive' },
 };
 
 export default function History() {
@@ -90,8 +92,8 @@ export default function History() {
   const productsQuery = useQuery({ queryKey: ['products'], queryFn: () => api.products.getAll({ itemsPerPage: 1000 }) });
   const transactionsQuery = useQuery({ queryKey: ['transactions'], queryFn: () => api.transactions.getAll({ itemsPerPage: 1000 }) });
 
-  const products = extractHydraMembers(productsQuery.data);
-  const allTransactions = extractHydraMembers(transactionsQuery.data);
+  const products = extractHydraMembers<Product>(productsQuery.data);
+  const allTransactions = extractHydraMembers<Transaction>(transactionsQuery.data);
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.transactions.delete(id),
@@ -115,10 +117,10 @@ export default function History() {
         const d = new Date(t.date);
         const inRange = d >= from && d <= to;
         const typeMatch = typeFilter === 'all' || t.type === typeFilter;
-        
+
         const productId = extractIdFromIri(t.product);
         const productMatch = productFilter === 'all' || String(productId) === productFilter;
-        
+
         return inRange && typeMatch && productMatch;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -139,10 +141,10 @@ export default function History() {
       const productId = extractIdFromIri(t.product);
       const p = productId ? productMap[productId] : null;
       if (!p) return;
-      
-      if (t.type === 'entry') entries += t.quantity;
-      else exits += t.quantity;
-      
+
+      if (t.type === 'entry' || t.type === 'charge') entries += t.quantity;
+      else if (t.type !== 'other_charge') exits += t.quantity;
+
       if (t.type === 'sale' || t.type === 'credit') {
         revenue += t.quantity * (t.unitPrice ?? p.salePrice);
         cost += t.quantity * p.purchasePrice;
@@ -169,7 +171,7 @@ export default function History() {
     };
 
     const headers = ['Date', 'Produit', 'Type', 'Quantite', 'Prix unitaire', 'Montant', 'Note'];
-    
+
     const rows = transactions.map((tx) => {
       const productId = extractIdFromIri(tx.product);
       const product = productId ? productMap[productId] : null;
@@ -184,11 +186,11 @@ export default function History() {
           unitPrice = tx.unitPrice ?? product.salePrice;
           amount = tx.quantity * unitPrice;
           amountLabel = 'CA';
-        } else if (tx.type === 'entry') {
-          unitPrice = product.purchasePrice;
+        } else if (tx.type === 'entry' || tx.type === 'charge') {
+          unitPrice = tx.unitPrice ?? product.purchasePrice;
           amount = tx.quantity * unitPrice;
           amountLabel = 'Investissement';
-        } else if (tx.type === 'non_sale_exit') {
+        } else if (tx.type === 'non_sale_exit' || tx.type === 'other_charge') {
           unitPrice = tx.unitPrice ?? product.purchasePrice;
           amount = tx.quantity * unitPrice;
           amountLabel = 'Perte';
@@ -199,7 +201,7 @@ export default function History() {
         new Date(tx.date).toLocaleDateString('fr-FR'),
         product?.name || 'Inconnu',
         info.label,
-        (tx.type === 'entry' ? '+' : '-') + tx.quantity,
+        (tx.type === 'entry' || tx.type === 'charge' ? '+' : '-') + tx.quantity,
         unitPrice > 0 ? formatCSV(unitPrice) : '-',
         amount > 0 ? formatCSV(amount) + (amountLabel ? ` (${amountLabel})` : '') : '-',
         tx.note || '',
@@ -207,14 +209,14 @@ export default function History() {
     });
 
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    
+
     // Lignes de synthese
     const totalEntriesCost = transactions
-      .filter((t) => t.type === 'entry')
+      .filter((t) => t.type === 'entry' || t.type === 'charge')
       .reduce((sum, t) => {
         const pid = extractIdFromIri(t.product);
         const p = pid ? productMap[pid] : null;
-        return sum + (p ? t.quantity * p.purchasePrice : 0);
+        return sum + (p ? t.quantity * (t.unitPrice ?? p.purchasePrice) : 0);
       }, 0);
 
     const totalSalesRevenue = transactions
@@ -226,7 +228,7 @@ export default function History() {
       }, 0);
 
     const totalLoss = transactions
-      .filter((t) => t.type === 'non_sale_exit')
+      .filter((t) => t.type === 'non_sale_exit' || t.type === 'other_charge')
       .reduce((sum, t) => {
         const pid = extractIdFromIri(t.product);
         const p = pid ? productMap[pid] : null;
@@ -291,7 +293,7 @@ export default function History() {
 
     // FIX: helvetica ne supporte pas les accents UTF-8 ni les espaces insecables
     const originalText = pdf.text.bind(pdf);
-    pdf.text = function(...args: any[]) {
+    pdf.text = function (...args: any[]) {
       if (typeof args[0] === 'string') {
         args[0] = args[0]
           .normalize('NFD')
@@ -302,8 +304,8 @@ export default function History() {
       return originalText.apply(pdf, args);
     };
 
-    const C = {
-      primary: [220, 53, 69],   // ← FIX: rouge coherent
+    const C: Record<string, [number, number, number]> = {
+      primary: [220, 53, 69],
       dark: [33, 37, 41],
       gray: [108, 117, 125],
       light: [248, 249, 250],
@@ -319,10 +321,10 @@ export default function History() {
       rows: (string | number)[][],
       colWidths: number[],
       startY: number,
-      options?: { foot?: (string | number)[]; headColor?: number[]; align?: ("left" | "center" | "right")[] }
+      options?: { foot?: (string | number)[]; headColor?: [number, number, number]; align?: ("left" | "center" | "right")[] }
     ) => {
       const rowH = 7;
-      const headColor = options?.headColor || C.primary;
+      const headColor: [number, number, number] = options?.headColor || C.primary;
       const align = options?.align || headers.map(() => "left" as const);
       let cy = startY;
 
@@ -410,7 +412,7 @@ export default function History() {
 
     // KPIs
     const kpiW = (CW - 9) / 4;
-    const kpis = [
+    const kpis: { label: string; value: string; color: [number, number, number] }[] = [
       { label: "ENTREES", value: `${stats.entries} u.`, color: C.green },
       { label: "SORTIES", value: `${stats.exits} u.`, color: C.red },
       { label: "CA PERIODE", value: formatCurrency(stats.revenue), color: C.primary },
@@ -449,9 +451,9 @@ export default function History() {
         if (product) {
           if (tx.type === 'sale' || tx.type === 'credit') {
             amount = formatCurrency(tx.quantity * (tx.unitPrice ?? product.salePrice));
-          } else if (tx.type === 'entry') {
-            amount = 'Inv. ' + formatCurrency(tx.quantity * product.purchasePrice);
-          } else if (tx.type === 'non_sale_exit') {
+          } else if (tx.type === 'entry' || tx.type === 'charge') {
+            amount = 'Inv. ' + formatCurrency(tx.quantity * (tx.unitPrice ?? product.purchasePrice));
+          } else if (tx.type === 'non_sale_exit' || tx.type === 'other_charge') {
             amount = 'Perte ' + formatCurrency(tx.quantity * (tx.unitPrice ?? product.purchasePrice));
           }
         }
@@ -459,7 +461,7 @@ export default function History() {
           new Date(tx.date).toLocaleDateString('fr-FR'),
           product?.name || 'Inconnu',
           info.label,
-          (tx.type === 'entry' ? '+' : '-') + tx.quantity,
+          (tx.type === 'entry' || tx.type === 'charge' ? '+' : '-') + tx.quantity,
           amount,
           tx.note || '',
         ];
@@ -544,9 +546,11 @@ export default function History() {
               <SelectContent>
                 <SelectItem value="all">Tous les types</SelectItem>
                 <SelectItem value="entry">Entrées</SelectItem>
+                <SelectItem value="charge">Charges</SelectItem>
                 <SelectItem value="sale">Ventes</SelectItem>
                 <SelectItem value="credit">Crédits</SelectItem>
                 <SelectItem value="non_sale_exit">Sorties S/E</SelectItem>
+                <SelectItem value="other_charge">Autres Charges</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -615,7 +619,7 @@ export default function History() {
                   const productId = extractIdFromIri(tx.product);
                   const product = productId ? productMap[productId] : null;
                   const info = TX_TYPE_INFO[tx.type] || { label: tx.type, badgeClass: 'bg-muted', marker: 'bg-muted' };
-                  
+
                   // ═══════════════════════════════════════════════════════════════
                   // INJECTION : calcul du montant pour TOUS les types
                   // ═══════════════════════════════════════════════════════════════
@@ -627,11 +631,11 @@ export default function History() {
                     if (tx.type === 'sale' || tx.type === 'credit') {
                       amount = tx.quantity * (tx.unitPrice ?? product.salePrice);
                       amountClass = tx.type === 'sale' ? 'text-accent' : 'text-amber-600';
-                    } else if (tx.type === 'entry') {
-                      amount = tx.quantity * product.purchasePrice;
+                    } else if (tx.type === 'entry' || tx.type === 'charge') {
+                      amount = tx.quantity * (tx.unitPrice ?? product.purchasePrice);
                       amountClass = 'text-sky-600';
-                      amountPrefix = 'Inv. ';
-                    } else if (tx.type === 'non_sale_exit') {
+                      amountPrefix = '';
+                    } else if (tx.type === 'non_sale_exit' || tx.type === 'other_charge') {
                       amount = tx.quantity * (tx.unitPrice ?? product.purchasePrice);
                       amountClass = 'text-rose-500';
                       amountPrefix = 'Perte ';
@@ -654,7 +658,7 @@ export default function History() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground">
-                        {tx.type === 'entry' ? '+' : '−'}{tx.quantity}
+                        {tx.type === 'entry' || tx.type === 'charge' ? '+' : '−'}{tx.quantity}
                       </td>
                       <td className="px-4 py-3">
                         {amount !== null && amount > 0 ? (

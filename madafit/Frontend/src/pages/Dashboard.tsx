@@ -655,18 +655,20 @@ function CashierCards({
           iconBgClass="bg-success/10 group-hover:bg-success"
         />
 
-        {/* Ligne Dépenses */}
+        {/* Ligne Dépenses — visible par tous */}
+        <StatCard
+          icon={TrendingDown}
+          label="Total dépenses"
+          value={formatCurrency(stats.depensesTotal)}
+          sub="Achats + entrées"
+          className="sm:col-span-2 md:col-span-1 bg-destructive/5 border-destructive/20 hover:border-destructive/50"
+          iconColorClass="text-destructive"
+          iconBgClass="bg-destructive/10 group-hover:bg-destructive"
+        />
+
+        {/* Détail dépenses — admin uniquement */}
         {isAdmin && (
           <>
-            <StatCard
-              icon={TrendingDown}
-              label="Total dépenses"
-              value={formatCurrency(stats.depensesTotal)}
-              sub="Achats + entrées"
-              className="sm:col-span-2 md:col-span-1 bg-destructive/5 border-destructive/20 hover:border-destructive/50"
-              iconColorClass="text-destructive"
-              iconBgClass="bg-destructive/10 group-hover:bg-destructive"
-            />
             <StatCard
               icon={Package}
               label="Coût d'achats"
@@ -685,17 +687,19 @@ function CashierCards({
               iconColorClass="text-destructive"
               iconBgClass="bg-destructive/10 group-hover:bg-destructive"
             />
-
-            {/* Ligne Résultat */}
-            <StatCard
-              icon={Calculator}
-              label="Résultat Net"
-              value={formatCurrency(stats.resultat)}
-              sub="Chiffre d'affaires ; Dépenses"
-              className="sm:col-span-2 md:col-span-3 bg-gradient-to-r from-primary/10 via-accent/5 to-background border-primary/30 shadow-sm hover:shadow-md"
-            />
           </>
         )}
+
+        {/* Ligne Résultat — visible par tous */}
+        <StatCard
+          icon={Calculator}
+          label="Résultat Net"
+          value={formatCurrency(stats.resultat)}
+          sub="Chiffre d'affaires − Dépenses"
+          className={`${isAdmin ? "sm:col-span-2 md:col-span-3" : "sm:col-span-2 md:col-span-2"} bg-gradient-to-r from-primary/10 via-accent/5 to-background border-primary/30 shadow-sm hover:shadow-md`}
+          iconColorClass={stats.resultat >= 0 ? "text-success" : "text-destructive"}
+          iconBgClass={stats.resultat >= 0 ? "bg-success/10 group-hover:bg-success" : "bg-destructive/10 group-hover:bg-destructive"}
+        />
       </div>
     </section>
   );

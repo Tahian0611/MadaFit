@@ -51,6 +51,14 @@ const TRANSACTION_CONFIG: Record<string, TransactionTypeConfig> = {
     borderColor: "border-emerald-200",
     quantityPrefix: "+",
   },
+  charge: {
+    label: "Charge",
+    icon: ArrowDownLeft,
+    color: "text-emerald-600",
+    bgColor: "bg-emerald-50",
+    borderColor: "border-emerald-200",
+    quantityPrefix: "+",
+  },
   sale: {
     label: "Vente",
     icon: ShoppingCart,
@@ -69,6 +77,14 @@ const TRANSACTION_CONFIG: Record<string, TransactionTypeConfig> = {
   },
   non_sale_exit: {
     label: "Sortie S/E",
+    icon: ArrowUpRight,
+    color: "text-rose-600",
+    bgColor: "bg-rose-50",
+    borderColor: "border-rose-200",
+    quantityPrefix: "-",
+  },
+  other_charge: {
+    label: "Autre Chrg.",
     icon: ArrowUpRight,
     color: "text-rose-600",
     bgColor: "bg-rose-50",
@@ -146,8 +162,14 @@ export default function Products() {
     queryFn: () => api.transactions.getAll({ itemsPerPage: 100 }),
   });
 
-  const products = extractHydraMembers(productsQuery.data);
-  const transactions = extractHydraMembers(transactionsQuery.data);
+  const rawProducts = extractHydraMembers(productsQuery.data);
+  const products = useMemo(() => {
+    return (rawProducts as Product[]).filter((p) => {
+      const cat = p.category?.toLowerCase() || '';
+      return cat !== 'autre' && cat !== 'autres';
+    });
+  }, [rawProducts]);
+  const transactions = extractHydraMembers<Transaction>(transactionsQuery.data);
 
   const metrics = computeProductMetrics(products, transactions);
 
@@ -223,7 +245,7 @@ export default function Products() {
     if (!selectedProduct) return null;
     
     const totalIn = productTransactions
-      .filter(t => t.type === 'entry')
+      .filter(t => t.type === 'entry' || t.type === 'charge')
       .reduce((sum, t) => sum + t.quantity, 0);
       
     const totalOut = productTransactions
@@ -508,7 +530,7 @@ export default function Products() {
                     const config = TRANSACTION_CONFIG[transaction.type] || TRANSACTION_CONFIG.non_sale_exit;
                     const Icon = config.icon;
                     const total = getTransactionTotal(transaction);
-                    const qtyPositive = transaction.type === 'entry';
+                    const qtyPositive = transaction.type === 'entry' || transaction.type === 'charge';
                     const pricePositive = transaction.type === 'sale' || transaction.type === 'credit';
                     
                     return (
