@@ -6,6 +6,7 @@ import { Search, Trash2, UserPlus, Wifi, RefreshCw } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api from "@/services/api";
+import { useAuth } from "@/hooks/useAuth";
 import {
   ACTIVITY_LABELS,
   STATUS_LABELS,
@@ -31,6 +32,8 @@ const STATUS_FILTERS: { value: "all" | MemberStatus; label: string }[] = [
 
 export default function Members() {
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
+  const currentCashRegister = isAdmin ? "caisse2" : "caisse1";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | MemberStatus>("all");
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
@@ -108,12 +111,23 @@ export default function Members() {
         subscription: subscription,
       });
       const currentUser = members.find(m => m.id === id);
+      await api.payments.create({
+        memberId: currentUser?.memberId,
+        memberName: currentUser ? getFullName(currentUser) : undefined,
+        amount,
+        date: today,
+        method: "cash",
+        receiptNo: `VAL-${Date.now()}`,
+        subscription,
+        cashRegister: currentCashRegister,
+      });
       const newTotal = (currentUser?.totalPayments || 0) + amount;
       return api.users.update(id, { status: "active", startDate: today, totalPayments: newTotal });
     },
     onSuccess: () => {
       toast.success("Paiement enregistré et abonnement validé");
       queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
       setSelectedMember(null);
     },
     onError: () => toast.error("Erreur lors du paiement"),

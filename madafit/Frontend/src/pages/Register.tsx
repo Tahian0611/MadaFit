@@ -4,6 +4,7 @@ import { CheckCircle2, CalendarCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { refreshNotifications } from '@/services/api';
+import { useAuth } from "@/hooks/useAuth";
 import type { SubscriptionPlan, SubscriptionType } from "@/types/entities";
 import {
   ACTIVITY_LABELS,
@@ -110,6 +111,8 @@ function validate(form: FormState): ValidationErrors {
 
 export default function Register() {
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
+  const currentCashRegister = isAdmin ? "caisse2" : "caisse1";
   const [completed, setCompleted] = useState(false);
   const [form, setForm] = useState<FormState>(initialState);
   const [touched, setTouched] = useState<Partial<Record<keyof FormState, boolean>>>({});
@@ -224,8 +227,8 @@ export default function Register() {
   // ────────────────────────────────────────────────────────────────────────
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.users.create({
+    mutationFn: async () => {
+      const createdUser = await api.users.create({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim().toLowerCase(),
@@ -244,10 +247,26 @@ export default function Register() {
         startDate: computedDates.startStr,
         expiryDate: computedDates.expiryStr ?? undefined,
         totalPayments: form.accessType === "abonnement" ? (selectedPlan?.price ?? 0) : 0,
-      }),
+      });
+
+      if (form.accessType === "abonnement" && selectedPlan?.price) {
+        await api.payments.create({
+          memberId: createdUser.memberId,
+          memberName: `${createdUser.firstName} ${createdUser.lastName}`.trim(),
+          amount: selectedPlan.price,
+          method: "cash",
+          date: computedDates.startStr,
+          subscription: normalizeSubscriptionType(selectedPlan.type),
+          cashRegister: currentCashRegister,
+        });
+      }
+
+      return createdUser;
+    },
     onSuccess: () => {
       toast.success("Membre créé en base");
       queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
       refreshNotifications();
       setCompleted(true);
       setForm(initialState);

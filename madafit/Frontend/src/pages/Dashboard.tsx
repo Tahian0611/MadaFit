@@ -1,7 +1,8 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   DollarSign, Users, UserCheck, Bell, TrendingUp, TrendingDown, Clock, Activity,
+  Receipt, Package, Calculator, Wallet, X
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -9,17 +10,129 @@ import {
 import { refreshNotifications } from "@/services/api";
 import api from "@/services/api";
 import { useAuth } from "@/hooks/useAuth";
-import type { User, Payment, AttendanceRecord, SubscriptionPlan } from "@/types/entities";
+import type { User, Payment, AttendanceRecord, SubscriptionPlan, Product } from "@/types/entities";
 import {
   computeDashboardStats,
+  extractIdFromIri,
   extractHydraMembers,
   formatCurrency,
   formatDate,
   formatTime,
 } from "@/lib/madafit";
 
+type DashboardTransactionLite = {
+  type?: string;
+  quantity?: number;
+  unitPrice?: number;
+  product?: { id?: number; purchasePrice?: number } | string | null;
+  cashRegister?: string;
+};
+
+type CashRegister = "caisse1" | "caisse2";
+
+function resolveCashRegister(value?: string | null): CashRegister {
+  return value === "caisse1" ? "caisse1" : "caisse2";
+}
+
+function getTransactionPurchasePrice(tx: DashboardTransactionLite, productMap: Record<string, Product>) {
+  if (tx.product && typeof tx.product === "object" && typeof tx.product.purchasePrice === "number") {
+    return tx.product.purchasePrice;
+  }
+
+  const productId = typeof tx.product === "string"
+    ? extractIdFromIri(tx.product)
+    : tx.product?.id
+      ? String(tx.product.id)
+      : null;
+
+  return productId ? productMap[productId]?.purchasePrice : undefined;
+}
+
+function computeCashierCAStats(
+  payments: Payment[],
+  transactions: DashboardTransactionLite[],
+  products: Product[],
+  cashRegister: CashRegister,
+) {
+  // calcule:
+  // - subscriptionTotal (abonnements) = sum(payments.amount)
+  // - sortiesTotal = sum(quantity * unitPrice) for type in sale/credit/non_sale_exit
+  // - achatsTotal = sum(quantity * product.purchasePrice) for sale/credit/non_sale_exit
+  // - entriesTotal = sum(quantity * product.purchasePrice) for type === entry
+  // - depensesTotal = achatsTotal + entriesTotal
+  // - caTotal = subscriptionTotal + sortiesTotal
+  // - resultat = caTotal - depensesTotal
+
+
+  // Définition validée avec toi :
+  // - abonnements = somme payments.amount
+  // - sorties = somme transactions (sale + credit + non_sale_exit) avec montant = quantity * unitPrice
+  // - achats (coût) = pour sale/credit/non_sale_exit : quantity * product.purchasePrice
+  // - entrée (coût) = pour entry : quantity * unitPrice (ou purchasePrice si unitPrice absent)
+  // NOTE: pour achats/entrée, on utilise unitPrice si présent.
+
+  const productMap = (products ?? []).reduce<Record<string, Product>>((acc, product) => {
+    if (product.id) acc[String(product.id)] = product;
+    return acc;
+  }, {});
+
+  const cashierPayments = (payments ?? []).filter((payment) =>
+    resolveCashRegister(payment.cashRegister) === cashRegister
+  );
+
+  const cashierTransactions = (transactions ?? []).filter((tx) =>
+    resolveCashRegister(tx.cashRegister) === cashRegister
+  );
+
+  const subscriptionTotal = cashierPayments.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+
+  // sorties chiffre d'affaire
+  const salesTypes = new Set(['sale', 'credit', 'non_sale_exit']);
+  const sortiesTotal = cashierTransactions.reduce((sum, tx) => {
+    if (!salesTypes.has(tx.type)) return sum;
+    const qty = Number(tx.quantity ?? 0);
+    const unit = Number(tx.unitPrice ?? 0);
+    return sum + qty * unit;
+  }, 0);
+
+  // coûts d'achats et dépenses
+  const achatsTotal = cashierTransactions.reduce((sum, tx) => {
+    if (!salesTypes.has(tx.type)) return sum;
+    const qty = Number(tx.quantity ?? 0);
+
+    // unitPrice contient souvent le prix de vente (donc pour le coût on prend purchasePrice si dispo via product)
+    const productPurchase = getTransactionPurchasePrice(tx, productMap);
+    const unitCost = Number(productPurchase ?? tx.unitPrice ?? 0);
+    return sum + qty * unitCost;
+  }, 0);
+
+  const entriesTotal = cashierTransactions.reduce((sum, tx) => {
+    if (tx.type !== 'entry' && tx.type !== 'charge') return sum;
+    const qty = Number(tx.quantity ?? 0);
+    const productPurchase = getTransactionPurchasePrice(tx, productMap);
+    const unitCost = Number(productPurchase ?? tx.unitPrice ?? 0);
+    return sum + qty * unitCost;
+  }, 0);
+
+  const depensesTotal = achatsTotal + entriesTotal;
+  const caTotal = subscriptionTotal + sortiesTotal;
+  const resultat = caTotal - depensesTotal;
+
+  return {
+    caTotal,
+    subscriptionTotal,
+    sortiesTotal,
+    depensesTotal,
+    achatsTotal,
+    entriesTotal,
+    resultat,
+  };
+}
+
 export default function Dashboard() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isReception } = useAuth();
+  const showCashierStats = isAdmin || isReception;
+  const [activeCaisseModal, setActiveCaisseModal] = useState<"caisse1" | "caisse2" | null>(null);
 
   const usersQuery = useQuery({
     queryKey: ["users"],
@@ -27,9 +140,8 @@ export default function Dashboard() {
   });
   const paymentsQuery = useQuery({
     queryKey: ["payments"],
-    queryFn: () => api.payments.getAll({ itemsPerPage: 100 }),
-    // Accueil n'a pas besoin des paiements pour afficher son dashboard
-    enabled: isAdmin,
+    queryFn: () => api.payments.getAll({ itemsPerPage: 1000 }),
+    enabled: showCashierStats,
   });
   const attendanceQuery = useQuery({
     queryKey: ["attendance"],
@@ -41,13 +153,13 @@ export default function Dashboard() {
   });
   const transactionsQuery = useQuery({
     queryKey: ["transactions"],
-    queryFn: () => api.transactions.getAll({ itemsPerPage: 500 }),
-    enabled: isAdmin,
+    queryFn: () => api.transactions.getAll({ itemsPerPage: 1000 }),
+    enabled: showCashierStats,
   });
   const productsQuery = useQuery({
     queryKey: ["products"],
-    queryFn: () => api.products.getAll({ itemsPerPage: 100 }),
-    enabled: isAdmin,
+    queryFn: () => api.products.getAll({ itemsPerPage: 1000 }),
+    enabled: showCashierStats,
   });
 
   useEffect(() => {
@@ -73,6 +185,19 @@ export default function Dashboard() {
     productsQuery.data,
   ]);
 
+  const payments = extractHydraMembers<Payment>(paymentsQuery.data);
+  const transactions = extractHydraMembers<DashboardTransactionLite>(transactionsQuery.data);
+  const products = extractHydraMembers<Product>(productsQuery.data);
+
+  const caisse1Stats = useMemo(
+    () => computeCashierCAStats(payments, transactions, products, "caisse1"),
+    [paymentsQuery.data, transactionsQuery.data, productsQuery.data],
+  );
+  const caisse2Stats = useMemo(
+    () => computeCashierCAStats(payments, transactions, products, "caisse2"),
+    [paymentsQuery.data, transactionsQuery.data, productsQuery.data],
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="page-header flex justify-between items-end">
@@ -86,13 +211,108 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* ── Résumé Caisse en premier plan ─────────────────────── */}
+      {showCashierStats && (
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {isReception && !isAdmin && (
+            <div 
+              className="p-6 bg-card rounded-2xl border border-border shadow-lg cursor-pointer hover:border-primary/50 transition-all flex items-center justify-between group"
+              onClick={() => setActiveCaisseModal("caisse1")}
+            >
+              <div className="flex items-center gap-4">
+                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                    <Wallet size={24} />
+                 </div>
+                 <div>
+                   <h2 className="font-bold text-foreground text-lg">Caisse 1</h2>
+                   <p className="text-sm text-muted-foreground">Reception</p>
+                 </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Chiffre d'affaires</p>
+                <p className="font-black text-xl text-primary">{formatCurrency(caisse1Stats.caTotal)}</p>
+              </div>
+            </div>
+          )}
+
+          {isAdmin && (
+            <>
+              <div 
+                className="p-6 bg-card rounded-2xl border border-border shadow-lg cursor-pointer hover:border-primary/50 transition-all flex items-center justify-between group"
+                onClick={() => setActiveCaisseModal("caisse2")}
+              >
+                <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                      <Wallet size={24} />
+                   </div>
+                   <div>
+                     <h2 className="font-bold text-foreground text-lg">Caisse 2</h2>
+                     <p className="text-sm text-muted-foreground">Admin</p>
+                   </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Chiffre d'affaires</p>
+                  <p className="font-black text-xl text-primary">{formatCurrency(caisse2Stats.caTotal)}</p>
+                </div>
+              </div>
+
+              <div 
+                className="p-6 bg-card rounded-2xl border border-border shadow-lg cursor-pointer hover:border-primary/50 transition-all flex items-center justify-between group"
+                onClick={() => setActiveCaisseModal("caisse1")}
+              >
+                <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                      <Wallet size={24} />
+                   </div>
+                   <div>
+                     <h2 className="font-bold text-foreground text-lg">Caisse 1</h2>
+                     <p className="text-sm text-muted-foreground">Reception</p>
+                   </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Chiffre d'affaires</p>
+                  <p className="font-black text-xl text-primary">{formatCurrency(caisse1Stats.caTotal)}</p>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Modal Caisse ────────────────────────────────────────── */}
+      {activeCaisseModal && (
+        <div className="fixed inset-0 z-[9999] h-full flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in !mt-0">
+          <div className="bg-card w-full max-w-6xl rounded-2xl shadow-xl border border-border flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Wallet className="text-primary" />
+                {activeCaisseModal === "caisse1" ? "Détails Caisse 1 (Reception)" : "Détails Caisse 2 (Admin)"}
+              </h2>
+              <button
+                onClick={() => setActiveCaisseModal(null)}
+                className="p-2 hover:bg-muted rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <CashierCards 
+                title={activeCaisseModal === "caisse1" ? "Caisse 1 - Reception" : "Caisse 2 - Admin"} 
+                stats={activeCaisseModal === "caisse1" ? caisse1Stats : caisse2Stats} 
+                isAdmin={isAdmin}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Stat Cards ─────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Revenu : admin uniquement */}
         {isAdmin && (
           <StatCard
             icon={DollarSign}
-            label="Revenu (6 mois)"
+            label="Chiffres d'Affaires"
             value={formatCurrency(stats.totalRevenue)}
             trend={stats.revenueDiff}
             trendSuffix="%"
@@ -251,7 +471,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Vue simplifiée pour accueil (sans revenus) ─────────────────────── */}
+
+
       {!isAdmin && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* inGymNow */}
@@ -387,24 +608,124 @@ export default function Dashboard() {
   );
 }
 
+function CashierCards({
+  title,
+  stats,
+  isAdmin = false,
+}: {
+  title: string;
+  stats: ReturnType<typeof computeCashierCAStats>;
+  isAdmin?: boolean;
+}) {
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-6 bg-primary rounded-full"></div>
+          <h2 className="text-sm font-black uppercase tracking-wide text-foreground">{title}</h2>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        {/* Ligne Revenus */}
+        <StatCard
+          icon={Wallet}
+          label="Chiffre d'affaires"
+          value={formatCurrency(stats.caTotal)}
+          sub="Abonnements + sorties"
+          className="sm:col-span-2 md:col-span-1 bg-success/5 border-success/20 hover:border-success/50"
+          iconColorClass="text-success"
+          iconBgClass="bg-success/10 group-hover:bg-success"
+        />
+        <StatCard
+          icon={Receipt}
+          label="Abonnements"
+          value={formatCurrency(stats.subscriptionTotal)}
+          sub="Paiements"
+          className=""
+          iconColorClass="text-success"
+          iconBgClass="bg-success/10 group-hover:bg-success"
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Sorties"
+          value={formatCurrency(stats.sortiesTotal)}
+          sub="Caisse"
+          className=""
+          iconColorClass="text-success"
+          iconBgClass="bg-success/10 group-hover:bg-success"
+        />
+
+        {/* Ligne Dépenses */}
+        {isAdmin && (
+          <>
+            <StatCard
+              icon={TrendingDown}
+              label="Total dépenses"
+              value={formatCurrency(stats.depensesTotal)}
+              sub="Achats + entrées"
+              className="sm:col-span-2 md:col-span-1 bg-destructive/5 border-destructive/20 hover:border-destructive/50"
+              iconColorClass="text-destructive"
+              iconBgClass="bg-destructive/10 group-hover:bg-destructive"
+            />
+            <StatCard
+              icon={Package}
+              label="Coût d'achats"
+              value={formatCurrency(stats.achatsTotal)}
+              sub="Ventes"
+              className=""
+              iconColorClass="text-destructive"
+              iconBgClass="bg-destructive/10 group-hover:bg-destructive"
+            />
+            <StatCard
+              icon={Activity}
+              label="Entrées"
+              value={formatCurrency(stats.entriesTotal)}
+              sub="Stock"
+              className=""
+              iconColorClass="text-destructive"
+              iconBgClass="bg-destructive/10 group-hover:bg-destructive"
+            />
+
+            {/* Ligne Résultat */}
+            <StatCard
+              icon={Calculator}
+              label="Résultat Net"
+              value={formatCurrency(stats.resultat)}
+              sub="Chiffre d'affaires ; Dépenses"
+              className="sm:col-span-2 md:col-span-3 bg-gradient-to-r from-primary/10 via-accent/5 to-background border-primary/30 shadow-sm hover:shadow-md"
+            />
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function StatCard({
-  icon: Icon, label, value, trend, trendSuffix = "%",
+  icon: Icon, label, value, trend, trendSuffix = "%", sub = "vs mois précédent",
+  className = "",
+  iconColorClass = "text-primary",
+  iconBgClass = "bg-primary/10 group-hover:bg-primary",
 }: {
   icon: any;
   label: string;
   value: string;
   trend?: number;
   trendSuffix?: string;
+  sub?: string;
+  className?: string;
+  iconColorClass?: string;
+  iconBgClass?: string;
 }) {
   const isPositive = trend !== undefined && trend > 0;
   return (
-    <div className="stat-card group hover:border-primary/30 transition-all">
-      <div className="flex justify-between items-start mb-2">
-        <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary group-hover:text-white transition-colors">
-          <Icon size={18} className="text-primary group-hover:text-white" />
+    <div className={`stat-card group hover:-translate-y-1 hover:border-primary/40 transition-all duration-300 ${className}`}>
+      <div className="flex justify-between items-start mb-3">
+        <div className={`p-2.5 rounded-xl transition-all duration-300 ${iconBgClass}`}>
+          <Icon size={20} className={`${iconColorClass} group-hover:text-white transition-colors`} />
         </div>
         {trend !== undefined && (
-          <div className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${
+          <div className={`flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full ${
             isPositive ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
           }`}>
             {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
@@ -412,9 +733,11 @@ function StatCard({
           </div>
         )}
       </div>
-      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-black text-foreground mt-1 tabular-nums">{value}</p>
-      <p className="text-[10px] text-muted-foreground mt-2">vs mois précédent</p>
+      <div>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{label}</p>
+        <p className="text-2xl font-black text-foreground mt-1 tabular-nums tracking-tight">{value}</p>
+        <p className="text-[10px] text-muted-foreground mt-2 font-medium">{sub}</p>
+      </div>
     </div>
   );
 }

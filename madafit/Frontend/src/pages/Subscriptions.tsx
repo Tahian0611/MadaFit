@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { refreshNotifications } from '@/services/api';
+import { useAuth } from "@/hooks/useAuth";
 import {
   STATUS_LABELS,
   SUBSCRIPTION_LABELS,
@@ -17,6 +18,8 @@ import type { User, SubscriptionPlan } from "@/types/entities";
 
 export default function Subscriptions() {
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
+  const currentCashRegister = isAdmin ? "caisse2" : "caisse1";
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
 
   const usersQuery = useQuery({ queryKey: ["users", "subscriptions"], queryFn: () => api.users.getAll({ itemsPerPage: 100 }) });
@@ -49,6 +52,7 @@ export default function Subscriptions() {
           method: "cash",
           date: now.toISOString().split("T")[0],
           subscription: currentType,
+          cashRegister: currentCashRegister,
         });
       }
     },
@@ -89,12 +93,23 @@ export default function Subscriptions() {
         subscription: subscription,
       });
       const currentUser = users.find(m => m.id === id);
+      await api.payments.create({
+        memberId: currentUser?.memberId,
+        memberName: currentUser ? getFullName(currentUser) : undefined,
+        amount,
+        date: today,
+        method: "cash",
+        receiptNo: `VAL-${Date.now()}`,
+        subscription,
+        cashRegister: currentCashRegister,
+      });
       const newTotal = (currentUser?.totalPayments || 0) + amount;
       return api.users.update(id, { status: "active", startDate: today, totalPayments: newTotal });
     },
     onSuccess: () => {
       toast.success("Paiement enregistré et abonnement validé");
       queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
       setSelectedMember(null);
     },
     onError: () => toast.error("Erreur lors du paiement"),

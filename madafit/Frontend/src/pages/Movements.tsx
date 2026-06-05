@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api from '@/services/api';
 import { refreshNotifications } from '@/services/api';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   extractHydraMembers, 
   formatCurrency, 
@@ -43,7 +44,9 @@ import {
 import type { Product, Transaction } from '@/types/entities';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type TxType = 'entry' | 'sale' | 'non_sale_exit' | 'credit';
+type TxType = 'entry' | 'sale' | 'non_sale_exit' | 'credit' | 'charge' | 'other_charge';
+
+type TxTypeUi = 'entry' | 'charge' | 'sale' | 'credit' | 'non_sale_exit' | 'other_charge';
 
 interface ProductLine {
   id: string;
@@ -59,18 +62,26 @@ const CATEGORIES = [
 ];
 
 const TX_OPTIONS: { value: TxType; label: string; description: string; icon: React.ElementType; color: string }[] = [
-  { value: 'entry',        label: 'Entrée (Approvisionnement)', description: 'Stock reçu ou acheté',      icon: ArrowDown, color: 'border-success/40 bg-success/5 text-success' },
-  { value: 'sale',         label: 'Sortie — Vente',             description: "Génère un encaissement direct", icon: ArrowUp,   color: 'border-accent/40 bg-accent/5 text-accent' },
-  { value: 'credit',       label: 'Sortie — À Crédit',          description: "Vendu mais non payé",        icon: Clock,     color: 'border-amber-500/40 bg-amber-500/5 text-amber-600' },
-  { value: 'non_sale_exit',label: 'Sortie sans encaissement',   description: 'Ex : offert, cassé, perdu...', icon: Gift,    color: 'border-destructive/40 bg-destructive/5 text-destructive' },
+  // NOTE: value doit rester unique pour React keys (Radix SelectItem key uses value).
+  // Ici, on conserve le même TxType backend ('entry') en différenciant via un mapping UI.
+  { value: 'entry',         label: 'Entrée — Approvisionnement', description: 'Approvisionnement de stock', icon: ArrowDown, color: 'border-success/40 bg-success/5 text-success' },
+  { value: 'charge',        label: 'Entrée — Charge',             description: 'Achat de stock, compte en dépense', icon: ArrowDown, color: 'border-success/40 bg-success/5 text-success' },
+  { value: 'sale',          label: 'Sortie — Vente',              description: "Génère un encaissement direct", icon: ArrowUp,   color: 'border-accent/40 bg-accent/5 text-accent' },
+  { value: 'credit',        label: 'Sortie — À Crédit',           description: "Vendu mais non payé",        icon: Clock,     color: 'border-amber-500/40 bg-amber-500/5 text-amber-600' },
+  { value: 'non_sale_exit', label: 'Sortie sans encaissement',    description: 'Ex : offert, cassé, perdu...', icon: Gift,    color: 'border-destructive/40 bg-destructive/5 text-destructive' },
+  { value: 'other_charge',  label: 'Autre charge',                description: 'Frais annexes (transport, etc)', icon: ArrowDown, color: 'border-destructive/40 bg-destructive/5 text-destructive' },
 ];
 
-const TX_TYPE_INFO: Record<string, { label: string; badgeClass: string; marker: string }> = {
+const TX_TYPE_INFO: Record<TxType, { label: string; badgeClass: string; marker: string }> = {
   entry:        { label: 'Entrée',    badgeClass: 'bg-success/10 text-success',       marker: 'bg-success'      },
+  charge:       { label: 'Charge',    badgeClass: 'bg-success/10 text-success',       marker: 'bg-success'      },
   sale:         { label: 'Vente',     badgeClass: 'bg-accent/10 text-accent',         marker: 'bg-accent'       },
   credit:       { label: 'Crédit',    badgeClass: 'bg-amber-500/10 text-amber-600',   marker: 'bg-amber-500'    },
   non_sale_exit:{ label: 'Sortie S/E',badgeClass: 'bg-destructive/10 text-destructive',marker: 'bg-destructive' },
+  other_charge: { label: 'Autre Chrg.',badgeClass: 'bg-destructive/10 text-destructive',marker: 'bg-destructive' },
 };
+
+
 
 function generateId(): string {
   return typeof crypto.randomUUID === 'function' 
@@ -208,15 +219,33 @@ function QuickAddProductDialog({
   onCreated: (product: Product) => void;
 }) {
   const [form, setForm] = useState<QuickProductForm>(emptyQuickForm(initialName));
+  const { isAdmin } = useAuth();
+  const currentCashRegister = isAdmin ? 'caisse2' : 'caisse1';
 
   useEffect(() => {
     if (open) setForm(emptyQuickForm(initialName));
   }, [open, initialName]);
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => api.products.create(data),
+    mutationFn: async (data: any) => {
+      // 1. On crée le produit
+      const product = await api.products.create(data);
+      // 2. Si on a du stock initial, on crée une transaction 'charge'
+      if (Number(form.initialStock) > 0) {
+        await api.transactions.create({
+          product: `/api/products/${product.id}`,
+          type: 'charge',
+          quantity: Number(form.initialStock),
+          note: 'Stock initial / Exception ajout',
+          date: new Date().toISOString(),
+          unitPrice: Number(form.purchasePrice) || 0,
+          cashRegister: currentCashRegister,
+        });
+      }
+      return product;
+    },
     onSuccess: (data) => {
-      toast.success("Produit cree");
+      toast.success("Produit crée avec succès");
       onCreated(data);
     },
     onError: (error: Error) => {
@@ -254,11 +283,16 @@ function QuickAddProductDialog({
             <div className="space-y-1.5"><Label>Prix d'achat</Label><Input type="number" value={form.purchasePrice} onChange={(e) => setForm({ ...form, purchasePrice: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>Prix de vente</Label><Input type="number" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} /></div>
           </div>
+          <div className="space-y-1.5">
+            <Label>Stock initial</Label>
+            <Input type="number" value={form.initialStock} onChange={(e) => setForm({ ...form, initialStock: e.target.value })} />
+            <p className="text-[10px] text-muted-foreground mt-1">Sera enregistré comme charge dans {currentCashRegister === "caisse2" ? "Caisse 2 - Admin" : "Caisse 1 - Reception"}</p>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annuler</Button>
           <Button onClick={handleSubmit} disabled={createMutation.isPending} className="gradient-accent text-accent-foreground border-0">
-            {createMutation.isPending ? "Creation..." : "Créer"}
+            {createMutation.isPending ? "Création..." : "Créer"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -269,6 +303,9 @@ function QuickAddProductDialog({
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function Movements() {
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
+  const currentCashRegister = isAdmin ? 'caisse2' : 'caisse1';
+  const currentCashRegisterLabel = isAdmin ? 'Caisse 2 - Admin' : 'Caisse 1 - Reception';
   const [lines, setLines] = useState<ProductLine[]>([newLine('sale')]);
   const [note, setNote] = useState('');
   const [movementDate, setMovementDate] = useState(() => new Date().toISOString().slice(0, 16));
@@ -307,8 +344,7 @@ export default function Movements() {
       toast.success("Transaction supprimee");
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      // ✅ FIX : invalide aussi le rapport stock pour que Reports_stock
-      // se mette à jour immédiatement sans F5
+
       queryClient.invalidateQueries({ queryKey: ['stock-report'] });
       setDeleteId(null);
     }
@@ -338,7 +374,12 @@ export default function Movements() {
     queryClient.invalidateQueries({ queryKey: ['products'] });
     refreshNotifications();
     if (quickLineId) {
-      updateLine(quickLineId, { productId: String(product.id), productName: product.name, unitPrice: String(product.salePrice) });
+      const targetLine = lines.find((line) => line.id === quickLineId);
+      updateLine(quickLineId, {
+        productId: String(product.id),
+        productName: product.name,
+        unitPrice: String((targetLine?.type === 'entry' || targetLine?.type === 'charge' || targetLine?.type === 'other_charge') ? product.purchasePrice : product.salePrice),
+      });
     }
     setQuickOpen(false);
     setQuickLineId(null);
@@ -372,7 +413,7 @@ export default function Movements() {
     const validLines = lines.filter((l) => l.productId && l.quantity && Number(l.quantity) > 0);
     if (validLines.length === 0) return null;
 
-    let totalRevenue = 0, totalCost = 0;
+    let totalRevenue = 0, totalCost = 0, totalCharges = 0;
     const items: any[] = [];
 
     for (const line of validLines) {
@@ -387,7 +428,11 @@ export default function Movements() {
         totalCost += qty * product.purchasePrice;
       }
 
-      const newStock = line.type === 'entry' ? product.currentStock + qty : Math.max(0, product.currentStock - qty);
+      if (line.type === 'entry' || line.type === 'charge' || line.type === 'other_charge') {
+        totalCharges += lineTotal;
+      }
+
+      const newStock = (line.type === 'entry' || line.type === 'charge') ? product.currentStock + qty : (line.type === 'other_charge' ? product.currentStock : Math.max(0, product.currentStock - qty));
       items.push({ 
         product, 
         qty, 
@@ -398,7 +443,7 @@ export default function Movements() {
       });
     }
 
-    return { items, totalRevenue, totalCost, profit: totalRevenue - totalCost };
+    return { items, totalRevenue, totalCost, totalCharges, profit: totalRevenue - totalCost };
   }, [lines, products]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -422,13 +467,16 @@ export default function Movements() {
           note: note.trim(),
           date,
           unitPrice: unitPriceValue,
+          cashRegister: currentCashRegister,
         });
 
-        const newStock = line.type === 'entry' 
+        const newStock = (line.type === 'entry' || line.type === 'charge') 
           ? product.currentStock + Number(line.quantity) 
-          : Math.max(0, product.currentStock - Number(line.quantity));
+          : (line.type === 'other_charge' ? product.currentStock : Math.max(0, product.currentStock - Number(line.quantity)));
           
-        await api.products.update(product.id!, { currentStock: newStock });
+        if (line.type !== 'other_charge') {
+          await api.products.update(product.id!, { currentStock: newStock });
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
@@ -466,6 +514,7 @@ export default function Movements() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Enregistrer un mouvement</h1>
             <p className="text-sm text-muted-foreground">Gérez vos entrées, ventes et crédits via le backend API.</p>
+            <p className="text-xs font-bold text-primary mt-1">{currentCashRegisterLabel}</p>
           </div>
 
           {success && (
@@ -506,8 +555,17 @@ export default function Movements() {
                     <div key={line.id} className="space-y-1.5">
                       <div className="grid grid-cols-[130px_1fr_60px_80px_80px_36px] gap-2 items-start">
                         <Select 
-                          value={line.type} 
-                          onValueChange={(v) => updateLine(line.id, { type: v as TxType })}
+                          value={line.type}
+                          onValueChange={(v) => {
+                            const nextType = v as TxType;
+                            const selectedProduct = product || productMap[line.productId];
+                            updateLine(line.id, {
+                              type: nextType,
+                              unitPrice: selectedProduct 
+                                ? ((nextType === 'entry' || nextType === 'charge' || nextType === 'other_charge') ? String(selectedProduct.purchasePrice) : String(selectedProduct.salePrice))
+                                : line.unitPrice,
+                            });
+                          }}
                         >
                           <SelectTrigger className="h-9 text-xs">
                             <SelectValue placeholder="Type" />
@@ -523,7 +581,15 @@ export default function Movements() {
 
                         <ProductSearchInput
                           value={{ productId: line.productId, productName: line.productName }}
-                          onChange={(patch) => updateLine(line.id, patch)}
+                          onChange={(patch) => {
+                            const selectedProduct = patch.productId ? productMap[patch.productId] : null;
+                            updateLine(line.id, {
+                              ...patch,
+                              unitPrice: selectedProduct && (line.type === 'entry' || line.type === 'charge' || line.type === 'other_charge')
+                                ? String(selectedProduct.purchasePrice)
+                                : patch.unitPrice ?? line.unitPrice,
+                            });
+                          }}
                           products={products}
                           onCreateNew={(name) => openQuickCreate(name, line.id)}
                         />
@@ -565,6 +631,9 @@ export default function Movements() {
                   );
                 })}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Les entrees de stock sont ajoutees comme charges dans {currentCashRegisterLabel}.
+              </p>
             </div>
 
             <div className="bg-card rounded-xl border border-border shadow-card p-5 space-y-2">
@@ -593,6 +662,12 @@ export default function Movements() {
                   <div className="pt-2 border-t border-border flex justify-between text-sm font-bold">
                     <span>Total à encaisser / créditer</span>
                     <span className="text-accent">{formatCurrency(preview.totalRevenue)}</span>
+                  </div>
+                )}
+                {preview.totalCharges > 0 && (
+                  <div className="pt-2 border-t border-border flex justify-between text-sm font-bold">
+                    <span>Total charges ({currentCashRegisterLabel})</span>
+                    <span className="text-destructive">{formatCurrency(preview.totalCharges)}</span>
                   </div>
                 )}
               </div>
@@ -688,7 +763,9 @@ export default function Movements() {
                     const total = (() => {
                       if (!product) return null;
                       switch (tx.type) {
-                        case 'entry':        return tx.quantity * (tx.unitPrice ?? product.purchasePrice ?? 0);
+                        case 'entry':
+                        case 'charge':
+                        case 'other_charge': return tx.quantity * (tx.unitPrice ?? product.purchasePrice ?? 0);
                         case 'sale':
                         case 'credit':       return tx.quantity * (tx.unitPrice ?? product.salePrice ?? 0);
                         case 'non_sale_exit':return tx.quantity * (tx.unitPrice ?? product.purchasePrice ?? 0);

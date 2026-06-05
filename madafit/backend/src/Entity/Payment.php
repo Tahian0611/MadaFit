@@ -14,7 +14,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ApiResource(
     normalizationContext: ['groups' => ['payment:read']],
     denormalizationContext: ['groups' => ['payment:write']],
-    security: "is_granted('ROLE_ADMIN')",
+    security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_RECEPTION')",
     description: 'Historique des paiements des membres.'
 )]
 class Payment
@@ -54,6 +54,10 @@ class Payment
     #[ORM\Column(length: 100, nullable: true)]
     #[Groups(['payment:read', 'payment:write'])]
     private ?string $receiptNo = null;
+
+    #[ORM\Column(length: 20, options: ['default' => 'caisse2'])]
+    #[Groups(['payment:read', 'payment:write'])]
+    private string $cashRegister = 'caisse2';
 
     public function getId(): ?int
     {
@@ -136,5 +140,15 @@ class Payment
         $this->receiptNo = $receiptNo;
         return $this;
     }
-}
 
+    public function getCashRegister(): string
+    {
+        return $this->cashRegister;
+    }
+
+    public function setCashRegister(?string $cashRegister): static
+    {
+        $this->cashRegister = $cashRegister ?: 'caisse2';
+        return $this;
+    }
+}

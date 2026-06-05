@@ -143,6 +143,7 @@ export interface Payment {
   date: string; // ISO 8601 date
   subscription?: string;
   receiptNo?: string;
+  cashRegister?: string;
 }
 
 // ============================================================================
@@ -197,6 +198,7 @@ export interface Transaction {
   date: string; // ISO 8601 datetime
   unitPrice?: number;
   product?: Product | string; // IRI ou objet Product
+  cashRegister?: string;
 }
 
 // ============================================================================

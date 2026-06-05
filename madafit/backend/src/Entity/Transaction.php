@@ -34,6 +34,9 @@ class Transaction
     #[ORM\ManyToOne(inversedBy: 'transactions')]
     private ?Product $product = null;
 
+    #[ORM\Column(length: 20, options: ['default' => 'caisse2'])]
+    private string $cashRegister = 'caisse2';
+
     public function getId(): ?int
     {
         return $this->id;
@@ -102,6 +105,17 @@ class Transaction
     public function setProduct(?Product $product): static
     {
         $this->product = $product;
+        return $this;
+    }
+
+    public function getCashRegister(): string
+    {
+        return $this->cashRegister;
+    }
+
+    public function setCashRegister(?string $cashRegister): static
+    {
+        $this->cashRegister = $cashRegister ?: 'caisse2';
         return $this;
     }
 }
