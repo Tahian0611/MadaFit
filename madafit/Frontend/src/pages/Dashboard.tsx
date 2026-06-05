@@ -308,7 +308,7 @@ export default function Dashboard() {
             <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-125 transition-transform">
               <TrendingUp size={48} className="text-primary" />
             </div>
-            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">CA Total (C1+C2)</p>
+            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Chiffres d'affaires Global</p>
             <p className="font-black text-2xl text-primary">{formatCurrency(globalStats.caTotal)}</p>
           </div>
 

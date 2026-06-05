@@ -106,10 +106,10 @@ export default function Subscriptions() {
         cashRegister: currentCashRegister,
       });
       const newTotal = (currentUser?.totalPayments || 0) + amount;
-      return api.users.update(id, { status: "active", startDate: today, totalPayments: newTotal });
+      return api.users.update(id, { totalPayments: newTotal });
     },
     onSuccess: () => {
-      toast.success("Paiement enregistré et abonnement validé");
+      toast.success("Paiement enregistré");
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       setSelectedMember(null);
@@ -224,13 +224,13 @@ export default function Subscriptions() {
                     <div className="flex flex-col gap-2">
                       <button 
                         onClick={() => {
-                          if(window.confirm("Valider l'abonnement sans enregistrer de paiement ?")) {
+                          if(window.confirm("Commencer l'abonnement sans enregistrer de paiement ?")) {
                             if(selectedMember.id) validerMutation.mutate(selectedMember.id);
                           }
                         }}
                         className="w-full py-2 px-4 bg-primary text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
                       >
-                        Valider & Commencer
+                        Commencer l'abonnement
                       </button>
                       <button 
                         onClick={() => {
@@ -259,7 +259,7 @@ export default function Subscriptions() {
                         }}
                         className="w-full py-2 px-4 bg-green-600 text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
                       >
-                        Payer & Valider
+                        Payer l'abonnement
                       </button>
                       <button 
                         onClick={() => {
@@ -380,7 +380,7 @@ function ValidationModal({
             <div className="grid grid-cols-1 gap-3">
               <button 
                 onClick={() => {
-                  if(window.confirm("Valider l'abonnement sans enregistrer de paiement ?")) {
+                  if(window.confirm("Commencer l'abonnement sans enregistrer de paiement ?")) {
                     if(member.id) {
                       validerMutation.mutate(member.id);
                       onClose();
@@ -389,7 +389,7 @@ function ValidationModal({
                 }}
                 className="w-full py-3 px-4 bg-primary text-white rounded-xl font-bold text-sm shadow-sm transition-all hover:opacity-90 active:scale-95"
               >
-                Valider & Commencer
+                Commencer l'abonnement
               </button>
               <button 
                 onClick={() => {
@@ -414,7 +414,7 @@ function ValidationModal({
                 }}
                 className="w-full py-3 px-4 bg-green-600 text-white rounded-xl font-bold text-sm shadow-sm transition-all hover:opacity-90 active:scale-95"
               >
-                Payer & Valider (Espèces)
+                Payer l'abonnement (Espèces)
               </button>
               <button 
                 onClick={() => {
@@ -432,9 +432,37 @@ function ValidationModal({
             </div>
           </div>
         ) : (
-          <div className="pt-4 border-t text-center space-y-4" style={{ borderColor: "hsl(var(--border))" }}>
-             <p className="text-sm text-muted-foreground italic">L'abonnement est déjà actif ou expiré.</p>
-             <button onClick={onClose} className="w-full py-2 px-4 bg-muted text-foreground rounded-lg font-medium text-sm">Fermer</button>
+          <div className="pt-4 border-t space-y-4" style={{ borderColor: "hsl(var(--border))" }}>
+             <p className="text-sm text-muted-foreground italic text-center">L'abonnement est actif.</p>
+             
+             {/* Bouton payer toujours disponible - totalPayments est cumulatif et ne peut pas servir d'indicateur */}
+             <button 
+                onClick={() => {
+                  const defaultPrice = plan?.price || 0;
+                  const amountStr = window.prompt("Entrez le montant payé:", String(defaultPrice));
+                  if (amountStr !== null) {
+                    const amount = Number(amountStr);
+                    if (!isNaN(amount) && amount > 0) {
+                      if(member.id) {
+                        payerMutation.mutate({ 
+                          id: member.id, 
+                          amount,
+                          userIri: `/api/users/${member.id}`,
+                          subscription: member.subscription || "",
+                        });
+                        onClose();
+                      }
+                    } else {
+                      toast.error("Montant invalide");
+                    }
+                  }
+                }}
+                className="w-full py-3 px-4 bg-green-600 text-white rounded-xl font-bold text-sm shadow-sm transition-all hover:opacity-90 active:scale-95"
+              >
+                Payer l'abonnement (Espèces)
+              </button>
+
+             <button onClick={onClose} className="w-full py-2 px-4 bg-muted/50 text-foreground rounded-lg font-medium text-sm hover:bg-muted transition-colors">Fermer</button>
           </div>
         )}
       </div>
