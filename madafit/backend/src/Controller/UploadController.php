@@ -7,9 +7,11 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
 #[Route('/api/uploads')]
+#[IsGranted('ROLE_USER')]
 class UploadController extends AbstractController
 {
     // Messages d'erreur PHP upload → JSON lisible côté frontend
@@ -43,6 +45,17 @@ class UploadController extends AbstractController
         $ext = strtolower($file->getClientOriginalExtension());
         if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
             return new JsonResponse(['error' => 'Extension non autorisée (jpg, png, gif, webp)'], 400);
+        }
+
+        // ── Validation MIME réelle (contenu du fichier) ────────────────────
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $realMime = finfo_file($finfo, $file->getPathname());
+            finfo_close($finfo);
+            if (!in_array($realMime, $allowedMimes, true)) {
+                return new JsonResponse(['error' => 'Type de fichier non autorisé'], 400);
+            }
         }
 
         if ($file->getSize() > 10 * 1024 * 1024) {

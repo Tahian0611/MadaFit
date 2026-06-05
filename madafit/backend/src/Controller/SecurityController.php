@@ -35,8 +35,8 @@ class SecurityController extends AbstractController
 
             if (!$user) {
                 return $this->json([
-                    'error' => 'Aucun compte trouvé avec cet email.',
-                    'code'  => 'USER_NOT_FOUND',
+                    'error' => 'Identifiants incorrects.',
+                    'code'  => 'INVALID_CREDENTIALS',
                 ], Response::HTTP_UNAUTHORIZED);
             }
 
@@ -58,8 +58,8 @@ class SecurityController extends AbstractController
 
             if (!$passwordHasher->isPasswordValid($user, $data['password'])) {
                 return $this->json([
-                    'error' => 'Mot de passe incorrect.',
-                    'code'  => 'INVALID_PASSWORD',
+                    'error' => 'Identifiants incorrects.',
+                    'code'  => 'INVALID_CREDENTIALS',
                 ], Response::HTTP_UNAUTHORIZED);
             }
 

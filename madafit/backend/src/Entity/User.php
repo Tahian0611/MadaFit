@@ -29,8 +29,12 @@ use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 #[UniqueEntity(fields: ['email'], message: 'Cet email est déjà utilisé.')]
 #[ApiResource(
     operations: [
-        new GetCollection(),
-        new Get(),
+        new GetCollection(
+            security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_RECEPTION')"
+        ),
+        new Get(
+            security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_RECEPTION') or object == user"
+        ),
         new Post(processor: UserPasswordProcessor::class, validationContext: ['groups' => ['Default', 'user:create']]),
         new Patch(
             processor: UserPasswordProcessor::class, 
@@ -222,6 +226,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $resetToken = null;
+
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $resetTokenExpiresAt = null;
 
     public function __construct()
     {
@@ -752,5 +759,26 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->resetToken = $resetToken;
 
         return $this;
+    }
+
+    public function getResetTokenExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->resetTokenExpiresAt;
+    }
+
+    public function setResetTokenExpiresAt(?\DateTimeImmutable $resetTokenExpiresAt): static
+    {
+        $this->resetTokenExpiresAt = $resetTokenExpiresAt;
+
+        return $this;
+    }
+
+    public function isResetTokenValid(): bool
+    {
+        if (!$this->resetToken || !$this->resetTokenExpiresAt) {
+            return false;
+        }
+
+        return $this->resetTokenExpiresAt > new \DateTimeImmutable();
     }
 }
