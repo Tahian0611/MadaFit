@@ -101,17 +101,14 @@ class StockReportService
             $unitPrice = $transaction->getUnitPrice();
 
             match ($transaction->getType()) {
-                'entry' => [
-                    $totalEntries += $quantity,
-                    $totalCost    += ($quantity * ($unitPrice ?? $product->getPurchasePrice() ?? 0)),
+                'entry', 'charge', 'other_charge' => [
+                    $totalEntries      += ($transaction->getType() === 'entry' ? $quantity : 0),
+                    $totalCost         += ($quantity * ($unitPrice ?? $product->getPurchasePrice() ?? 0)),
                 ],
-                'sale' => [
-                    $totalSales += $quantity,
+                'sale', 'credit' => [
+                    $totalSales += ($transaction->getType() === 'sale' ? $quantity : 0),
+                    $totalCredits += ($transaction->getType() === 'credit' ? $quantity : 0),
                     $revenue    += ($quantity * ($unitPrice ?? $product->getSalePrice() ?? 0)),
-                ],
-                'credit' => [
-                    $totalCredits += $quantity,
-                    $revenue      += ($quantity * ($unitPrice ?? $product->getSalePrice() ?? 0)),
                 ],
                 'non_sale_exit' => [
                     $totalNonSaleExits += $quantity,

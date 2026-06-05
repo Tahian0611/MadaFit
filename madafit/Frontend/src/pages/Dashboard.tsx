@@ -86,16 +86,17 @@ function computeCashierCAStats(
 
   const subscriptionTotal = cashierPayments.reduce((sum, p) => sum + (p.amount ?? 0), 0);
 
-  // sorties chiffre d'affaire
-  const salesTypes = new Set(['sale', 'credit', 'non_sale_exit']);
+  // sorties chiffre d'affaire : seulement ventes et crédits
+  const salesRevenueTypes = new Set(['sale', 'credit']);
   const sortiesTotal = cashierTransactions.reduce((sum, tx) => {
-    if (!salesTypes.has(tx.type)) return sum;
+    if (!salesRevenueTypes.has(tx.type)) return sum;
     const qty = Number(tx.quantity ?? 0);
     const unit = Number(tx.unitPrice ?? 0);
     return sum + qty * unit;
   }, 0);
 
   // coûts d'achats et dépenses
+  const salesTypes = new Set(['sale', 'credit', 'non_sale_exit']);
   const achatsTotal = cashierTransactions.reduce((sum, tx) => {
     if (!salesTypes.has(tx.type)) return sum;
     const qty = Number(tx.quantity ?? 0);
@@ -106,8 +107,9 @@ function computeCashierCAStats(
     return sum + qty * unitCost;
   }, 0);
 
+  const expenseTypes = new Set(['entry', 'charge', 'other_charge']);
   const entriesTotal = cashierTransactions.reduce((sum, tx) => {
-    if (tx.type !== 'entry' && tx.type !== 'charge') return sum;
+    if (!expenseTypes.has(tx.type)) return sum;
     const qty = Number(tx.quantity ?? 0);
     const productPurchase = getTransactionPurchasePrice(tx, productMap);
     const unitCost = Number(productPurchase ?? tx.unitPrice ?? 0);
