@@ -3,6 +3,7 @@
 namespace App\State;
 
 use ApiPlatform\Metadata\Operation;
+use ApiPlatform\Metadata\Post;
 use ApiPlatform\State\ProcessorInterface;
 use App\Entity\User;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -28,6 +29,11 @@ final class UserPasswordProcessor implements ProcessorInterface
                 if (($passwordInfo['algo'] ?? null) === null) {
                     $data->setPassword($this->passwordHasher->hashPassword($data, $password));
                 }
+            }
+
+            // Forcer le statut 'pending' à la création d'un utilisateur (POST)
+            if ($operation instanceof Post && ($data->getStatus() === null || $data->getStatus() === 'active')) {
+                $data->setStatus('pending');
             }
         }
 

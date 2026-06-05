@@ -128,6 +128,15 @@ function computeCashierCAStats(
     achatsTotal,
     entriesTotal,
     resultat,
+    // Listes pour les modales
+    items: {
+      payments: cashierPayments,
+      sorties: cashierTransactions.filter(tx => salesRevenueTypes.has(tx.type)),
+      depenses: cashierTransactions.filter(tx => expenseTypes.has(tx.type) || salesTypes.has(tx.type)),
+      achats: cashierTransactions.filter(tx => salesTypes.has(tx.type)),
+      entries: cashierTransactions.filter(tx => expenseTypes.has(tx.type)),
+    },
+    productMap // Ajouté ici
   };
 }
 
@@ -135,6 +144,11 @@ export default function Dashboard() {
   const { isAdmin, isReception } = useAuth();
   const showCashierStats = isAdmin || isReception;
   const [activeCaisseModal, setActiveCaisseModal] = useState<"caisse1" | "caisse2" | null>(null);
+  const [activeDetail, setActiveDetail] = useState<{
+    title: string;
+    type: 'payments' | 'transactions';
+    data: any[];
+  } | null>(null);
 
   const usersQuery = useQuery({
     queryKey: ["users"],
@@ -199,6 +213,12 @@ export default function Dashboard() {
     () => computeCashierCAStats(payments, transactions, products, "caisse2"),
     [paymentsQuery.data, transactionsQuery.data, productsQuery.data],
   );
+
+  const globalStats = useMemo(() => ({
+    caTotal: caisse1Stats.caTotal + caisse2Stats.caTotal,
+    depensesTotal: caisse1Stats.depensesTotal + caisse2Stats.depensesTotal,
+    resultat: caisse1Stats.resultat + caisse2Stats.resultat,
+  }), [caisse1Stats, caisse2Stats]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -281,6 +301,39 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Totaux Globaux (Admin Uniquement) ─────────────────── */}
+      {isAdmin && (
+        <div className="mb-8 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in slide-in-from-bottom-4 duration-500 delay-150">
+          <div className="p-5 bg-primary/5 rounded-2xl border border-primary/20 shadow-sm flex flex-col justify-center relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-125 transition-transform">
+              <TrendingUp size={48} className="text-primary" />
+            </div>
+            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">CA Total (C1+C2)</p>
+            <p className="font-black text-2xl text-primary">{formatCurrency(globalStats.caTotal)}</p>
+          </div>
+
+          <div className="p-5 bg-destructive/5 rounded-2xl border border-destructive/20 shadow-sm flex flex-col justify-center relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-125 transition-transform">
+              <TrendingDown size={48} className="text-destructive" />
+            </div>
+            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Dépenses Totales</p>
+            <p className="font-black text-2xl text-destructive">{formatCurrency(globalStats.depensesTotal)}</p>
+          </div>
+
+          <div className={`p-5 rounded-2xl border shadow-md flex flex-col justify-center relative overflow-hidden group ${
+            globalStats.resultat >= 0 ? "bg-green-500/5 border-green-500/20" : "bg-red-500/5 border-red-500/20"
+          }`}>
+            <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-125 transition-transform">
+              <Calculator size={48} className={globalStats.resultat >= 0 ? "text-green-500" : "text-red-500"} />
+            </div>
+            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Résultat Global</p>
+            <p className={`font-black text-2xl ${globalStats.resultat >= 0 ? "text-green-600" : "text-red-600"}`}>
+              {formatCurrency(globalStats.resultat)}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Modal Caisse ────────────────────────────────────────── */}
       {activeCaisseModal && (
         <div className="fixed inset-0 z-[9999] h-full flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in !mt-0">
@@ -302,7 +355,83 @@ export default function Dashboard() {
                 title={activeCaisseModal === "caisse1" ? "Caisse 1 - Reception" : "Caisse 2 - Admin"} 
                 stats={activeCaisseModal === "caisse1" ? caisse1Stats : caisse2Stats} 
                 isAdmin={isAdmin}
+                onDetail={(title, type, data) => setActiveDetail({ title, type, data })}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Détail (Compostition des chiffres) ──────────────── */}
+      {activeDetail && (
+        <div className="fixed inset-0 z-[10000] h-full flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in zoom-in !mt-0">
+          <div className="bg-card w-full max-w-4xl rounded-2xl shadow-2xl border border-primary/20 flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between p-6 border-b border-border bg-muted/30">
+              <div>
+                <h2 className="text-xl font-black flex items-center gap-2 text-foreground">
+                  {activeDetail.title}
+                </h2>
+                <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mt-1">
+                  Composition du montant
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveDetail(null)}
+                className="p-2 hover:bg-destructive/10 hover:text-destructive rounded-full transition-all"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-0 overflow-y-auto">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 bg-muted/90 backdrop-blur-md z-10">
+                  <tr>
+                    <th className="p-4 text-[10px] font-black uppercase text-muted-foreground border-b border-border">Date</th>
+                    <th className="p-4 text-[10px] font-black uppercase text-muted-foreground border-b border-border">Désignation</th>
+                    <th className="p-4 text-[10px] font-black uppercase text-muted-foreground border-b border-border">Détails</th>
+                    <th className="p-4 text-[10px] font-black uppercase text-muted-foreground border-b border-border text-right">Montant</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {activeDetail.data.length > 0 ? (
+                    activeDetail.data.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-primary/5 transition-colors group">
+                        <td className="p-4 text-xs font-bold text-muted-foreground whitespace-nowrap">
+                          {formatDate(item.date)}
+                        </td>
+                        <td className="p-4">
+                          <p className="text-sm font-black text-foreground">
+                            {activeDetail.type === 'payments' ? item.memberName : (item.productName || (typeof item.product === 'object' ? item.product?.name : null) || 'Charge/Divers')}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {activeDetail.type === 'payments' ? (item.subscription || 'Abonnement') : `Type: ${item.type}`}
+                          </p>
+                        </td>
+                        <td className="p-4 text-xs font-bold text-muted-foreground">
+                          {activeDetail.type === 'payments' ? item.method : `${item.quantity || 1} x ${formatCurrency(item.unitPrice)}`}
+                        </td>
+                        <td className="p-4 text-sm font-black text-primary text-right group-hover:scale-110 transition-transform origin-right">
+                          {formatCurrency(activeDetail.type === 'payments' ? item.amount : (item.quantity * (item.unitPrice || 0)))}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="p-12 text-center text-muted-foreground italic">
+                        Aucune donnée disponible pour cette sélection.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-6 border-t border-border bg-muted/30 flex justify-between items-center">
+               <span className="text-xs font-bold text-muted-foreground uppercase">Total calculé</span>
+               <span className="text-2xl font-black text-primary">
+                 {formatCurrency(activeDetail.data.reduce((sum, item) => 
+                   sum + (activeDetail.type === 'payments' ? (item.amount || 0) : ((item.quantity || 0) * (item.unitPrice || 0))), 0)
+                 )}
+               </span>
             </div>
           </div>
         </div>
@@ -614,11 +743,21 @@ function CashierCards({
   title,
   stats,
   isAdmin = false,
+  onDetail,
 }: {
   title: string;
   stats: ReturnType<typeof computeCashierCAStats>;
   isAdmin?: boolean;
+  onDetail: (title: string, type: 'payments' | 'transactions', data: any[]) => void;
 }) {
+  const { caTotal, subscriptionTotal, sortiesTotal, depensesTotal, achatsTotal, entriesTotal, resultat, productMap } = stats;
+  
+  // Fonctions de filtrage pour les détails
+  // Note: On suppose que computeCashierCAStats stocke les éléments filtrés ou on les refiltre ici
+  // Pour plus de simplicité et performance, on va passer les données brutes filtrées
+  // Mais comme computeCashierCAStats ne retourne que les totaux, on va devoir re-filtrer ou ajuster Dashboard.tsx
+  // ALTERNATIVE: Modifier computeCashierCAStats pour retourner aussi les listes d'objets.
+
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
@@ -632,40 +771,54 @@ function CashierCards({
         <StatCard
           icon={Wallet}
           label="Chiffre d'affaires"
-          value={formatCurrency(stats.caTotal)}
-          sub="Abonnements + sorties"
+          value={formatCurrency(caTotal)}
+          sub="Abonnements + ventes"
           className="sm:col-span-2 md:col-span-1 bg-success/5 border-success/20 hover:border-success/50"
           iconColorClass="text-success"
           iconBgClass="bg-success/10 group-hover:bg-success"
+          onClick={() => {
+             // CA = Subscriptions + Sorties
+             onDetail("Chiffre d'Affaires Global", 'payments', [
+               ...stats.items.payments, 
+               ...stats.items.sorties.map(s => {
+                 const pId = extractIdFromIri(s.product);
+                 const pName = pId ? (productMap as any)[pId]?.name : (typeof s.product === 'object' ? (s.product as any)?.name : null);
+                 return {...s, amount: (s.quantity || 0) * (s.unitPrice || 0), memberName: pName || 'Vente produit'};
+               })
+             ]);
+          }}
         />
         <StatCard
           icon={Receipt}
           label="Abonnements"
-          value={formatCurrency(stats.subscriptionTotal)}
-          sub="Paiements"
+          value={formatCurrency(subscriptionTotal)}
+          sub="Paiements validés"
           className=""
           iconColorClass="text-success"
           iconBgClass="bg-success/10 group-hover:bg-success"
+          onClick={() => onDetail("Détails Abonnements", 'payments', stats.items.payments)}
         />
         <StatCard
           icon={TrendingUp}
           label="Sorties"
-          value={formatCurrency(stats.sortiesTotal)}
-          sub="Caisse"
+          value={formatCurrency(sortiesTotal)}
+          sub="Ventes produits"
           className=""
           iconColorClass="text-success"
           iconBgClass="bg-success/10 group-hover:bg-success"
+          onClick={() => onDetail("Détails Sorties (Ventes)", 'transactions', stats.items.sorties)}
         />
 
         {/* Ligne Dépenses — visible par tous */}
         <StatCard
           icon={TrendingDown}
           label="Total dépenses"
-          value={formatCurrency(stats.depensesTotal)}
-          sub="Achats + entrées"
+          value={formatCurrency(depensesTotal)}
+          sub="Achats + charges"
           className="sm:col-span-2 md:col-span-1 bg-destructive/5 border-destructive/20 hover:border-destructive/50"
           iconColorClass="text-destructive"
           iconBgClass="bg-destructive/10 group-hover:bg-destructive"
+          onClick={() => onDetail("Total Dépenses", 'transactions', stats.items.depenses)}
         />
 
         {/* Détail dépenses — admin uniquement */}
@@ -674,20 +827,22 @@ function CashierCards({
             <StatCard
               icon={Package}
               label="Coût d'achats"
-              value={formatCurrency(stats.achatsTotal)}
-              sub="Ventes"
+              value={formatCurrency(achatsTotal)}
+              sub="Valeur purchasePrice"
               className=""
               iconColorClass="text-destructive"
               iconBgClass="bg-destructive/10 group-hover:bg-destructive"
+              onClick={() => onDetail("Coût des Achats", 'transactions', stats.items.achats)}
             />
             <StatCard
               icon={Activity}
-              label="Entrées"
-              value={formatCurrency(stats.entriesTotal)}
-              sub="Stock"
+              label="Charges/Entrées"
+              value={formatCurrency(entriesTotal)}
+              sub="Dépenses directes"
               className=""
               iconColorClass="text-destructive"
               iconBgClass="bg-destructive/10 group-hover:bg-destructive"
+              onClick={() => onDetail("Détails Entrées & Charges", 'transactions', stats.items.entries)}
             />
           </>
         )}
@@ -696,11 +851,11 @@ function CashierCards({
         <StatCard
           icon={Calculator}
           label="Résultat Net"
-          value={formatCurrency(stats.resultat)}
-          sub="Chiffre d'affaires − Dépenses"
+          value={formatCurrency(resultat)}
+          sub="Bénéfice calculé"
           className={`${isAdmin ? "sm:col-span-2 md:col-span-3" : "sm:col-span-2 md:col-span-2"} bg-gradient-to-r from-primary/10 via-accent/5 to-background border-primary/30 shadow-sm hover:shadow-md`}
-          iconColorClass={stats.resultat >= 0 ? "text-success" : "text-destructive"}
-          iconBgClass={stats.resultat >= 0 ? "bg-success/10 group-hover:bg-success" : "bg-destructive/10 group-hover:bg-destructive"}
+          iconColorClass={resultat >= 0 ? "text-success" : "text-destructive"}
+          iconBgClass={resultat >= 0 ? "bg-success/10 group-hover:bg-success" : "bg-destructive/10 group-hover:bg-destructive"}
         />
       </div>
     </section>
@@ -712,6 +867,7 @@ function StatCard({
   className = "",
   iconColorClass = "text-primary",
   iconBgClass = "bg-primary/10 group-hover:bg-primary",
+  onClick,
 }: {
   icon: any;
   label: string;
@@ -722,10 +878,14 @@ function StatCard({
   className?: string;
   iconColorClass?: string;
   iconBgClass?: string;
+  onClick?: () => void;
 }) {
   const isPositive = trend !== undefined && trend > 0;
   return (
-    <div className={`stat-card group hover:-translate-y-1 hover:border-primary/40 transition-all duration-300 ${className}`}>
+    <div 
+      className={`stat-card group hover:-translate-y-1 hover:border-primary/40 transition-all duration-300 ${onClick ? "cursor-pointer" : ""} ${className}`}
+      onClick={onClick}
+    >
       <div className="flex justify-between items-start mb-3">
         <div className={`p-2.5 rounded-xl transition-all duration-300 ${iconBgClass}`}>
           <Icon size={20} className={`${iconColorClass} group-hover:text-white transition-colors`} />

@@ -126,16 +126,19 @@ async function fetchFromApi<T>(
     }
     let details = "";
     try {
-      const errorData = await response.json();
-      details =
-        errorData["hydra:description"] ||
-        errorData.description ||
-        errorData.message ||
-        errorData.error ||
-        JSON.stringify(errorData);
-    } catch {
-      details = await response.text();
-    }
+      const rawText = await response.text();
+      try {
+        const errorData = JSON.parse(rawText);
+        details =
+          errorData["hydra:description"] ||
+          errorData.description ||
+          errorData.message ||
+          errorData.error ||
+          JSON.stringify(errorData);
+      } catch {
+        details = rawText;
+      }
+    } catch {}
     throw new Error(
       `API Error ${response.status} ${response.statusText}${details ? ` - ${details}` : ""}`
     );

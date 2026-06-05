@@ -236,7 +236,7 @@ export default function Register() {
         dob: form.dob || undefined,
         password: Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-2).toUpperCase() + "!",
         roles: ["ROLE_USER"],
-        status: "active",
+        status: "pending", // Modification : Toujours mettre en attente de validation
         memberId: `MF-${Date.now().toString().slice(-6)}`,
         rfidCard: `RF${Date.now().toString().slice(-6)}`,
         subscription: (form.accessType === "abonnement" && selectedPlan ? normalizeSubscriptionType(selectedPlan.type) : "monthly") as SubscriptionType,
@@ -246,20 +246,8 @@ export default function Register() {
         joinDate: computedDates.startStr,
         startDate: computedDates.startStr,
         expiryDate: computedDates.expiryStr ?? undefined,
-        totalPayments: form.accessType === "abonnement" ? (selectedPlan?.price ?? 0) : 0,
+        totalPayments: 0, // Initialement à 0, sera mis à jour lors de la validation du paiement
       });
-
-      if (form.accessType === "abonnement" && selectedPlan?.price) {
-        await api.payments.create({
-          memberId: createdUser.memberId,
-          memberName: `${createdUser.firstName} ${createdUser.lastName}`.trim(),
-          amount: selectedPlan.price,
-          method: "cash",
-          date: computedDates.startStr,
-          subscription: normalizeSubscriptionType(selectedPlan.type),
-          cashRegister: currentCashRegister,
-        });
-      }
 
       return createdUser;
     },

@@ -139,7 +139,7 @@ class SecurityController extends AbstractController
 
         $user->setMemberId('MF-' . substr((string) time(), -6));
         $user->setRfidCard('RF' . substr((string) time(), -6));
-        $user->setStatus('active');
+        $user->setStatus('pending');
         $user->setRoles(['ROLE_USER']);
         $user->setPassword($passwordHasher->hashPassword($user, $data['password']));
 
