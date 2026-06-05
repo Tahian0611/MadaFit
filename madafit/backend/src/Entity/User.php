@@ -202,21 +202,21 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     /**
      * @var Collection<int, VisitRecord>
      */
-    #[ORM\OneToMany(targetEntity: VisitRecord::class, mappedBy: 'user')]
+    #[ORM\OneToMany(targetEntity: VisitRecord::class, mappedBy: 'user', cascade: ['remove'], orphanRemoval: true)]
     #[Groups(['user:read'])]
     private Collection $visitRecords;
 
     /**
      * @var Collection<int, PaymentRecord>
      */
-    #[ORM\OneToMany(targetEntity: PaymentRecord::class, mappedBy: 'user')]
+    #[ORM\OneToMany(targetEntity: PaymentRecord::class, mappedBy: 'user', cascade: ['remove'], orphanRemoval: true)]
     #[Groups(['user:read'])]
     private Collection $paymentRecords;
 
     /**
      * @var Collection<int, AttendanceRecord>
      */
-    #[ORM\OneToMany(targetEntity: AttendanceRecord::class, mappedBy: 'user')]
+    #[ORM\OneToMany(targetEntity: AttendanceRecord::class, mappedBy: 'user', cascade: ['remove'], orphanRemoval: true)]
     #[Groups(['user:read'])]
     private Collection $attendanceRecords;
 

@@ -32,6 +32,7 @@ class PaymentRecord
     private ?string $receiptNo = null;
 
     #[ORM\ManyToOne(inversedBy: 'paymentRecords')]
+    #[ORM\JoinColumn(onDelete: 'CASCADE')]
     private ?User $user = null;
 
     public function getId(): ?int

@@ -26,6 +26,7 @@ class VisitRecord
     private ?\DateTimeImmutable $checkOut = null;
 
     #[ORM\ManyToOne(inversedBy: 'visitRecords')]
+    #[ORM\JoinColumn(onDelete: 'CASCADE')]
     private ?User $user = null;
 
     public function getId(): ?int
