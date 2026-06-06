@@ -135,14 +135,17 @@ export function formatDate(dateStr?: string | null) {
 export function formatTime(timeStr?: string | null) {
   if (!timeStr || timeStr === "00:00" || timeStr === "00:00:00") return "--:--:--";
 
-  // Cas 1: C'est un format ISO ou contient une date (ex: "2024-05-14T19:50:00Z" ou "2024-05-14 19:50:00")
+  // Cas 1: C'est un format ISO ou contient une date (ex: "2024-05-14T19:50:00Z")
   if (timeStr.includes("-") || timeStr.includes("T")) {
-    // On s'assure que la chaîne est traitée comme UTC si elle n'a pas de zone spécifiée
     let isoStr = timeStr.replace(" ", "T");
-    if (!isoStr.includes("Z") && !isoStr.includes("+") && isoStr.includes("T")) {
-      isoStr += "Z"; // On force UTC pour le parsing
-    }
     
+    // Pour Madagascar, on veut souvent l'heure brute du serveur sans décalage auto du navigateur.
+    // Si la chaîne contient un 'T', on extrait la partie heure directement pour éviter les calculs de zone.
+    if (isoStr.includes("T")) {
+      const timePart = isoStr.split("T")[1].substring(0, 8);
+      if (timePart && timePart.includes(":")) return timePart;
+    }
+
     const d = new Date(isoStr);
     if (!isNaN(d.getTime())) {
       if (d.getFullYear() <= 1970 && d.getHours() === 0 && d.getMinutes() === 0) {
@@ -283,19 +286,27 @@ export function computeDashboardStats(
 
   const retentionRate = users.length === 0 ? 0 : Math.round((activeMembers / users.length) * 100);
 
-  // inGymNow : seulement aujourd'hui, sans checkout
-  const todayStr = now.toISOString().split("T")[0];
-  const inGymNow = Array.from(
-    new Set(
-      attendance
-        .filter((a) => {
-          const aDate = typeof a.date === "string" ? a.date.substring(0, 10) : new Date(a.date).toISOString().split("T")[0];
-          return aDate === todayStr && !a.checkOut;
-        })
-        .map((a) => extractIdFromIri(a.user))
-        .filter(Boolean)
-    )
-  ).length;
+  // inGymNow : présent si le passage le plus RÉCENT n'a pas de checkOut
+  const latestByMember = new Map<number, AttendanceRecord>();
+  attendance.forEach(a => {
+    const userId = extractIdFromIri(a.user);
+    if (userId && !latestByMember.has(userId)) {
+      latestByMember.set(userId, a);
+    }
+  });
+
+  let inGymNow = 0;
+  latestByMember.forEach((a) => {
+    if (a.checkOut) return;
+    const recordDate = new Date(a.date);
+    const recordTime = a.checkIn || "00:00:00";
+    if (recordTime.includes(":")) {
+       const [h, m, s] = recordTime.split(":").map(Number);
+       recordDate.setHours(h || 0, m || 0, s || 0);
+    }
+    const diffHours = (now.getTime() - recordDate.getTime()) / (1000 * 60 * 60);
+    if (diffHours >= 0 && diffHours < 15) inGymNow++;
+  });
 
   // Données graphiques 6 mois
   const monthlyData: any[] = [];

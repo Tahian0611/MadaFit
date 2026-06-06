@@ -159,23 +159,42 @@ export default function AccessControl() {
                 setSelectedUser(foundUser);
                 setCurrentScanTime(timeStr);
 
-                // Logique de Toggle: On cherche une entrée ACTIVE (sans sortie) pour AUJOURD'HUI
-                // On s'assure de prendre la plus récente pour éviter les conflits si plusieurs existent
-                const userRecords = attendance.filter(
-                  (a) => extractIdFromIri(a.user) === foundUser.id && 
-                         (typeof a.date === 'string' ? a.date.substring(0, 10) : '') === dateStr
-                );
+                // Logique de Toggle: On ne regarde QUE le record le plus récent
+                const userRecords = attendance
+                  .filter((a) => extractIdFromIri(a.user) === foundUser.id)
+                  .sort((a, b) => {
+                    const timeA = `${a.date}T${a.checkIn || "00:00:00"}`;
+                    const timeB = `${b.date}T${b.checkIn || "00:00:00"}`;
+                    return timeB.localeCompare(timeA);
+                  });
                 
-                const activeRecord = userRecords.find((a) => !a.checkOut);
+                // Le premier est maintenant contractuellement le plus récent
+                const latestRecord = userRecords[0]; 
 
-                if (activeRecord && activeRecord.id) {
-                  // Si l'entrée vient d'être créée (moins de 10s), on ignore pour éviter les doubles scans fantômes
-                  // Mais ici on fait confiance au throttle de 5s
+                let shouldCheckOut = false;
+                if (latestRecord && !latestRecord.checkOut) {
+                  // On vérifie quand même que le record n'est pas trop vieux (max 15h)
+                  const recordDate = new Date(latestRecord.date);
+                  const recordTime = latestRecord.checkIn || "00:00:00";
+                  if (recordTime.includes(":")) {
+                    const [h, m, s] = recordTime.split(":").map(Number);
+                    recordDate.setHours(h || 0, m || 0, s || 0);
+                  }
+                  
+                  const diffHours = (now - recordDate.getTime()) / (1000 * 60 * 60);
+                  if (diffHours >= 0 && diffHours < 15) {
+                    shouldCheckOut = true;
+                  }
+                }
+
+                if (shouldCheckOut && latestRecord && latestRecord.id) {
                   checkOutMutation.mutate({
-                    id: activeRecord.id,
+                    id: latestRecord.id,
                     data: { checkOut: timeStr },
                   });
                 } else {
+                  // On crée une NOUVELLE entrée si le dernier record est déjà fermé
+                  // ou s'il n'y a pas de record du tout.
                   checkInMutation.mutate({
                     user: `/api/users/${foundUser.id}`,
                     memberId: foundUser.memberId || "",
@@ -229,7 +248,7 @@ export default function AccessControl() {
       const timer = setTimeout(() => {
         setSelectedUser(null);
         setCurrentScanTime(null);
-      }, 10000); // 10 secondes d'affichage
+      }, 5000); // Réduit à 5 secondes pour une meilleure réactivité
       return () => clearTimeout(timer);
     }
   }, [selectedUser]);
@@ -290,12 +309,43 @@ export default function AccessControl() {
     return rDate === todayStr;
   }), [attendance, todayStr]);
 
-  const membersInRoomToday = useMemo(() => Array.from(new Set(
-    todayAttendance
-      .filter((r) => !r.checkOut)
-      .map((r) => extractIdFromIri(r.user))
-      .filter(Boolean)
-  )).length, [todayAttendance]);
+  const membersInRoomToday = useMemo(() => {
+    // 1. On regroupe par utilisateur pour ne garder que le passage le plus récent
+    const latestRecordsByUser = new Map<number, AttendanceRecord>();
+    
+    attendance.forEach(r => {
+      const userId = extractIdFromIri(r.user);
+      if (!userId) return;
+      
+      // On garde le record avec l'ID le plus grand (le plus récent si l'API trie par ID)
+      // Ou on compare les dates si possible. L'API renvoie généralement par date DESC.
+      if (!latestRecordsByUser.has(userId)) {
+        latestRecordsByUser.set(userId, r);
+      }
+    });
+
+    // 2. On compte ceux dont le record le plus récent n'a pas de checkOut et est "frais"
+    let count = 0;
+    const now = new Date();
+    
+    latestRecordsByUser.forEach((r) => {
+      if (r.checkOut) return;
+      
+      const recordDate = new Date(r.date);
+      const recordTime = r.checkIn || "00:00:00";
+      if (recordTime.includes(":")) {
+         const [h, m, s] = recordTime.split(":").map(Number);
+         recordDate.setHours(h || 0, m || 0, s || 0);
+      }
+      
+      const diffHours = (now.getTime() - recordDate.getTime()) / (1000 * 60 * 60);
+      if (diffHours >= 0 && diffHours < 15) { // Fenêtre réduite à 15h pour plus de précision
+        count++;
+      }
+    });
+    
+    return count;
+  }, [attendance]);
 
   const totalPassagesToday = todayAttendance.length;
   const todayUniqueMembers = Array.from(new Set(todayAttendance.map(r => extractIdFromIri(r.user)).filter(Boolean))).length;
@@ -1269,87 +1319,108 @@ function AttendanceTable({
   getRecordAccessStatus: (record: AttendanceRecord) => "authorized" | "denied";
   emptyMessage?: string;
 }) {
+  // On aplatit les records : une ligne par checkIn, une ligne par checkOut
+  const events: any[] = [];
+  records.forEach(r => {
+    if (r.checkIn) {
+      events.push({
+        ...r,
+        displayTime: r.checkIn,
+        type: 'ENTRÉE',
+        sortKey: `${r.date}T${r.checkIn}`
+      });
+    }
+    if (r.checkOut) {
+      events.push({
+        ...r,
+        displayTime: r.checkOut,
+        type: 'SORTIE',
+        sortKey: `${r.date}T${r.checkOut}`
+      });
+    }
+  });
+
+  // Tri par date/heure décroissante
+  events.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+
   return (
-    <table className="w-full min-w-[560px] text-sm">
-      <thead className="sticky top-0 bg-card border-b">
-        <tr className="text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-          <th className="p-5">Membre</th>
-          <th className="p-5">ID Carte</th>
-          <th className="p-5">Heure</th>
-          <th className="p-5">Type</th>
-          <th className="p-5">Statut</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-border/40">
-        {records.map((record) => {
-          const accessStatus = getRecordAccessStatus(record);
-          return (
-            <tr key={record.id} className="hover:bg-muted/30 transition-colors">
-              <td className="p-5">
-                <div className="font-bold text-foreground uppercase">
-                  {record.memberName || "Membre"}
-                </div>
-                {record.memberId && (
-                  <div className="text-[10px] text-muted-foreground">{record.memberId}</div>
-                )}
-              </td>
-              <td className="p-5">
-                <span className="font-mono text-xs bg-muted px-2 py-1 rounded-md">
-                  {record.rfidCard || "—"}
-                </span>
-              </td>
-              <td className="p-5">
-                <div className="text-[10px] font-bold opacity-50 uppercase">
-                  {formatDate(record.date)}
-                </div>
-                <div className="text-base font-black text-primary flex items-center gap-2">
-                  {formatTime(record.checkIn)}
-                  {record.checkOut && (
-                    <>
-                      <span className="text-muted-foreground font-normal text-xs">→</span>
-                      <span>{formatTime(record.checkOut)}</span>
-                    </>
-                  )}
-                </div>
-              </td>
-              <td className="p-5">
-                <span
-                  className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
-                    record.checkOut
-                      ? "bg-orange-500/10 text-orange-500 border-orange-500/20"
-                      : "bg-green-500/10 text-green-500 border-green-500/20"
-                  }`}
-                >
-                  {record.checkOut ? "Sortie" : "Présent"}
-                </span>
-              </td>
-              <td className="p-5">
-                <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
-                    accessStatus === "authorized"
-                      ? "bg-green-500/10 text-green-500 border-green-500/20"
-                      : "bg-red-500/10 text-red-500 border-red-500/20"
-                  }`}
-                >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      accessStatus === "authorized" ? "bg-green-500" : "bg-red-500"
-                    }`}
-                  />
-                  {accessStatus === "authorized" ? "Autorisé" : "Refusé"}
-                </span>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[560px] text-sm">
+        <thead className="sticky top-0 bg-card border-b">
+          <tr className="text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            <th className="p-5">Membre</th>
+            <th className="p-5">ID Carte</th>
+            <th className="p-5">Heure</th>
+            <th className="p-5">Événement</th>
+            <th className="p-5">Statut</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/40">
+          {events.length === 0 ? (
+            <tr>
+              <td colSpan={5} className="p-10 text-center text-muted-foreground italic">
+                {emptyMessage}
               </td>
             </tr>
-          );
-        })}
-        {records.length === 0 && (
-          <tr>
-            <td colSpan={5} className="p-10 text-center text-muted-foreground italic">
-              {emptyMessage}
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
+          ) : (
+            events.map((event, idx) => {
+              const accessStatus = getRecordAccessStatus(event);
+              return (
+                <tr key={`${event.id}-${event.type}-${idx}`} className="hover:bg-muted/30 transition-colors">
+                  <td className="p-5">
+                    <div className="font-bold text-foreground uppercase">
+                      {event.memberName || "Membre"}
+                    </div>
+                    {event.memberId && (
+                      <div className="text-[10px] text-muted-foreground">{event.memberId}</div>
+                    )}
+                  </td>
+                  <td className="p-5">
+                    <span className="font-mono text-xs bg-muted px-2 py-1 rounded-md">
+                      {event.rfidCard || "—"}
+                    </span>
+                  </td>
+                  <td className="p-5">
+                    <div className="text-[10px] font-bold opacity-50 uppercase">
+                      {formatDate(event.date)}
+                    </div>
+                    <div className="text-base font-black text-primary">
+                      {formatTime(event.displayTime)}
+                    </div>
+                  </td>
+                  <td className="p-5">
+                    <span
+                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                        event.type === 'SORTIE'
+                          ? "bg-orange-500/10 text-orange-500 border-orange-500/20"
+                          : "bg-green-500/10 text-green-500 border-green-500/20"
+                      }`}
+                    >
+                      {event.type}
+                    </span>
+                  </td>
+                  <td className="p-5">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
+                        accessStatus === "authorized"
+                          ? "bg-green-500/10 text-green-500 border-green-500/20"
+                          : "bg-red-500/10 text-red-500 border-red-500/20"
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          accessStatus === "authorized" ? "bg-green-500" : "bg-red-500"
+                        }`}
+                      />
+                      {accessStatus === "authorized" ? "Autorisé" : "Refusé"}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
