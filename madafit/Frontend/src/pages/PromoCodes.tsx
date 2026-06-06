@@ -177,8 +177,8 @@ export default function PromoCodes() {
       </div>
 
       {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-red-500/20 bg-card p-8 text-center shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/20 backdrop-blur-sm">
+          <div className="w-full h-full sm:h-auto max-w-md rounded-none sm:rounded-3xl border border-red-500/20 bg-card p-8 text-center shadow-2xl flex flex-col justify-center sm:block overflow-y-auto">
             <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 mb-6">
               <AlertTriangle size={32} />
             </div>
@@ -206,8 +206,8 @@ export default function PromoCodes() {
       )}
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl border bg-card p-8 shadow-2xl space-y-6" style={{ borderColor: "hsl(var(--border))" }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
+          <div className="w-full h-full sm:h-auto max-w-lg rounded-none sm:rounded-3xl border bg-card p-6 sm:p-8 shadow-2xl space-y-6 flex flex-col overflow-y-auto" style={{ borderColor: "hsl(var(--border))" }}>
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-black text-foreground">
                 {editingId ? "Modifier le code" : "Nouveau code promo"}

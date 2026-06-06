@@ -618,11 +618,11 @@ export default function Products() {
       {/* ================================================================== */}
       {isOpen && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/50 animate-fade-in"
           onClick={() => setIsOpen(false)}
         >
           <div 
-            className="w-full max-w-lg rounded-2xl border bg-card p-6 space-y-4 animate-scale-in"
+            className="w-full h-full sm:h-auto max-w-lg rounded-none sm:rounded-2xl border bg-card p-6 flex flex-col space-y-4 animate-scale-in overflow-y-auto"
             style={{ borderColor: "hsl(var(--border))" }}
             onClick={(e) => e.stopPropagation()}
           >

@@ -39,9 +39,9 @@ export default function PromptModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div 
-        className="bg-card w-full max-w-sm rounded-2xl border shadow-2xl p-6 space-y-6 animate-in zoom-in-95 duration-200"
+        className="bg-card w-full h-full sm:h-auto sm:max-w-sm rounded-none sm:rounded-2xl border shadow-2xl p-6 flex flex-col justify-center sm:justify-start space-y-6 sm:animate-in sm:zoom-in-95 duration-200 overflow-y-auto"
         style={{ borderColor: "hsl(var(--border))" }}
       >
         <div className="text-center space-y-2">

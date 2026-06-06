@@ -336,8 +336,8 @@ export default function Dashboard() {
 
       {/* ── Modal Caisse ────────────────────────────────────────── */}
       {activeCaisseModal && (
-        <div className="fixed inset-0 z-[9999] h-full flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in !mt-0">
-          <div className="bg-card w-full max-w-6xl rounded-2xl shadow-xl border border-border flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[9999] h-full flex items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in !mt-0">
+          <div className="bg-card w-full max-w-6xl h-full sm:h-auto rounded-none sm:rounded-2xl shadow-xl border border-border flex flex-col max-h-none sm:max-h-[90vh]">
             <div className="flex items-center justify-between p-6 border-b border-border">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <Wallet className="text-primary" />
@@ -364,8 +364,8 @@ export default function Dashboard() {
 
       {/* ── Modal Détail (Compostition des chiffres) ──────────────── */}
       {activeDetail && (
-        <div className="fixed inset-0 z-[10000] h-full flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in zoom-in !mt-0">
-          <div className="bg-card w-full max-w-4xl rounded-2xl shadow-2xl border border-primary/20 flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 z-[10000] h-full flex items-center justify-center bg-black/60 backdrop-blur-md p-0 sm:p-4 animate-in zoom-in !mt-0">
+          <div className="bg-card w-full max-w-4xl h-full sm:h-auto rounded-none sm:rounded-2xl shadow-2xl border border-primary/20 flex flex-col max-h-none sm:max-h-[85vh]">
             <div className="flex items-center justify-between p-6 border-b border-border bg-muted/30">
               <div>
                 <h2 className="text-xl font-black flex items-center gap-2 text-foreground">
