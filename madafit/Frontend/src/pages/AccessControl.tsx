@@ -759,12 +759,10 @@ export default function AccessControl() {
 
           {/* PORTAIL : Affichage en mode "Modale Plein Écran" */}
           {isKioskMode && createPortal(
-            <div className="fixed inset-0 z-[999] bg-background flex items-center justify-center p-4 sm:p-10 overflow-hidden">
+            <div className="fixed inset-0 z-[999] bg-background flex items-center justify-center p-0 sm:p-10 overflow-hidden">
               <div className="absolute inset-0 bg-red-900 backdrop-blur-md" />
-              <div className="relative w-full h-full max-w-[1100px] max-h-[650px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-3xl sm:rounded-[40px] border border-white/10">
+              <div className="relative w-full h-full sm:h-auto max-w-[1100px] max-h-none sm:max-h-[650px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-none sm:rounded-[40px] border border-white/10">
                 {renderScannerContent()}
-                
-
               </div>
             </div>,
             document.body
@@ -952,8 +950,8 @@ export default function AccessControl() {
 
       {/* ── MODAL HISTORIQUE MEMBRE ── */}
       {showMemberModal && selectedUser && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-3xl rounded-3xl border bg-card shadow-2xl flex flex-col max-h-[85vh]" style={{ borderColor: "hsl(var(--border))" }}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full h-full sm:h-auto max-w-3xl rounded-none sm:rounded-3xl border bg-card shadow-2xl flex flex-col max-h-none sm:max-h-[85vh]" style={{ borderColor: "hsl(var(--border))" }}>
             <div className="px-6 py-5 border-b flex items-center justify-between shrink-0" style={{ borderColor: "hsl(var(--border))" }}>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-muted border border-primary/20 overflow-hidden shrink-0">
@@ -993,8 +991,8 @@ export default function AccessControl() {
 
       {/* ── MODAL HISTORIQUE GÉNÉRAL ── */}
       {showAllModal && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-4xl rounded-3xl border bg-card shadow-2xl flex flex-col max-h-[85vh]" style={{ borderColor: "hsl(var(--border))" }}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full h-full sm:h-auto max-w-4xl rounded-none sm:rounded-3xl border bg-card shadow-2xl flex flex-col max-h-none sm:max-h-[85vh]" style={{ borderColor: "hsl(var(--border))" }}>
             <div className="px-6 py-5 border-b flex items-center justify-between shrink-0" style={{ borderColor: "hsl(var(--border))" }}>
               <div>
                 <h2 className="font-black text-foreground text-lg uppercase tracking-tight">
@@ -1023,9 +1021,10 @@ export default function AccessControl() {
         document.body
       )}
 
+      {/* ── MODAL STATISTIQUES EN TEMPS RÉEL (Admin Uniquement) ── */}
       {showStatsModal && createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-hidden animate-in fade-in duration-300">
-          <div className="w-full max-w-6xl rounded-3xl border bg-card shadow-2xl flex flex-col max-h-[95vh] overflow-hidden" style={{ borderColor: "hsl(var(--border))" }}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm overflow-hidden animate-in fade-in duration-300">
+          <div className="w-full h-full sm:h-auto max-w-6xl rounded-none sm:rounded-3xl border bg-card shadow-2xl flex flex-col max-h-none sm:max-h-[95vh] overflow-hidden" style={{ borderColor: "hsl(var(--border))" }}>
             {/* Header */}
             <div className="px-6 py-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0" style={{ borderColor: "hsl(var(--border))" }}>
               <div>

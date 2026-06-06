@@ -36,7 +36,7 @@ export const STATUS_LABELS: Record<MemberStatus, string> = {
   pending: "En attente",
 };
 
-export function extractHydraMembers<T>(response?: any): T[] {
+export function extractHydraMembers<T = any>(response?: any): T[] {
   if (!response) return [];
   if (Array.isArray(response)) return response;
   if (response["hydra:member"]) return response["hydra:member"];

@@ -315,9 +315,9 @@ export default function Articles() {
 
       {/* ── Modal créer / éditer ─────────────────────────────────────────────── */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm">
           <div
-            className="w-full max-w-2xl bg-card rounded-2xl border p-6 space-y-4 shadow-2xl my-4 max-h-[80dvh] overflow-y-auto"
+            className="w-full h-full sm:h-auto max-w-2xl bg-card rounded-none sm:rounded-2xl border p-6 space-y-4 shadow-2xl sm:my-4 max-h-none sm:max-h-[80dvh] flex flex-col justify-start overflow-y-auto"
             style={{ borderColor: "hsl(var(--border))" }}
           >
             <div className="flex items-center justify-between">
@@ -519,9 +519,9 @@ export default function Articles() {
 
       {/* ── Modal suppression ────────────────────────────────────────────────── */}
       {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
           <div
-            className="w-full max-w-sm bg-card rounded-2xl border p-6 text-center shadow-2xl"
+            className="w-full h-full sm:h-auto max-w-sm bg-card rounded-none sm:rounded-2xl border p-6 text-center shadow-2xl flex flex-col justify-center sm:block overflow-y-auto"
             style={{ borderColor: "hsl(var(--border))" }}
           >
             <div className="w-14 h-14 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">

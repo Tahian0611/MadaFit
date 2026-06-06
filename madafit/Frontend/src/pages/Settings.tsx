@@ -105,10 +105,10 @@ export default function Settings() {
   const attendanceQuery = useQuery({ queryKey: ["attendance"], queryFn: () => api.attendanceRecords.getAll({ itemsPerPage: 1000 }) });
   const productsQuery   = useQuery({ queryKey: ["products"],   queryFn: () => api.products.getAll({ itemsPerPage: 100 }) });
 
-  const users      = extractHydraMembers(usersQuery.data);
-  const payments   = extractHydraMembers(paymentsQuery.data);
-  const attendance = extractHydraMembers(attendanceQuery.data);
-  const products   = extractHydraMembers(productsQuery.data);
+  const users      = extractHydraMembers(usersQuery.data) as any[];
+  const payments   = extractHydraMembers(paymentsQuery.data) as any[];
+  const attendance = extractHydraMembers(attendanceQuery.data) as any[];
+  const products   = extractHydraMembers(productsQuery.data) as any[];
 
   const backupsQuery = useQuery({ queryKey: ["backups"], queryFn: () => api.backups.getAll() });
   const backups = backupsQuery.data || [];
@@ -146,7 +146,7 @@ export default function Settings() {
   }, []);
 
   const isAdmin          = sessionUser?.roles?.includes("ROLE_ADMIN") ?? false;
-  const currentUserFromDB = users.find((u) => u.email === sessionUser?.email);
+  const currentUserFromDB = users.find((u: any) => u.email === sessionUser?.email);
 
   // ── Staff users uniquement (ROLE_ADMIN ou ROLE_RECEPTION) ─────────────────
   // Les clients gym (ROLE_USER uniquement) sont EXCLUS de cette liste
@@ -288,7 +288,7 @@ export default function Settings() {
     if (!users.length) { toast.error("Aucun membre à exporter"); return; }
     downloadCSV(`membres_${today}.csv`,
       ["ID Membre", "Prénom", "Nom", "Email", "Téléphone", "Statut", "Abonnement", "Inscription", "Expiration"],
-      users.map((u) => [
+      users.map((u: any) => [
         u.memberId || "-", u.firstName || "-", u.lastName || "-",
         u.email || "-", u.phone || "-", u.status || "-", u.subscription || "-",
         u.joinDate   ? new Date(u.joinDate).toLocaleDateString("fr-FR")   : "-",
@@ -302,7 +302,7 @@ export default function Settings() {
     if (!payments.length) { toast.error("Aucun paiement à exporter"); return; }
     downloadCSV(`paiements_${today}.csv`,
       ["ID", "Membre", "Montant (Ar)", "Méthode", "Date", "Abonnement", "N° Reçu"],
-      payments.map((p) => [
+      payments.map((p: any) => [
         p.id || "-", p.memberName || "-", p.amount || 0, p.method || "-",
         p.date ? new Date(p.date).toLocaleDateString("fr-FR") : "-",
         p.subscription || "-", p.receiptNo || "-",
@@ -315,7 +315,7 @@ export default function Settings() {
     if (!attendance.length) { toast.error("Aucune présence à exporter"); return; }
     downloadCSV(`presences_${today}.csv`,
       ["ID", "Membre", "Date", "Entrée", "Sortie", "RFID"],
-      attendance.map((a) => [
+      attendance.map((a: any) => [
         a.id || "-", a.memberName || "-",
         a.date ? new Date(a.date).toLocaleDateString("fr-FR") : "-",
         a.checkIn  ? String(a.checkIn).substring(0, 5)  : "-",
@@ -524,7 +524,7 @@ export default function Settings() {
                             </td>
                           </tr>
                         ) : (
-                          staffUsers.map((user) => {
+                          staffUsers.map((user: any) => {
                             const userIsAdmin = user.roles?.includes("ROLE_ADMIN");
                             const userIsReception = user.roles?.includes("ROLE_RECEPTION");
                             const isSelf = user.email === sessionUser?.email;
@@ -620,8 +620,8 @@ export default function Settings() {
 
                 {/* Modal édition */}
                 {editingUser && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                    <div className="w-full max-w-sm bg-card rounded-2xl border p-6 space-y-4 shadow-2xl" style={{ borderColor: "hsl(var(--border))" }}>
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
+                    <div className="w-full h-full sm:h-auto max-w-sm bg-card rounded-none sm:rounded-2xl border p-6 sm:p-6 space-y-4 shadow-2xl flex flex-col justify-center sm:block overflow-y-auto" style={{ borderColor: "hsl(var(--border))" }}>
                       <div className="flex items-center justify-between">
                         <h3 className="font-bold text-foreground">Modifier le rôle</h3>
                         <button onClick={() => setEditingUser(null)} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>

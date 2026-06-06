@@ -37,7 +37,7 @@ export default function Plans() {
   const saveMutation = useMutation({
     mutationFn: () => {
       const isTypeAlreadyUsed = plans.some(
-        (plan) => 
+        (plan: any) => 
           plan.type === form.type && 
           plan.id !== editingId
       );
@@ -115,7 +115,7 @@ export default function Plans() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        {plans.map((plan) => (
+        {plans.map((plan: any) => (
           <div key={plan.id} className="group relative rounded-2xl border bg-card p-5 transition-all hover:shadow-lg" style={{ borderColor: "hsl(var(--border))" }}>
             <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <button 
@@ -146,8 +146,8 @@ export default function Plans() {
       </div>
 
       {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-red-500/20 bg-card p-8 text-center shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/20 backdrop-blur-sm">
+          <div className="w-full h-full sm:h-auto max-w-md rounded-none sm:rounded-3xl border border-red-500/20 bg-card p-8 text-center shadow-2xl flex flex-col justify-center sm:block overflow-y-auto">
             <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 mb-6">
               <AlertTriangle size={32} />
             </div>
@@ -175,8 +175,8 @@ export default function Plans() {
       )}
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl border bg-card p-8 shadow-2xl space-y-6" style={{ borderColor: "hsl(var(--border))" }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
+          <div className="w-full h-full sm:h-auto max-w-lg rounded-none sm:rounded-3xl border bg-card p-6 sm:p-8 shadow-2xl space-y-6 flex flex-col overflow-y-auto" style={{ borderColor: "hsl(var(--border))" }}>
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-black text-foreground">
                 {editingId ? "Modifier l'offre" : "Nouvelle formule"}
