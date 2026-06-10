@@ -53,9 +53,11 @@ const RECEPTION_NAV_ITEMS = [
   { icon: Wifi,            label: "Controle d'acces", path: "/access" },
   { icon: Tag,             label: "Offres",           path: "/plans" },
   { icon: RefreshCw,       label: "Abonnements",      path: "/subscriptions" },
+  { icon: ShoppingBag,     label: "Produits",         path: "/products" },
   { icon: ArrowRightLeft,  label: "Mouvements",       path: "/movements" },
   { icon: ClipboardList,   label: "Stock",            path: "/reports-stock" },
   { icon: HistoryIcon,     label: "Historique",       path: "/history" },
+  { icon: Newspaper,       label: "Articles",         path: "/articles" },
 ];
 
 // ── Bottom items ──────────────────────────────────────────────────────────────

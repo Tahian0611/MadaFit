@@ -129,18 +129,20 @@ const App = () => {
                         <Route path="/access"        element={<AccessControl />} />
                         <Route path="/plans"         element={<Plans />} />
                         <Route path="/subscriptions" element={<Subscriptions />} />
+                        <Route path="/products"     element={<Products />} />
                         <Route path="/movements"     element={<Movements />} />
                         <Route path="/reports-stock" element={<ReportsStock />} />
                         <Route path="/history"       element={<History />} />
+                        <Route path="/articles"     element={<Articles />} />
 
                         {/* ── Notifications : admin + accueil ───────────── */}
                         <Route path="/notifications" element={<Notifications />} />
 
                         {/* ── Routes admin uniquement ────────────────────── */}
-                        <Route path="/products"  element={<AdminOnly><Products /></AdminOnly>} />
+                        {/* /products déplacé dans les routes communes (admin + accueil) */}
                         <Route path="/reports"   element={<AdminOnly><Reports /></AdminOnly>} />
                         <Route path="/settings"  element={<AdminOnly><Settings /></AdminOnly>} />
-                        <Route path="/articles"  element={<AdminOnly><Articles /></AdminOnly>} />
+                        {/* /articles déplacé dans les routes communes (admin + accueil) */}
                         <Route path="/promo-codes" element={<AdminOnly><PromoCodes /></AdminOnly>} />
 
                         <Route path="*" element={<NotFound />} />
