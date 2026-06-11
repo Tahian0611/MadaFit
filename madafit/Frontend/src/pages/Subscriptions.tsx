@@ -232,7 +232,7 @@ export default function Subscriptions() {
                   const subscription = normalizeSubscriptionType(member.subscription);
 
                   return (
-                    <tr key={member.id} className="cursor-pointer hover:bg-muted/20" onClick={() => { setSelectedMember(member); setIsModalOpen(true); }}>
+                    <tr key={member.id} className="cursor-pointer hover:bg-muted/20" onClick={() => { setSelectedMember(member); }}>
                       <td>
                         <p className="font-semibold text-foreground">{getFullName(member)}</p>
                         <p className="text-xs text-muted-foreground">{member.memberId}</p>

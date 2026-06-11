@@ -379,6 +379,23 @@ export default function Movements() {
     }
   });
 
+  const payCreditMutation = useMutation({
+    mutationFn: async (tx: Transaction) => {
+      return api.transactions.update(tx.id!, { 
+        type: 'sale',
+        note: tx.note ? `${tx.note} (Payé le ${new Date().toLocaleDateString('fr-FR')})` : `Payé le ${new Date().toLocaleDateString('fr-FR')}`
+      });
+    },
+    onSuccess: () => {
+      toast.success("Crédit marqué comme payé ✓");
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['stock-report'] });
+    },
+    onError: (error: Error) => {
+      toast.error("Erreur lors du paiement : " + error.message);
+    }
+  });
+
   const productMap = useMemo(() => {
     const m: Record<string, Product> = {};
     products.forEach((p) => (m[p.id!] = p));
@@ -845,6 +862,18 @@ export default function Movements() {
                               {total !== null ? formatCurrency(total) : '—'}
                             </span>
                           </div>
+                          {tx.type === 'credit' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => payCreditMutation.mutate(tx)} 
+                              className="h-8 px-2.5 gap-1.5 text-xs border-amber-500/50 text-amber-600 hover:bg-amber-500 hover:text-white"
+                              disabled={payCreditMutation.isPending}
+                            >
+                              <CheckCircle size={14} />
+                              Payer
+                            </Button>
+                          )}
                           <Button 
                             variant="ghost" 
                             size="icon" 
