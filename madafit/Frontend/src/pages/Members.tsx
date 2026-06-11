@@ -38,7 +38,6 @@ export default function Members() {
   const currentCashRegister = isAdmin ? "caisse2" : "caisse1";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | MemberStatus>("all");
-  const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [promptConfig, setPromptConfig] = useState<{
     isOpen: boolean;
     type: "confirm" | "prompt";
@@ -102,6 +101,10 @@ export default function Members() {
     },
   });
 
+  const members = extractHydraMembers<User>(usersQuery.data);
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  const selectedMember = useMemo(() => members.find(m => m.id === selectedMemberId) || null, [members, selectedMemberId]);
+
   const updateExpiryMutation = useMutation({
     mutationFn: ({ id, expiryDate }: { id: number; expiryDate: string }) =>
       api.users.update(id, { expiryDate }),
@@ -110,11 +113,10 @@ export default function Members() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
     onError: () => {
-      toast.error("Erreur lors de la mise à jour de la date de fin.");
+      // On ne met pas de toast.error ici pour éviter de spammer si ça boucle malgré tout
+      console.error("Erreur lors de la mise à jour de la date de fin.");
     },
   });
-
-  const members = extractHydraMembers<User>(usersQuery.data);
 
   const validerMutation = useMutation({
     mutationFn: (id: number) => {
@@ -124,7 +126,7 @@ export default function Members() {
     onSuccess: () => {
       toast.success("Abonnement validé avec succès");
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      setSelectedMember(null);
+      setSelectedMemberId(null);
     },
     onError: () => toast.error("Erreur lors de la validation"),
   });
@@ -158,7 +160,7 @@ export default function Members() {
       toast.success("Paiement enregistré et abonnement validé");
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
-      setSelectedMember(null);
+      setSelectedMemberId(null);
     },
     onError: () => toast.error("Erreur lors du paiement"),
   });
@@ -168,7 +170,7 @@ export default function Members() {
     onSuccess: () => {
       toast.success("Demande refusée");
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      setSelectedMember(null);
+      setSelectedMemberId(null);
     },
     onError: () => toast.error("Erreur lors du refus"),
   });
@@ -214,14 +216,15 @@ export default function Members() {
     if (
       !selectedMember?.id ||
       !computedExpiryDate ||
-      computedExpiryDate === selectedMember.expiryDate
+      computedExpiryDate === selectedMember.expiryDate ||
+      updateExpiryMutation.isPending
     ) return;
 
     updateExpiryMutation.mutate({
       id: selectedMember.id,
       expiryDate: computedExpiryDate,
     });
-  }, [selectedMember?.id, computedExpiryDate, selectedMember?.expiryDate, updateExpiryMutation]);
+  }, [selectedMember?.id, computedExpiryDate, selectedMember?.expiryDate, updateExpiryMutation.isPending]);
 
   const wasOutOfSync =
     selectedMember &&
@@ -314,7 +317,7 @@ export default function Members() {
                       <tr
                         key={member.id}
                         className="cursor-pointer hover:bg-muted/20"
-                        onClick={() => setSelectedMember(member)}
+                        onClick={() => setSelectedMemberId(member.id ?? null)}
                       >
                         <td>
                           <div>
