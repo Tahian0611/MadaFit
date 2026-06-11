@@ -6,9 +6,22 @@ use App\Repository\PaymentRecordRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Delete;
 
 #[ORM\Entity(repositoryClass: PaymentRecordRepository::class)]
-#[ApiResource]
+#[ApiResource(
+    operations: [
+        new GetCollection(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_RECEPTION')"),
+        new Get(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_RECEPTION')"),
+        new Post(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_RECEPTION')"),
+        new Patch(security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_RECEPTION')"),
+        new Delete(security: "is_granted('ROLE_ADMIN')"),
+    ]
+)]
 class PaymentRecord
 {
     #[ORM\Id]

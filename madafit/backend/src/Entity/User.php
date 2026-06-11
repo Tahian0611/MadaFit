@@ -38,7 +38,7 @@ use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
         new Post(processor: UserPasswordProcessor::class, validationContext: ['groups' => ['Default', 'user:create']]),
         new Patch(
             processor: UserPasswordProcessor::class, 
-            security: "is_granted('ROLE_ADMIN') or object == user",
+            security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_RECEPTION') or object == user",
             validationContext: ['groups' => ['Default', 'user:update']]
         ),
         new Delete(security: "is_granted('ROLE_ADMIN')"),

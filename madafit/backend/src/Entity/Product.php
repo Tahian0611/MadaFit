@@ -19,7 +19,7 @@ use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 #[ApiResource(
     normalizationContext: ['groups' => ['product:read']],
     denormalizationContext: ['groups' => ['product:write']],
-    security: "is_granted('ROLE_USER')",
+    security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_RECEPTION')",
     description: 'Produits en stock (boissons, barres protéinées, etc.).'
 )]
 #[ApiFilter(SearchFilter::class, properties: ['name' => 'partial', 'category' => 'exact'])]

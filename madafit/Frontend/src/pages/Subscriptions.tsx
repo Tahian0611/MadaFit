@@ -143,15 +143,38 @@ export default function Subscriptions() {
         cashRegister: currentCashRegister,
       });
       const newTotal = (currentUser?.totalPayments || 0) + amount;
-      return api.users.update(id, { totalPayments: newTotal });
+      // Calcul de la date d'expiration basé sur le plan
+      const currentType = normalizeSubscriptionType(currentUser?.subscription);
+      const selectedPlan = plans.find(p => normalizeSubscriptionType(p.type) === currentType);
+      const expiry = new Date(today);
+      expiry.setMonth(expiry.getMonth() + Number(selectedPlan?.duration ?? 1));
+      const expiryDate = expiry.toISOString().split("T")[0];
+      return api.users.update(id, {
+        totalPayments: newTotal,
+        status: "active",
+        startDate: today,
+        expiryDate,
+      });
     },
     onSuccess: () => {
-      toast.success("Paiement enregistré");
+      toast.success("Paiement enregistré et abonnement activé");
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
+      refreshNotifications();
       setSelectedMember(null);
     },
     onError: () => toast.error("Erreur lors du paiement"),
+  });
+
+  const resilierMutation = useMutation({
+    mutationFn: (id: number) => api.users.update(id, { status: "suspended" }),
+    onSuccess: () => {
+      toast.success("Abonnement résilié");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      refreshNotifications();
+      setSelectedMember(null);
+    },
+    onError: () => toast.error("Erreur lors de la résiliation"),
   });
 
   const refuserMutation = useMutation({
@@ -400,7 +423,9 @@ export default function Subscriptions() {
         validerMutation={validerMutation}
         payerMutation={payerMutation}
         refuserMutation={refuserMutation}
+        resilierMutation={resilierMutation}
         setPromptConfig={setPromptConfig}
+        isAdmin={isAdmin}
       />
 
       <PromptModal
@@ -440,7 +465,9 @@ function ValidationModal({
   validerMutation, 
   payerMutation, 
   refuserMutation,
-  setPromptConfig
+  resilierMutation,
+  setPromptConfig,
+  isAdmin,
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
@@ -450,7 +477,9 @@ function ValidationModal({
   validerMutation: any;
   payerMutation: any;
   refuserMutation: any;
+  resilierMutation: any;
   setPromptConfig: any;
+  isAdmin: boolean;
 }) {
   if (!isOpen || !member) return null;
 
@@ -637,9 +666,33 @@ function ValidationModal({
             </div>
           </div>
         ) : (
-          <div className="pt-4 border-t space-y-4" style={{ borderColor: "hsl(var(--border))" }}>
+          <div className="pt-4 border-t space-y-3" style={{ borderColor: "hsl(var(--border))" }}>
              <p className="text-sm text-muted-foreground italic text-center">L'abonnement est actif jusqu'au {formatDate(member.expiryDate)}.</p>
              <button onClick={onClose} className="w-full py-2 px-4 bg-muted/50 text-foreground rounded-lg font-medium text-sm hover:bg-muted transition-colors">Fermer</button>
+             {isAdmin && (
+               <button
+                 onClick={() => {
+                   setPromptConfig({
+                     isOpen: true,
+                     type: "confirm",
+                     title: "Résilier l'abonnement",
+                     message: "Résilier cet abonnement actif ? Le statut passera à 'Suspendu'.",
+                     confirmText: "Oui, résilier",
+                     confirmColor: "bg-destructive",
+                     onConfirm: () => {
+                       if (member.id) {
+                         resilierMutation.mutate(member.id);
+                         onClose();
+                       }
+                       setPromptConfig((prev: any) => ({ ...prev, isOpen: false }));
+                     }
+                   });
+                 }}
+                 className="w-full py-2 px-4 bg-destructive/10 text-destructive border border-destructive/20 rounded-lg font-medium text-sm hover:bg-destructive hover:text-white transition-all"
+               >
+                 Résilier l'abonnement
+               </button>
+             )}
           </div>
         )}
       </div>

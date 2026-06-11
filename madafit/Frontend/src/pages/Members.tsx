@@ -154,7 +154,13 @@ export default function Members() {
         cashRegister: currentCashRegister,
       });
       const newTotal = (currentUser?.totalPayments || 0) + amount;
-      return api.users.update(id, { status: "active", startDate: today, totalPayments: newTotal });
+      // Calcul de la date d'expiration basé sur le plan
+      const currentType = normalizeSubscriptionType(currentUser?.subscription);
+      const selectedPlan = plans.find(p => normalizeSubscriptionType(p.type) === currentType);
+      const expiry = new Date(today);
+      expiry.setMonth(expiry.getMonth() + Number(selectedPlan?.duration ?? 1));
+      const expiryDate = expiry.toISOString().split("T")[0];
+      return api.users.update(id, { status: "active", startDate: today, expiryDate, totalPayments: newTotal });
     },
     onSuccess: () => {
       toast.success("Paiement enregistré et abonnement validé");
@@ -163,6 +169,16 @@ export default function Members() {
       setSelectedMemberId(null);
     },
     onError: () => toast.error("Erreur lors du paiement"),
+  });
+
+  const resilierMutation = useMutation({
+    mutationFn: (id: number) => api.users.update(id, { status: "suspended" }),
+    onSuccess: () => {
+      toast.success("Abonnement résilié");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setSelectedMemberId(null);
+    },
+    onError: () => toast.error("Erreur lors de la résiliation"),
   });
 
   const refuserMutation = useMutation({
@@ -597,6 +613,30 @@ export default function Members() {
                         Refuser
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {isAdmin && normalizeMemberStatus(selectedMember.status) === "active" && (
+                  <div className="pt-4 border-t" style={{ borderColor: "hsl(var(--border))" }}>
+                    <button
+                      onClick={() => {
+                        setPromptConfig({
+                          isOpen: true,
+                          type: "confirm",
+                          title: "Résilier l'abonnement",
+                          message: "Résilier l'abonnement actif de ce membre ? Le statut passera à 'Suspendu'.",
+                          confirmText: "Oui, résilier",
+                          confirmColor: "bg-destructive",
+                          onConfirm: () => {
+                            if (selectedMember.id) resilierMutation.mutate(selectedMember.id);
+                            setPromptConfig(prev => ({ ...prev, isOpen: false }));
+                          }
+                        });
+                      }}
+                      className="w-full py-2 px-4 bg-destructive/10 text-destructive border border-destructive/20 rounded-lg font-medium text-sm hover:bg-destructive hover:text-white transition-all"
+                    >
+                      Résilier l'abonnement
+                    </button>
                   </div>
                 )}
               </div>
