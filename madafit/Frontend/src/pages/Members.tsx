@@ -1,7 +1,6 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { refreshNotifications } from '@/services/api';
 import { Search, Trash2, UserPlus, Wifi, RefreshCw } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -21,6 +20,7 @@ import {
   calculateSubscriptionProgress,
   type MemberStatus,
   type SubscriptionType,
+  calculateGracePeriodStartDate,
 } from "@/lib/madafit";
 import type { User, SubscriptionPlan, PromoCode } from "@/types/entities";
 
@@ -62,7 +62,6 @@ export default function Members() {
     queryFn: () => api.users.getAll({ itemsPerPage: 100 }),
   });
 
-  // ── CHARGEMENT DES PLANS ET CODES PROMO ──────────────────────────────────
   const plansQuery = useQuery({
     queryKey: ["subscription-plans"],
     queryFn: () => api.subscriptionPlans.getAll({ itemsPerPage: 100 }),
@@ -75,7 +74,6 @@ export default function Members() {
   const plans = extractHydraMembers<SubscriptionPlan>(plansQuery.data);
   const promoCodes = extractHydraMembers<PromoCode>(promoCodesQuery.data);
 
-  // Helper pour calculer le prix avec réduction si un code promo est utilisé
   const getAmountWithPromo = (member: User, originalPrice: number) => {
     if (!member.promotion) return originalPrice;
     const promo = promoCodes.find(p => p.code.toUpperCase() === member.promotion?.toUpperCase());
@@ -113,7 +111,6 @@ export default function Members() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
     onError: () => {
-      // On ne met pas de toast.error ici pour éviter de spammer si ça boucle malgré tout
       console.error("Erreur lors de la mise à jour de la date de fin.");
     },
   });
@@ -134,6 +131,10 @@ export default function Members() {
   const payerMutation = useMutation({
     mutationFn: async ({ id, amount, userIri, subscription }: { id: number, amount: number, userIri: string, subscription: string }) => {
       const today = new Date().toISOString().split("T")[0];
+      const currentUser = members.find(m => m.id === id);
+      const originalStart = currentUser?.startDate || currentUser?.joinDate || today;
+      const actualStartDate = calculateGracePeriodStartDate(originalStart, today);
+
       await api.paymentRecords.create({
         user: userIri,
         amount: amount,
@@ -142,7 +143,7 @@ export default function Members() {
         receiptNo: `VAL-${Date.now()}`,
         subscription: subscription,
       });
-      const currentUser = members.find(m => m.id === id);
+
       await api.payments.create({
         memberId: currentUser?.memberId,
         memberName: currentUser ? getFullName(currentUser) : undefined,
@@ -154,13 +155,18 @@ export default function Members() {
         cashRegister: currentCashRegister,
       });
       const newTotal = (currentUser?.totalPayments || 0) + amount;
-      // Calcul de la date d'expiration basé sur le plan
       const currentType = normalizeSubscriptionType(currentUser?.subscription);
       const selectedPlan = plans.find(p => normalizeSubscriptionType(p.type) === currentType);
-      const expiry = new Date(today);
+      const expiry = new Date(actualStartDate);
       expiry.setMonth(expiry.getMonth() + Number(selectedPlan?.duration ?? 1));
       const expiryDate = expiry.toISOString().split("T")[0];
-      return api.users.update(id, { status: "active", startDate: today, expiryDate, totalPayments: newTotal });
+
+      return api.users.update(id, { 
+        status: "active", 
+        startDate: actualStartDate, 
+        expiryDate, 
+        totalPayments: newTotal 
+      });
     },
     onSuccess: () => {
       toast.success("Paiement enregistré et abonnement validé");
@@ -472,7 +478,6 @@ export default function Members() {
                   value={SUBSCRIPTION_LABELS[normalizeSubscriptionType(selectedMember.subscription) as SubscriptionType] ?? normalizeSubscriptionType(selectedMember.subscription)}
                 />
 
-                {/* ── AFFICHAGE CODE PROMO ── */}
                 {selectedMember.promotion && (
                    <div className="flex items-start justify-between gap-4">
                      <span className="text-muted-foreground">Code Promo</span>
@@ -512,7 +517,6 @@ export default function Members() {
                   }
                 />
 
-                {/* ── PRIX DU PLAN AVEC RÉDUCTION ── */}
                 {(() => {
                   const matchedPlan = plans.find(p => normalizeSubscriptionType(p.type) === normalizeSubscriptionType(selectedMember.subscription));
                   if (!matchedPlan) return null;
@@ -529,92 +533,99 @@ export default function Members() {
 
                 <InfoRow label="Notes" value={selectedMember.notes} />
 
-                {normalizeMemberStatus(selectedMember.status) === "pending" && (
-                  <div className="pt-4 space-y-3 border-t" style={{ borderColor: "hsl(var(--border))" }}>
-                    <p className="text-sm font-bold text-foreground">Actions sur la demande</p>
-                    <div className="flex flex-col gap-2">
-                      <button 
-                        onClick={() => {
-                          setPromptConfig({
-                            isOpen: true,
-                            type: "confirm",
-                            title: "Valider l'abonnement",
-                            message: "Voulez-vous valider cet abonnement sans enregistrer de paiement ?",
-                            confirmText: "Oui, valider",
-                            onConfirm: () => {
-                              if(selectedMember.id) validerMutation.mutate(selectedMember.id);
-                              setPromptConfig(prev => ({ ...prev, isOpen: false }));
-                            }
-                          });
-                        }}
-                        className="w-full py-2 px-4 bg-primary text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
-                      >
-                        Valider & Commencer
-                      </button>
-                      <button 
-                        onClick={() => {
-                          const matchedPlan = plans.find(
-                            (plan) =>
-                              normalizeSubscriptionType(plan.type) ===
-                              normalizeSubscriptionType(selectedMember.subscription)
-                          );
-                          const defaultPrice = matchedPlan ? getAmountWithPromo(selectedMember, matchedPlan.price) : 0;
-                          
-                          setPromptConfig({
-                            isOpen: true,
-                            type: "prompt",
-                            title: "Enregistrer un paiement",
-                            message: "Saisissez le montant payé par le membre :",
-                            defaultValue: String(defaultPrice),
-                            inputType: "number",
-                            confirmText: "Valider le paiement",
-                            confirmColor: "bg-green-600",
-                            promoCode: selectedMember.promotion,
-                            onConfirm: (amountValue) => {
-                              let amount = Number(amountValue);
-                              if ((isNaN(amount) || amount <= 0) && defaultPrice > 0) amount = defaultPrice;
-                              if (amount > 0) {
-                                if(selectedMember.id) {
-                                  payerMutation.mutate({ 
-                                    id: selectedMember.id, 
-                                    amount, 
-                                    userIri: `/api/users/${selectedMember.id}`,
-                                    subscription: selectedMember.subscription || ""
-                                  });
-                                }
+                {(() => {
+                  const status = normalizeMemberStatus(selectedMember.status);
+                  const needsAction = status === "pending" || (status === "active" && (selectedMember.totalPayments || 0) === 0);
+                  
+                  if (!needsAction) return null;
+
+                  return (
+                    <div className="pt-4 space-y-3 border-t" style={{ borderColor: "hsl(var(--border))" }}>
+                      <p className="text-sm font-bold text-foreground">Actions sur la demande</p>
+                      <div className="flex flex-col gap-2">
+                        <button 
+                          onClick={() => {
+                            setPromptConfig({
+                              isOpen: true,
+                              type: "confirm",
+                              title: "Valider l'abonnement",
+                              message: "Voulez-vous valider cet abonnement sans enregistrer de paiement ?",
+                              confirmText: "Oui, valider",
+                              onConfirm: () => {
+                                if(selectedMember.id) validerMutation.mutate(selectedMember.id);
                                 setPromptConfig(prev => ({ ...prev, isOpen: false }));
-                              } else {
-                                toast.error("Montant invalide");
                               }
-                            }
-                          });
-                        }}
-                        className="w-full py-2 px-4 bg-green-600 text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
-                      >
-                        Payer & Valider
-                      </button>
-                      <button 
-                        onClick={() => {
-                          setPromptConfig({
-                            isOpen: true,
-                            type: "confirm",
-                            title: "Refuser la demande",
-                            message: "Voulez-vous refuser cette demande et réinitialiser l'abonnement ?",
-                            confirmText: "Oui, refuser",
-                            confirmColor: "bg-destructive",
-                            onConfirm: () => {
-                              if(selectedMember.id) refuserMutation.mutate(selectedMember.id);
-                              setPromptConfig(prev => ({ ...prev, isOpen: false }));
-                            }
-                          });
-                        }}
-                        className="w-full py-2 px-4 bg-destructive text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
-                      >
-                        Refuser
-                      </button>
+                            });
+                          }}
+                          className="w-full py-2 px-4 bg-primary text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
+                        >
+                          Valider & Commencer
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const matchedPlan = plans.find(
+                              (plan) =>
+                                normalizeSubscriptionType(plan.type) ===
+                                normalizeSubscriptionType(selectedMember.subscription)
+                            );
+                            const defaultPrice = matchedPlan ? getAmountWithPromo(selectedMember, matchedPlan.price) : 0;
+                            
+                            setPromptConfig({
+                              isOpen: true,
+                              type: "prompt",
+                              title: "Enregistrer un paiement",
+                              message: "Saisissez le montant payé par le membre :",
+                              defaultValue: String(defaultPrice),
+                              inputType: "number",
+                              confirmText: "Valider le paiement",
+                              confirmColor: "bg-green-600",
+                              promoCode: selectedMember.promotion,
+                              onConfirm: (amountValue) => {
+                                let amount = Number(amountValue);
+                                if ((isNaN(amount) || amount <= 0) && defaultPrice > 0) amount = defaultPrice;
+                                if (amount > 0) {
+                                  if(selectedMember.id) {
+                                    payerMutation.mutate({ 
+                                      id: selectedMember.id, 
+                                      amount, 
+                                      userIri: `/api/users/${selectedMember.id}`,
+                                      subscription: selectedMember.subscription || ""
+                                    });
+                                  }
+                                  setPromptConfig(prev => ({ ...prev, isOpen: false }));
+                                } else {
+                                  toast.error("Montant invalide");
+                                }
+                              }
+                            });
+                          }}
+                          className="w-full py-2 px-4 bg-green-600 text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
+                        >
+                          Payer & Valider
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setPromptConfig({
+                              isOpen: true,
+                              type: "confirm",
+                              title: "Refuser la demande",
+                              message: "Voulez-vous refuser cette demande et réinitialiser l'abonnement ?",
+                              confirmText: "Oui, refuser",
+                              confirmColor: "bg-destructive",
+                              onConfirm: () => {
+                                if(selectedMember.id) refuserMutation.mutate(selectedMember.id);
+                                setPromptConfig(prev => ({ ...prev, isOpen: false }));
+                              }
+                            });
+                          }}
+                          className="w-full py-2 px-4 bg-destructive text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
+                        >
+                          Refuser
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {isAdmin && normalizeMemberStatus(selectedMember.status) === "active" && (
                   <div className="pt-4 border-t" style={{ borderColor: "hsl(var(--border))" }}>

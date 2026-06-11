@@ -86,19 +86,21 @@ function computeCashierCAStats(
 
   const subscriptionTotal = cashierPayments.reduce((sum, p) => sum + (p.amount ?? 0), 0);
 
-  // sorties chiffre d'affaire : seulement ventes et crédits
+  // sorties chiffre d'affaire : seulement ventes (on ignore credit dans le CA car pas encaissé)
   const salesRevenueTypes = new Set(['sale', 'credit']);
   const sortiesTotal = cashierTransactions.reduce((sum, tx) => {
     if (!salesRevenueTypes.has(tx.type)) return sum;
+    if (tx.type === 'credit') return sum; // On ignore le montant du crédit dans le CA total
     const qty = Number(tx.quantity ?? 0);
     const unit = Number(tx.unitPrice ?? 0);
     return sum + qty * unit;
   }, 0);
 
-  // coûts d'achats et dépenses
+  // coûts d'achats et dépenses (on ignore credit dans le résultat car pas encore de gain/perte réalisé)
   const salesTypes = new Set(['sale', 'credit', 'non_sale_exit']);
   const achatsTotal = cashierTransactions.reduce((sum, tx) => {
     if (!salesTypes.has(tx.type)) return sum;
+    if (tx.type === 'credit') return sum; // On ignore le coût du crédit dans le calcul du résultat actuel
     const qty = Number(tx.quantity ?? 0);
 
     // unitPrice contient souvent le prix de vente (donc pour le coût on prend purchasePrice si dispo via product)

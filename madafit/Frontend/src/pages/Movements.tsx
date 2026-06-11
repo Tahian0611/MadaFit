@@ -317,7 +317,7 @@ export default function Movements() {
   const [quickLineId, setQuickLineId] = useState<string | null>(null);
 
   const [showHistory, setShowHistory] = useState(false);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteTx, setDeleteTx] = useState<Transaction | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | TxType>('all');
 
   const productsQuery     = useQuery({ queryKey: ['products'],     queryFn: () => api.products.getAll({ itemsPerPage: 1000 }) });
@@ -339,14 +339,43 @@ export default function Movements() {
   });
 
   const deleteTxMutation = useMutation({
-    mutationFn: (id: number) => api.transactions.delete(id),
+    mutationFn: async (tx: Transaction) => {
+      // 1. Revert stock
+      const productId = extractIdFromIri(tx.product);
+      const product = productId ? productMap[productId] : null;
+      
+      if (product && tx.type !== 'other_charge') {
+        let revertQty = 0;
+        let saleRevert = 0;
+        if (tx.type === 'entry' || tx.type === 'charge') {
+          // It was an entry (+), so we subtract it (-)
+          revertQty = -tx.quantity;
+        } else {
+          // It was an exit (-), so we add it back (+)
+          revertQty = tx.quantity;
+          if (tx.type === 'sale' || tx.type === 'credit') {
+            saleRevert = -tx.quantity;
+          }
+        }
+        
+        await api.products.update(product.id!, { 
+          currentStock: Math.max(0, product.currentStock + revertQty),
+          totalSales: Math.max(0, (product.totalSales || 0) + saleRevert)
+        });
+      }
+
+      // 2. Delete transaction
+      return api.transactions.delete(tx.id!);
+    },
     onSuccess: () => {
-      toast.success("Transaction supprimee");
+      toast.success("Transaction supprimée et stock rétabli");
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
-
       queryClient.invalidateQueries({ queryKey: ['stock-report'] });
-      setDeleteId(null);
+      setDeleteTx(null);
+    },
+    onError: (error: Error) => {
+      toast.error("Erreur lors de la suppression : " + error.message);
     }
   });
 
@@ -423,8 +452,11 @@ export default function Movements() {
       const unitPrice = Number(line.unitPrice) || product.salePrice;
       const lineTotal = qty * unitPrice;
 
-      if (line.type === 'sale' || line.type === 'credit') {
+      if (line.type === 'sale') {
         totalRevenue += lineTotal;
+        totalCost += qty * product.purchasePrice;
+      } else if (line.type === 'credit') {
+        // Optionnel : on peut tracker le total des crédits séparément si besoin
         totalCost += qty * product.purchasePrice;
       }
 
@@ -470,12 +502,18 @@ export default function Movements() {
           cashRegister: currentCashRegister,
         });
 
+        const isSale = line.type === 'sale' || line.type === 'credit';
         const newStock = (line.type === 'entry' || line.type === 'charge') 
           ? product.currentStock + Number(line.quantity) 
           : (line.type === 'other_charge' ? product.currentStock : Math.max(0, product.currentStock - Number(line.quantity)));
+        
+        const newTotalSales = isSale ? (product.totalSales || 0) + Number(line.quantity) : product.totalSales;
           
         if (line.type !== 'other_charge') {
-          await api.products.update(product.id!, { currentStock: newStock });
+          await api.products.update(product.id!, { 
+            currentStock: newStock,
+            totalSales: newTotalSales
+          });
         }
       }
 
@@ -501,8 +539,8 @@ export default function Movements() {
   }
 
   function handleDeleteTx() {
-    if (deleteId) {
-      deleteTxMutation.mutate(deleteId);
+    if (deleteTx) {
+      deleteTxMutation.mutate(deleteTx);
     }
   }
 
@@ -810,7 +848,7 @@ export default function Movements() {
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            onClick={() => setDeleteId(tx.id!)} 
+                            onClick={() => setDeleteTx(tx)} 
                             className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -828,9 +866,9 @@ export default function Movements() {
 
       <QuickAddProductDialog open={quickOpen} initialName={quickName} onClose={() => setQuickOpen(false)} onCreated={handleProductCreated} />
 
-      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+      <AlertDialog open={!!deleteTx} onOpenChange={(o) => !o && setDeleteTx(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Supprimer ?</AlertDialogTitle><AlertDialogDescription>Action irréversible.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle>Supprimer ?</AlertDialogTitle><AlertDialogDescription>Action irréversible. Le stock sera automatiquement recalculé.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteTx} className="bg-destructive text-destructive-foreground">Supprimer</AlertDialogAction>

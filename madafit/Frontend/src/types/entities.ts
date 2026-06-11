@@ -99,6 +99,7 @@ export interface Product {
   salePrice: number;
   initialStock: number;
   currentStock: number;
+  totalSales: number;
   registrationDate?: string; // ISO 8601 date
   transactions?: Transaction[];
 }

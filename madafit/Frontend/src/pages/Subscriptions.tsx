@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Search, Eye } from "lucide-react";
 import api from "@/services/api";
 import { refreshNotifications } from '@/services/api';
 import { useAuth } from "@/hooks/useAuth";
@@ -14,6 +15,7 @@ import {
   getFullName,
   normalizeMemberStatus,
   normalizeSubscriptionType,
+  calculateGracePeriodStartDate,
   type SubscriptionType,
 } from "@/lib/madafit";
 import type { User, SubscriptionPlan, PromoCode } from "@/types/entities";
@@ -51,7 +53,6 @@ export default function Subscriptions() {
   const plans = extractHydraMembers<SubscriptionPlan>(plansQuery.data);
   const promoCodes = extractHydraMembers<PromoCode>(promoCodesQuery.data);
 
-  // Helper pour calculer le prix avec réduction si un code promo est utilisé
   const getAmountWithPromo = (member: User, originalPrice: number) => {
     if (!member.promotion) return originalPrice;
     const promo = promoCodes.find(p => p.code.toUpperCase() === member.promotion?.toUpperCase());
@@ -73,15 +74,14 @@ export default function Subscriptions() {
       const now = new Date();
       const expiry = new Date(now);
       expiry.setMonth(expiry.getMonth() + Number(selectedPlan?.duration ?? 1));
+      const today = now.toISOString().split("T")[0];
 
-      // 1. Mise à jour du statut et des dates de l'utilisateur
       await api.users.update(member.id!, {
         status: "active",
-        startDate: now.toISOString().split("T")[0],
+        startDate: today,
         expiryDate: expiry.toISOString().split("T")[0],
       });
 
-      // 2. Création du paiement pour que le Dashboard affiche le revenu avec réduction appliquée
       if (selectedPlan?.price) {
         const finalAmount = getAmountWithPromo(member, selectedPlan.price);
         await api.payments.create({
@@ -89,14 +89,14 @@ export default function Subscriptions() {
           memberName: getFullName(member),
           amount: finalAmount,
           method: "cash",
-          date: now.toISOString().split("T")[0],
+          date: today,
           subscription: currentType,
           cashRegister: currentCashRegister,
         });
       }
     },
     onSuccess: () => {
-      toast.success("Abonnement renouvele");
+      toast.success("Abonnement renouvelle");
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       refreshNotifications();
@@ -123,6 +123,10 @@ export default function Subscriptions() {
   const payerMutation = useMutation({
     mutationFn: async ({ id, amount, userIri, subscription }: { id: number, amount: number, userIri: string, subscription: string }) => {
       const today = new Date().toISOString().split("T")[0];
+      const currentUser = users.find(m => m.id === id);
+      const originalStart = currentUser?.startDate || currentUser?.joinDate || today;
+      const actualStartDate = calculateGracePeriodStartDate(originalStart, today);
+
       await api.paymentRecords.create({
         user: userIri,
         amount: amount,
@@ -131,7 +135,7 @@ export default function Subscriptions() {
         receiptNo: `VAL-${Date.now()}`,
         subscription: subscription,
       });
-      const currentUser = users.find(m => m.id === id);
+
       await api.payments.create({
         memberId: currentUser?.memberId,
         memberName: currentUser ? getFullName(currentUser) : undefined,
@@ -143,16 +147,16 @@ export default function Subscriptions() {
         cashRegister: currentCashRegister,
       });
       const newTotal = (currentUser?.totalPayments || 0) + amount;
-      // Calcul de la date d'expiration basé sur le plan
       const currentType = normalizeSubscriptionType(currentUser?.subscription);
       const selectedPlan = plans.find(p => normalizeSubscriptionType(p.type) === currentType);
-      const expiry = new Date(today);
+      const expiry = new Date(actualStartDate);
       expiry.setMonth(expiry.getMonth() + Number(selectedPlan?.duration ?? 1));
       const expiryDate = expiry.toISOString().split("T")[0];
+
       return api.users.update(id, {
         totalPayments: newTotal,
         status: "active",
-        startDate: today,
+        startDate: actualStartDate,
         expiryDate,
       });
     },
@@ -219,6 +223,7 @@ export default function Subscriptions() {
                   <th>Statut</th>
                   <th>Expiration</th>
                   <th>Paiements</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -240,6 +245,19 @@ export default function Subscriptions() {
                       </td>
                       <td>{formatDate(member.expiryDate)}</td>
                       <td>{formatCurrency(member.totalPayments)}</td>
+                      <td>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedMember(member);
+                            setIsModalOpen(true);
+                          }}
+                          className="p-2 rounded-lg hover:bg-primary/10 text-primary transition-colors"
+                          title="Gérer l'abonnement"
+                        >
+                          <Eye size={18} />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -261,7 +279,6 @@ export default function Subscriptions() {
                   ? "Demande en attente" 
                   : `Expire le ${formatDate(selectedMember.expiryDate)}`}
               </p>
-              {/* Affiche le montant du plan correspondant */}
               {(() => {
                 const findPlanForMember = (m: User) => {
                   if (!m.subscription) return null;
@@ -299,15 +316,10 @@ export default function Subscriptions() {
               })()}
 
               {(() => {
-                const normalizedStatus = normalizeMemberStatus(selectedMember.status);
+                const status = normalizeMemberStatus(selectedMember.status);
+                const needsAction = status === "pending" || (status === "active" && (selectedMember.totalPayments || 0) === 0);
 
-                // Fallback: certains backends peuvent ne jamais renvoyer exactement "pending".
-                // On affiche alors les 3 boutons si l'état ressemble à une demande et que l'abonnement n'est pas démarré.
-                const isPendingLike =
-                  normalizedStatus === "pending" ||
-                  (normalizedStatus === "suspended" && !selectedMember.startDate);
-
-                return isPendingLike ? (
+                return needsAction ? (
                   <div className="pt-4 space-y-3 border-t" style={{ borderColor: "hsl(var(--border))" }}>
                     <p className="text-sm font-bold text-foreground">Actions sur la demande</p>
                     <div className="flex flex-col gap-2">
@@ -454,8 +466,6 @@ function MetricCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ── COMPOSANT MODAL DE VALIDATION ──────────────────────────────────────────
-
 function ValidationModal({ 
   isOpen, 
   onClose, 
@@ -483,10 +493,9 @@ function ValidationModal({
 }) {
   if (!isOpen || !member) return null;
 
-  const normalizedStatus = normalizeMemberStatus(member.status);
-  const isPendingLike = normalizedStatus === "pending" || (normalizedStatus === "suspended" && !member.startDate);
+  const status = normalizeMemberStatus(member.status);
+  const needsAction = status === "pending" || (status === "active" && (member.totalPayments || 0) === 0);
   
-  // Helper pour calculer le prix avec réduction
   const getAmountWithPromo = (m: User, originalPrice: number) => {
     if (!m.promotion) return originalPrice;
     const promo = promoCodes.find(p => p.code.toUpperCase() === m.promotion?.toUpperCase());
@@ -504,23 +513,13 @@ function ValidationModal({
   const findPlanForMember = (m: User) => {
     if (!m.subscription) return null;
     const normalizedSub = normalizeSubscriptionType(m.subscription);
-    
-    // 1. Essayer par type (mensuel, annuel, etc.)
     let p = plans.find(plan => normalizeSubscriptionType(plan.type) === normalizedSub);
     if (p) return p;
-
-    // 2. Essayer par nom (si le nom contient "mensuel", etc.)
-    p = plans.find(plan => 
-      plan.name.toLowerCase().includes(normalizedSub) || 
-      normalizedSub.includes(plan.name.toLowerCase())
-    );
+    p = plans.find(plan => plan.name.toLowerCase().includes(normalizedSub) || normalizedSub.includes(plan.name.toLowerCase()));
     if (p) return p;
-
-    // 3. Dernier recours: si c'est "session" ou vide, prendre le premier plan mensuel par défaut
     if (normalizedSub === "monthly" || normalizedSub === "standard") {
       return plans.find(plan => normalizeSubscriptionType(plan.type) === "monthly") || plans[0];
     }
-
     return null;
   };
 
@@ -569,8 +568,8 @@ function ValidationModal({
           <div className="grid grid-cols-2 gap-4">
              <div>
                <p className="text-[10px] font-bold text-muted-foreground uppercase">Statut actuel</p>
-               <span className={`inline-block mt-1 ${normalizedStatus === "active" ? "badge-active" : normalizedStatus === "pending" ? "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-500/20 text-orange-500" : normalizedStatus === "expired" ? "badge-expired" : "badge-suspended"}`}>
-                 {STATUS_LABELS[normalizedStatus]}
+               <span className={`inline-block mt-1 ${status === "active" ? "badge-active" : status === "pending" ? "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-500/20 text-orange-500" : status === "expired" ? "badge-expired" : "badge-suspended"}`}>
+                 {STATUS_LABELS[status]}
                </span>
              </div>
              <div>
@@ -580,7 +579,7 @@ function ValidationModal({
           </div>
         </div>
 
-        {isPendingLike ? (
+        {needsAction ? (
           <div className="pt-4 border-t space-y-3" style={{ borderColor: "hsl(var(--border))" }}>
             <p className="text-sm font-bold text-center text-foreground">Actions requises</p>
             <div className="grid grid-cols-1 gap-3">

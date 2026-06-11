@@ -66,10 +66,15 @@ class Product
     #[Assert\PositiveOrZero]
     private ?int $currentStock = null;
 
+    #[ORM\Column(options: ['default' => 0])]
+    #[Groups(['product:read', 'product:write'])]
+    #[Assert\PositiveOrZero]
+    private int $totalSales = 0;
+
     /**
      * @var Collection<int, Transaction>
      */
-    #[ORM\OneToMany(targetEntity: Transaction::class, mappedBy: 'product')]
+    #[ORM\OneToMany(targetEntity: Transaction::class, mappedBy: 'product', cascade: ['remove'])]
     private Collection $transactions;
 
     public function __construct()
@@ -183,6 +188,17 @@ class Product
                 $transaction->setProduct(null);
             }
         }
+        return $this;
+    }
+
+    public function getTotalSales(): int
+    {
+        return $this->totalSales;
+    }
+
+    public function setTotalSales(int $totalSales): static
+    {
+        $this->totalSales = $totalSales;
         return $this;
     }
 }
