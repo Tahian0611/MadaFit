@@ -11,6 +11,8 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Delete;
+use Symfony\Component\Serializer\Attribute\Groups;
+
 
 #[ORM\Entity(repositoryClass: PaymentRecordRepository::class)]
 #[ApiResource(
@@ -27,22 +29,34 @@ class PaymentRecord
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['user:read'])]
     private ?int $id = null;
 
+
     #[ORM\Column(type: Types::DATE_IMMUTABLE)]
+    #[Groups(['user:read'])]
     private ?\DateTimeImmutable $date = null;
 
+
     #[ORM\Column]
+    #[Groups(['user:read'])]
     private ?float $amount = null;
 
+
     #[ORM\Column(length: 50)]
+    #[Groups(['user:read'])]
     private ?string $method = null;
 
+
     #[ORM\Column(length: 50, nullable: true)]
+    #[Groups(['user:read'])]
     private ?string $subscription = null;
 
+
     #[ORM\Column(length: 100, nullable: true)]
+    #[Groups(['user:read'])]
     private ?string $receiptNo = null;
+
 
     #[ORM\ManyToOne(inversedBy: 'paymentRecords')]
     #[ORM\JoinColumn(onDelete: 'CASCADE')]

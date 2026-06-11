@@ -85,19 +85,6 @@ export default function Subscriptions() {
         startDate: today,
         expiryDate: expiry.toISOString().split("T")[0],
       });
-
-      if (selectedPlan?.price) {
-        const finalAmount = getAmountWithPromo(member, selectedPlan.price);
-        await api.payments.create({
-          memberId: member.memberId,
-          memberName: getFullName(member),
-          amount: finalAmount,
-          method: "cash",
-          date: today,
-          subscription: currentType,
-          cashRegister: currentCashRegister,
-        });
-      }
     },
     onSuccess: () => {
       toast.success("Abonnement renouvelle");
@@ -118,7 +105,6 @@ export default function Subscriptions() {
     onSuccess: () => {
       toast.success("Abonnement validé avec succès");
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      queryClient.invalidateQueries({ queryKey: ["payments"] });
     },
     onError: () => toast.error("Erreur lors de la validation"),
   });
@@ -312,24 +298,26 @@ export default function Subscriptions() {
                   <div className="pt-4 space-y-3 border-t" style={{ borderColor: "hsl(var(--border))" }}>
                     <p className="text-sm font-bold text-foreground">Actions sur la demande</p>
                     <div className="flex flex-col gap-2">
-                      <button 
-                        onClick={() => {
-                          setPromptConfig({
-                            isOpen: true,
-                            type: "confirm",
-                            title: "Commencer l'abonnement",
-                            message: "Voulez-vous commencer l'abonnement sans enregistrer de paiement ?",
-                            confirmText: "Oui, commencer",
-                            onConfirm: () => {
-                              if(selectedMember.id) validerMutation.mutate(selectedMember.id);
-                              setPromptConfig(prev => ({ ...prev, isOpen: false }));
-                            }
-                          });
-                        }}
-                        className="w-full py-2 px-4 bg-primary text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
-                      >
-                        Commencer l'abonnement
-                      </button>
+                      {status === "pending" && (
+                        <button 
+                          onClick={() => {
+                            setPromptConfig({
+                              isOpen: true,
+                              type: "confirm",
+                              title: "Commencer l'abonnement",
+                              message: "Voulez-vous vraiment commencer l'abonnement de ce membre ?",
+                              confirmText: "Oui, commencer",
+                              onConfirm: () => {
+                                if(selectedMember.id) validerMutation.mutate(selectedMember.id);
+                                setPromptConfig(prev => ({ ...prev, isOpen: false }));
+                              }
+                            });
+                          }}
+                          className="w-full py-2 px-4 bg-primary text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
+                        >
+                          Commencer l'abonnement
+                        </button>
+                      )}
                       <button 
                         onClick={() => {
                           const findPlanForMember = (m: User) => {
@@ -445,7 +433,7 @@ export default function Subscriptions() {
                           }
                         });
                       }}
-                      className="w-full py-2 px-4 bg-green-600 text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90"
+                      className={`w-full py-2 px-4 ${(selectedMember.totalPayments || 0) === 0 ? "bg-green-600" : "bg-green-400"} text-white rounded-lg font-medium text-sm transition-opacity hover:opacity-90`}
                     >
                       Payer l'abonnement
                     </button>
