@@ -441,7 +441,7 @@ export default function Members() {
     onSuccess: () => {
       toast.success("Abonnement résilié");
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      setSelectedMemberId(null);
+      setSelectedMember(null);
     },
     onError: () => toast.error("Erreur lors de la résiliation"),
   });
