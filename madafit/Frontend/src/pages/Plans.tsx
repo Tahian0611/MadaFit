@@ -36,14 +36,15 @@ export default function Plans() {
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      const isTypeAlreadyUsed = plans.some(
+      const isDuplicate = plans.some(
         (plan: any) => 
           plan.type === form.type && 
+          Number(plan.duration) === Number(form.duration) &&
           plan.id !== editingId
       );
 
-      if (isTypeAlreadyUsed) {
-        throw new Error(`Une offre de type "${SUBSCRIPTION_LABELS[normalizeSubscriptionType(form.type)]}" existe déjà.`);
+      if (isDuplicate) {
+        throw new Error(`Une offre de type "${SUBSCRIPTION_LABELS[normalizeSubscriptionType(form.type)]}" avec une durée de ${form.duration} mois existe déjà.`);
       }
 
       const payload = {

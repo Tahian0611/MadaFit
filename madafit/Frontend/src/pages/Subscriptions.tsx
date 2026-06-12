@@ -258,10 +258,35 @@ export default function Subscriptions() {
                 const findPlanForMember = (m: User) => {
                   if (!m.subscription) return null;
                   const normalizedSub = normalizeSubscriptionType(m.subscription);
+                  
+                  // Calculer la durée actuelle du membre si possible
+                  let currentDuration: number | null = null;
+                  if (m.startDate && m.expiryDate) {
+                    const d1 = new Date(m.startDate);
+                    const d2 = new Date(m.expiryDate);
+                    currentDuration = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+                    // Arrondir au cas où il y aurait des décalages de quelques jours
+                    if (d2.getDate() < d1.getDate() - 5) currentDuration--;
+                    if (currentDuration <= 0) currentDuration = 1;
+                  }
+
+                  // 1. Chercher par type ET durée exacte
+                  if (currentDuration !== null) {
+                    const p = plans.find(plan => 
+                      normalizeSubscriptionType(plan.type) === normalizedSub && 
+                      Number(plan.duration) === currentDuration
+                    );
+                    if (p) return p;
+                  }
+
+                  // 2. Fallback par type (premier trouvé)
                   let p = plans.find(plan => normalizeSubscriptionType(plan.type) === normalizedSub);
                   if (p) return p;
+
+                  // 3. Fallback désespéré
                   p = plans.find(plan => plan.name.toLowerCase().includes(normalizedSub) || normalizedSub.includes(plan.name.toLowerCase()));
                   if (p) return p;
+
                   return plans.find(plan => normalizeSubscriptionType(plan.type) === "monthly") || plans[0] || null;
                 };
 
@@ -323,10 +348,30 @@ export default function Subscriptions() {
                           const findPlanForMember = (m: User) => {
                             if (!m.subscription) return null;
                             const normalizedSub = normalizeSubscriptionType(m.subscription);
+                            
+                            let currentDuration: number | null = null;
+                            if (m.startDate && m.expiryDate) {
+                              const d1 = new Date(m.startDate);
+                              const d2 = new Date(m.expiryDate);
+                              currentDuration = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+                              if (d2.getDate() < d1.getDate() - 5) currentDuration--;
+                              if (currentDuration <= 0) currentDuration = 1;
+                            }
+
+                            if (currentDuration !== null) {
+                              const p = plans.find(plan => 
+                                normalizeSubscriptionType(plan.type) === normalizedSub && 
+                                Number(plan.duration) === currentDuration
+                              );
+                              if (p) return p;
+                            }
+
                             let p = plans.find(plan => normalizeSubscriptionType(plan.type) === normalizedSub);
                             if (p) return p;
+
                             p = plans.find(plan => plan.name.toLowerCase().includes(normalizedSub) || normalizedSub.includes(plan.name.toLowerCase()));
                             if (p) return p;
+
                             return plans.find(plan => normalizeSubscriptionType(plan.type) === "monthly") || plans[0] || null;
                           };
 
@@ -394,10 +439,30 @@ export default function Subscriptions() {
                         const findPlanForMember = (m: User) => {
                           if (!m.subscription) return null;
                           const normalizedSub = normalizeSubscriptionType(m.subscription);
+                          
+                          let currentDuration: number | null = null;
+                          if (m.startDate && m.expiryDate) {
+                            const d1 = new Date(m.startDate);
+                            const d2 = new Date(m.expiryDate);
+                            currentDuration = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+                            if (d2.getDate() < d1.getDate() - 5) currentDuration--;
+                            if (currentDuration <= 0) currentDuration = 1;
+                          }
+
+                          if (currentDuration !== null) {
+                            const p = plans.find(plan => 
+                              normalizeSubscriptionType(plan.type) === normalizedSub && 
+                              Number(plan.duration) === currentDuration
+                            );
+                            if (p) return p;
+                          }
+
                           let p = plans.find(plan => normalizeSubscriptionType(plan.type) === normalizedSub);
                           if (p) return p;
+
                           p = plans.find(plan => plan.name.toLowerCase().includes(normalizedSub) || normalizedSub.includes(plan.name.toLowerCase()));
                           if (p) return p;
+
                           return plans.find(plan => normalizeSubscriptionType(plan.type) === "monthly") || plans[0] || null;
                         };
 

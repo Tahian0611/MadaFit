@@ -156,7 +156,27 @@ export default function Members() {
       });
       const newTotal = (currentUser?.totalPayments || 0) + amount;
       const currentType = normalizeSubscriptionType(currentUser?.subscription);
-      const selectedPlan = plans.find(p => normalizeSubscriptionType(p.type) === currentType);
+      
+      let currentDuration: number | null = null;
+      if (currentUser?.startDate && currentUser?.expiryDate) {
+        const d1 = new Date(currentUser.startDate);
+        const d2 = new Date(currentUser.expiryDate);
+        currentDuration = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+        if (d2.getDate() < d1.getDate() - 5) currentDuration--;
+        if (currentDuration <= 0) currentDuration = 1;
+      }
+
+      let selectedPlan = null;
+      if (currentDuration !== null) {
+        selectedPlan = plans.find(p => 
+          normalizeSubscriptionType(p.type) === currentType && 
+          Number(p.duration) === currentDuration
+        );
+      }
+      
+      if (!selectedPlan) {
+        selectedPlan = plans.find(p => normalizeSubscriptionType(p.type) === currentType);
+      }
       const expiry = new Date(actualStartDate);
       expiry.setMonth(expiry.getMonth() + Number(selectedPlan?.duration ?? 1));
       const expiryDate = expiry.toISOString().split("T")[0];
@@ -220,11 +240,32 @@ export default function Members() {
   const computedExpiryDate = useMemo(() => {
     if (!selectedMember || plans.length === 0) return selectedMember?.expiryDate ?? null;
 
-    const matchedPlan = plans.find(
-      (plan) =>
-        normalizeSubscriptionType(plan.type) ===
-        normalizeSubscriptionType(selectedMember.subscription)
-    );
+    const normalizedSub = normalizeSubscriptionType(selectedMember.subscription);
+    
+    // Calcul de la durée actuelle
+    let currentDuration: number | null = null;
+    if (selectedMember.startDate && selectedMember.expiryDate) {
+      const d1 = new Date(selectedMember.startDate);
+      const d2 = new Date(selectedMember.expiryDate);
+      currentDuration = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+      if (d2.getDate() < d1.getDate() - 5) currentDuration--;
+      if (currentDuration <= 0) currentDuration = 1;
+    }
+
+    let matchedPlan = null;
+    if (currentDuration !== null) {
+      matchedPlan = plans.find(
+        (plan) =>
+          normalizeSubscriptionType(plan.type) === normalizedSub &&
+          Number(plan.duration) === currentDuration
+      );
+    }
+    
+    if (!matchedPlan) {
+      matchedPlan = plans.find(
+        (plan) => normalizeSubscriptionType(plan.type) === normalizedSub
+      );
+    }
 
     const base = selectedMember.startDate || selectedMember.joinDate;
     if (!matchedPlan?.duration || !base) return selectedMember.expiryDate ?? null;
@@ -518,7 +559,23 @@ export default function Members() {
                 />
 
                 {(() => {
-                  const matchedPlan = plans.find(p => normalizeSubscriptionType(p.type) === normalizeSubscriptionType(selectedMember.subscription));
+                  const normalizedSub = normalizeSubscriptionType(selectedMember.subscription);
+                  let currentDuration: number | null = null;
+                  if (selectedMember.startDate && selectedMember.expiryDate) {
+                    const d1 = new Date(selectedMember.startDate);
+                    const d2 = new Date(selectedMember.expiryDate);
+                    currentDuration = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+                    if (d2.getDate() < d1.getDate() - 5) currentDuration--;
+                    if (currentDuration <= 0) currentDuration = 1;
+                  }
+
+                  let matchedPlan = null;
+                  if (currentDuration !== null) {
+                    matchedPlan = plans.find(p => normalizeSubscriptionType(p.type) === normalizedSub && Number(p.duration) === currentDuration);
+                  }
+                  if (!matchedPlan) {
+                    matchedPlan = plans.find(p => normalizeSubscriptionType(p.type) === normalizedSub);
+                  }
                   if (!matchedPlan) return null;
                   const finalPrice = getAmountWithPromo(selectedMember, matchedPlan.price);
                   if (finalPrice === matchedPlan.price) return null;
@@ -563,11 +620,23 @@ export default function Members() {
                         </button>
                         <button 
                           onClick={() => {
-                            const matchedPlan = plans.find(
-                              (plan) =>
-                                normalizeSubscriptionType(plan.type) ===
-                                normalizeSubscriptionType(selectedMember.subscription)
-                            );
+                            const normalizedSub = normalizeSubscriptionType(selectedMember.subscription);
+                            let currentDuration: number | null = null;
+                            if (selectedMember.startDate && selectedMember.expiryDate) {
+                              const d1 = new Date(selectedMember.startDate);
+                              const d2 = new Date(selectedMember.expiryDate);
+                              currentDuration = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+                              if (d2.getDate() < d1.getDate() - 5) currentDuration--;
+                              if (currentDuration <= 0) currentDuration = 1;
+                            }
+
+                            let matchedPlan = null;
+                            if (currentDuration !== null) {
+                              matchedPlan = plans.find(p => normalizeSubscriptionType(p.type) === normalizedSub && Number(p.duration) === currentDuration);
+                            }
+                            if (!matchedPlan) {
+                              matchedPlan = plans.find(p => normalizeSubscriptionType(p.type) === normalizedSub);
+                            }
                             const defaultPrice = matchedPlan ? getAmountWithPromo(selectedMember, matchedPlan.price) : 0;
                             
                             setPromptConfig({
