@@ -143,6 +143,11 @@ class SecurityController extends AbstractController
         $user->setRoles(['ROLE_USER']);
         $user->setPassword($passwordHasher->hashPassword($user, $data['password']));
 
+        // Promotion / Code Promo
+        if (!empty($data['promotion'])) {
+            $user->setPromotion($data['promotion']);
+        }
+
         try {
             $entityManager->persist($user);
             $entityManager->flush();

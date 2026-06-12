@@ -21,6 +21,7 @@ import {
   calculateSubscriptionProgress,
   type MemberStatus,
   type SubscriptionType,
+  calculateGracePeriodStartDate,
 } from "@/lib/madafit";
 import type { User, SubscriptionPlan, PromoCode } from "@/types/entities";
 
@@ -151,7 +152,6 @@ export default function Members() {
   const debouncedSearch = useDebounce(search, 250);
 
   const [statusFilter, setStatusFilter] = useState<"all" | MemberStatus>("all");
-  const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [promptConfig, setPromptConfig] = useState<{
     isOpen: boolean;
     type: "confirm" | "prompt";
@@ -168,7 +168,7 @@ export default function Members() {
     type: "confirm",
     title: "",
     message: "",
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   /* ── Requêtes API (optimisées : cache, retry, pas de flash) ───────── */
@@ -245,6 +245,8 @@ export default function Members() {
     },
   });
 
+  const [selectedMember, setSelectedMember] = useState<User | null>(null);
+
   const updateExpiryMutation = useMutation({
     mutationFn: ({ id, expiryDate }: { id: number; expiryDate: string }) =>
       api.users.update(id, { expiryDate }),
@@ -253,7 +255,7 @@ export default function Members() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
     onError: () => {
-      toast.error("Erreur lors de la mise à jour de la date de fin.");
+      console.error("Erreur lors de la mise à jour de la date de fin.");
     },
   });
 
@@ -299,6 +301,10 @@ export default function Members() {
       subscription: string;
     }) => {
       const today = new Date().toISOString().split("T")[0];
+      const currentUser = members.find(m => m.id === id);
+      const originalStart = currentUser?.startDate || currentUser?.joinDate || today;
+      const actualStartDate = calculateGracePeriodStartDate(originalStart, today);
+
       await api.paymentRecords.create({
         user: userIri,
         amount: amount,
@@ -307,7 +313,7 @@ export default function Members() {
         receiptNo: `VAL-${Date.now()}`,
         subscription: subscription,
       });
-      const currentUser = members.find((m) => m.id === id);
+
       await api.payments.create({
         memberId: currentUser?.memberId,
         memberName: currentUser ? getFullName(currentUser) : undefined,
@@ -319,7 +325,38 @@ export default function Members() {
         cashRegister: currentCashRegister,
       });
       const newTotal = (currentUser?.totalPayments || 0) + amount;
-      return api.users.update(id, { status: "active", startDate: today, totalPayments: newTotal });
+      const currentType = normalizeSubscriptionType(currentUser?.subscription);
+
+      let currentDuration: number | null = null;
+      if (currentUser?.startDate && currentUser?.expiryDate) {
+        const d1 = new Date(currentUser.startDate);
+        const d2 = new Date(currentUser.expiryDate);
+        currentDuration = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+        if (d2.getDate() < d1.getDate() - 5) currentDuration--;
+        if (currentDuration <= 0) currentDuration = 1;
+      }
+
+      let selectedPlan = null;
+      if (currentDuration !== null) {
+        selectedPlan = plans.find(p =>
+          normalizeSubscriptionType(p.type) === currentType &&
+          Number(p.duration) === currentDuration
+        );
+      }
+
+      if (!selectedPlan) {
+        selectedPlan = plans.find(p => normalizeSubscriptionType(p.type) === currentType);
+      }
+      const expiry = new Date(actualStartDate);
+      expiry.setMonth(expiry.getMonth() + Number(selectedPlan?.duration ?? 1));
+      const expiryDate = expiry.toISOString().split("T")[0];
+
+      return api.users.update(id, {
+        status: "active",
+        startDate: actualStartDate,
+        expiryDate,
+        totalPayments: newTotal
+      });
     },
     onMutate: async ({ id, amount }) => {
       await queryClient.cancelQueries({ queryKey: ["users"] });
@@ -330,11 +367,11 @@ export default function Members() {
           "hydra:member": previousData["hydra:member"]?.map((m: any) =>
             m.id === id
               ? {
-                  ...m,
-                  status: "active",
-                  startDate: new Date().toISOString().split("T")[0],
-                  totalPayments: (m.totalPayments || 0) + amount,
-                }
+                ...m,
+                status: "active",
+                startDate: new Date().toISOString().split("T")[0],
+                totalPayments: (m.totalPayments || 0) + amount,
+              }
               : m
           ) ?? [],
         });
@@ -399,6 +436,16 @@ export default function Members() {
     },
   });
 
+  const resilierMutation = useMutation({
+    mutationFn: (id: number) => api.users.update(id, { status: "suspended" }),
+    onSuccess: () => {
+      toast.success("Abonnement résilié");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setSelectedMember(null);
+    },
+    onError: () => toast.error("Erreur lors de la résiliation"),
+  });
+
   const refuserMutation = useMutation({
     mutationFn: (id: number) => api.users.update(id, { status: "suspended", subscription: null }),
     onMutate: async (id) => {
@@ -449,12 +496,27 @@ export default function Members() {
   /* ── Date d'expiration calculée ────────────────────────────────────── */
   const computedExpiryDate = useMemo(() => {
     if (!selectedMember || plans.length === 0) return selectedMember?.expiryDate ?? null;
-    const matchedPlan = plans.find(
-      (plan) =>
-        normalizeSubscriptionType(plan.type) === normalizeSubscriptionType(selectedMember.subscription)
-    );
+
+    const normalizedSub = normalizeSubscriptionType(selectedMember.subscription);
+
+    // 1. Calculer la durée actuelle si possible
+    const start = selectedMember.startDate ? new Date(selectedMember.startDate) : (selectedMember.joinDate ? new Date(selectedMember.joinDate) : null);
+    const end = selectedMember.expiryDate ? new Date(selectedMember.expiryDate) : null;
+    let currentDuration = 1;
+    if (start && end) {
+      const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+      currentDuration = Math.max(1, Math.round(diffMonths));
+    }
+
+    // 2. Trouver le plan (Match type + duration, sinon fallback sur type)
+    let matchedPlan = plans.find(p => normalizeSubscriptionType(p.type) === normalizedSub && Number(p.duration) === currentDuration);
+    if (!matchedPlan) {
+      matchedPlan = plans.find(p => normalizeSubscriptionType(p.type) === normalizedSub);
+    }
+
     const base = selectedMember.startDate || selectedMember.joinDate;
     if (!matchedPlan?.duration || !base) return selectedMember.expiryDate ?? null;
+
     const expiry = new Date(base);
     expiry.setMonth(expiry.getMonth() + Number(matchedPlan.duration));
     return expiry.toISOString().split("T")[0];
@@ -550,9 +612,22 @@ export default function Members() {
     }
 
     const status = normalizeMemberStatus(selectedMember.status);
-    const matchedPlan = plans.find(
-      (p) => normalizeSubscriptionType(p.type) === normalizeSubscriptionType(selectedMember.subscription)
-    );
+    
+    // Logique de matching de plan identique à computedExpiryDate
+    const normalizedSub = normalizeSubscriptionType(selectedMember.subscription);
+    const start = selectedMember.startDate ? new Date(selectedMember.startDate) : (selectedMember.joinDate ? new Date(selectedMember.joinDate) : null);
+    const end = selectedMember.expiryDate ? new Date(selectedMember.expiryDate) : null;
+    let currentDuration = 1;
+    if (start && end) {
+      const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+      currentDuration = Math.max(1, Math.round(diffMonths));
+    }
+
+    let matchedPlan = plans.find(p => normalizeSubscriptionType(p.type) === normalizedSub && Number(p.duration) === currentDuration);
+    if (!matchedPlan) {
+      matchedPlan = plans.find(p => normalizeSubscriptionType(p.type) === normalizedSub);
+    }
+
     const defaultPrice = matchedPlan ? getAmountWithPromo(selectedMember, matchedPlan.price) : 0;
 
     return (

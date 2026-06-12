@@ -2,7 +2,7 @@ import { useMemo, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   DollarSign, Users, UserCheck, Bell, TrendingUp, TrendingDown, Clock, Activity,
-  Receipt, Package, Calculator, Wallet, X
+  Receipt, Package, Calculator, Wallet, X, Search, Calendar, Filter, RotateCcw
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -31,7 +31,8 @@ type DashboardTransactionLite = {
 type CashRegister = "caisse1" | "caisse2";
 
 function resolveCashRegister(value?: string | null): CashRegister {
-  return value === "caisse1" ? "caisse1" : "caisse2";
+  const normalized = (value ?? "").toLowerCase().replace(/\s/g, "");
+  return normalized === "caisse1" ? "caisse1" : "caisse2";
 }
 
 function getTransactionPurchasePrice(tx: DashboardTransactionLite, productMap: Record<string, Product>) {
@@ -86,19 +87,21 @@ function computeCashierCAStats(
 
   const subscriptionTotal = cashierPayments.reduce((sum, p) => sum + (p.amount ?? 0), 0);
 
-  // sorties chiffre d'affaire : seulement ventes et crédits
+  // sorties chiffre d'affaire : seulement ventes (on ignore credit dans le CA car pas encaissé)
   const salesRevenueTypes = new Set(['sale', 'credit']);
   const sortiesTotal = cashierTransactions.reduce((sum, tx) => {
     if (!salesRevenueTypes.has(tx.type)) return sum;
+    if (tx.type === 'credit') return sum; // On ignore le montant du crédit dans le CA total
     const qty = Number(tx.quantity ?? 0);
     const unit = Number(tx.unitPrice ?? 0);
     return sum + qty * unit;
   }, 0);
 
-  // coûts d'achats et dépenses
+  // coûts d'achats et dépenses (on ignore credit dans le résultat car pas encore de gain/perte réalisé)
   const salesTypes = new Set(['sale', 'credit', 'non_sale_exit']);
   const achatsTotal = cashierTransactions.reduce((sum, tx) => {
     if (!salesTypes.has(tx.type)) return sum;
+    if (tx.type === 'credit') return sum; // On ignore le coût du crédit dans le calcul du résultat actuel
     const qty = Number(tx.quantity ?? 0);
 
     // unitPrice contient souvent le prix de vente (donc pour le coût on prend purchasePrice si dispo via product)
@@ -149,6 +152,8 @@ export default function Dashboard() {
     type: 'payments' | 'transactions';
     data: any[];
   } | null>(null);
+
+  const [searchTerm, setSearchTerm] = useState("");
 
   const usersQuery = useQuery({
     queryKey: ["users"],
@@ -207,12 +212,27 @@ export default function Dashboard() {
 
   const caisse1Stats = useMemo(
     () => computeCashierCAStats(payments, transactions, products, "caisse1"),
-    [paymentsQuery.data, transactionsQuery.data, productsQuery.data],
+    [payments, transactions, products],
   );
   const caisse2Stats = useMemo(
     () => computeCashierCAStats(payments, transactions, products, "caisse2"),
-    [paymentsQuery.data, transactionsQuery.data, productsQuery.data],
+    [payments, transactions, products],
   );
+
+  const filteredDetailData = useMemo(() => {
+    if (!activeDetail) return [];
+    let data = activeDetail.data;
+    if (searchTerm) {
+      const lower = searchTerm.toLowerCase();
+      data = data.filter(item => {
+        const designation = activeDetail.type === 'payments' 
+          ? item.memberName 
+          : (item.productName || (typeof item.product === 'object' ? item.product?.name : null) || 'Charge/Divers');
+        return designation?.toLowerCase().includes(lower);
+      });
+    }
+    return data;
+  }, [activeDetail, searchTerm]);
 
   const globalStats = useMemo(() => ({
     caTotal: caisse1Stats.caTotal + caisse2Stats.caTotal,
@@ -350,6 +370,7 @@ export default function Dashboard() {
                 <X size={20} />
               </button>
             </div>
+
             <div className="p-6 overflow-y-auto">
               <CashierCards 
                 title={activeCaisseModal === "caisse1" ? "Caisse 1 - Reception" : "Caisse 2 - Admin"} 
@@ -364,8 +385,8 @@ export default function Dashboard() {
 
       {/* ── Modal Détail (Compostition des chiffres) ──────────────── */}
       {activeDetail && (
-        <div className="fixed inset-0 z-[10000] h-full flex items-center justify-center bg-black/60 backdrop-blur-md p-0 sm:p-4 animate-in zoom-in !mt-0">
-          <div className="bg-card w-full max-w-4xl h-full sm:h-auto rounded-none sm:rounded-2xl shadow-2xl border border-primary/20 flex flex-col max-h-none sm:max-h-[85vh]">
+        <div className="fixed inset-0 z-[10000] h-full flex items-center justify-center bg-black/40 backdrop-blur-md p-0 sm:p-4 animate-in zoom-in !mt-0">
+          <div className="bg-card w-full max-w-4xl h-full sm:h-auto rounded-md sm:rounded-2xl border border-primary/20 flex flex-col max-h-none sm:max-h-[85vh]">
             <div className="flex items-center justify-between p-6 border-b border-border bg-muted/30">
               <div>
                 <h2 className="text-xl font-black flex items-center gap-2 text-foreground">
@@ -375,13 +396,59 @@ export default function Dashboard() {
                   Composition du montant
                 </p>
               </div>
+
+              {/* Barre de recherche uniquement */}
+              <div className="flex-1 max-w-md mx-6 hidden md:block">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Rechercher par nom ou désignation..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-background border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm hover:border-primary/30"
+                  />
+                  {searchTerm && (
+                    <button 
+                      onClick={() => setSearchTerm("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted rounded-full transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <button
-                onClick={() => setActiveDetail(null)}
+                onClick={() => {
+                  setActiveDetail(null);
+                  setSearchTerm("");
+                }}
                 className="p-2 hover:bg-destructive/10 hover:text-destructive rounded-full transition-all"
               >
                 <X size={24} />
               </button>
             </div>
+
+            {/* Barre de recherche uniquement (Mobile) */}
+            <div className="p-4 border-b border-border bg-muted/10 md:hidden">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Rechercher..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-background border border-border rounded-xl pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="p-0 overflow-y-auto">
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 bg-muted/90 backdrop-blur-md z-10">
@@ -393,32 +460,36 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {activeDetail.data.length > 0 ? (
-                    activeDetail.data.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-primary/5 transition-colors group">
-                        <td className="p-4 text-xs font-bold text-muted-foreground whitespace-nowrap">
-                          {formatDate(item.date)}
-                        </td>
-                        <td className="p-4">
-                          <p className="text-sm font-black text-foreground">
-                            {activeDetail.type === 'payments' ? item.memberName : (item.productName || (typeof item.product === 'object' ? item.product?.name : null) || 'Charge/Divers')}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {activeDetail.type === 'payments' ? (item.subscription || 'Abonnement') : `Type: ${item.type}`}
-                          </p>
-                        </td>
-                        <td className="p-4 text-xs font-bold text-muted-foreground">
-                          {activeDetail.type === 'payments' ? item.method : `${item.quantity || 1} x ${formatCurrency(item.unitPrice)}`}
-                        </td>
-                        <td className="p-4 text-sm font-black text-primary text-right group-hover:scale-110 transition-transform origin-right">
-                          {formatCurrency(activeDetail.type === 'payments' ? item.amount : (item.quantity * (item.unitPrice || 0)))}
-                        </td>
-                      </tr>
-                    ))
+                    {filteredDetailData.length > 0 ? (
+                      filteredDetailData.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-primary/5 transition-colors group">
+                          <td className="p-4 text-xs font-bold text-muted-foreground whitespace-nowrap">
+                            {formatDate((item as any).date)}
+                          </td>
+                          <td className="p-4">
+                            <p className="text-sm font-black text-foreground">
+                              {(item as any).memberName || (item as any).productName || 'Charge/Divers'}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {activeDetail.type === 'payments' ? ((item as any).subscription || 'Abonnement') : `Type: ${(item as any).type}`}
+                            </p>
+                          </td>
+                          <td className="p-4 text-xs font-bold text-muted-foreground">
+                            {activeDetail.type === 'payments' ? (item as any).method : `${(item as any).quantity || 1} x ${formatCurrency((item as any).unitPrice)}`}
+                          </td>
+                          <td className="p-4 text-sm font-black text-primary text-right group-hover:scale-110 transition-transform origin-right">
+                            {formatCurrency((item as any).amount)}
+                          </td>
+                        </tr>
+                      ))
                   ) : (
                     <tr>
-                      <td colSpan={4} className="p-12 text-center text-muted-foreground italic">
-                        Aucune donnée disponible pour cette sélection.
+                      <td colSpan={4} className="p-12 text-center text-muted-foreground">
+                        <div className="flex flex-col items-center gap-2 opacity-50">
+                           <Search size={40} className="mb-2" />
+                           <p className="font-bold">Aucun résultat trouvé</p>
+                           <p className="text-xs">Essayez d'autres mots-clés ou vérifiez l'orthographe.</p>
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -426,12 +497,15 @@ export default function Dashboard() {
               </table>
             </div>
             <div className="p-6 border-t border-border bg-muted/30 flex justify-between items-center">
-               <span className="text-xs font-bold text-muted-foreground uppercase">Total calculé</span>
-               <span className="text-2xl font-black text-primary">
-                 {formatCurrency(activeDetail.data.reduce((sum, item) => 
-                   sum + (activeDetail.type === 'payments' ? (item.amount || 0) : ((item.quantity || 0) * (item.unitPrice || 0))), 0)
-                 )}
-               </span>
+               <span className="text-xs font-bold text-muted-foreground uppercase">Total calculé ({filteredDetailData.length})</span>
+               <div className="text-right">
+                  {searchTerm && (
+                    <p className="text-[9px] text-muted-foreground uppercase font-black mb-1">Sur les résultats filtrés</p>
+                  )}
+                  <span className="text-2xl font-black text-primary">
+                    {formatCurrency(filteredDetailData.reduce((sum, item) => sum + ((item as any).amount || 0), 0))}
+                  </span>
+               </div>
             </div>
           </div>
         </div>
@@ -806,7 +880,13 @@ function CashierCards({
           className=""
           iconColorClass="text-success"
           iconBgClass="bg-success/10 group-hover:bg-success"
-          onClick={() => onDetail("Détails Sorties (Ventes)", 'transactions', stats.items.sorties)}
+          onClick={() => {
+            onDetail("Détails Sorties (Ventes)", 'transactions', stats.items.sorties.map(s => {
+              const pId = extractIdFromIri(s.product);
+              const pName = pId ? (productMap as any)[pId]?.name : (typeof s.product === 'object' ? (s.product as any)?.name : null);
+              return { ...s, amount: (s.quantity || 0) * (s.unitPrice || 0), productName: pName || 'Vente produit' };
+            }));
+          }}
         />
 
         {/* Ligne Dépenses — visible par tous */}
@@ -818,7 +898,13 @@ function CashierCards({
           className="sm:col-span-2 md:col-span-1 bg-destructive/5 border-destructive/20 hover:border-destructive/50"
           iconColorClass="text-destructive"
           iconBgClass="bg-destructive/10 group-hover:bg-destructive"
-          onClick={() => onDetail("Total Dépenses", 'transactions', stats.items.depenses)}
+          onClick={() => {
+            onDetail("Total Dépenses", 'transactions', stats.items.depenses.map(s => {
+              const pId = extractIdFromIri(s.product);
+              const pName = pId ? (productMap as any)[pId]?.name : (typeof s.product === 'object' ? (s.product as any)?.name : null);
+              return { ...s, amount: (s.quantity || 0) * (s.unitPrice || 0), productName: pName || 'Charge/Divers' };
+            }));
+          }}
         />
 
         {/* Détail dépenses — admin uniquement */}
@@ -832,7 +918,14 @@ function CashierCards({
               className=""
               iconColorClass="text-destructive"
               iconBgClass="bg-destructive/10 group-hover:bg-destructive"
-              onClick={() => onDetail("Coût des Achats", 'transactions', stats.items.achats)}
+              onClick={() => {
+                onDetail("Coût des Achats", 'transactions', stats.items.achats.map(s => {
+                  const pId = extractIdFromIri(s.product);
+                  const pName = pId ? (productMap as any)[pId]?.name : (typeof s.product === 'object' ? (s.product as any)?.name : null);
+                  const pPurchase = pId ? (productMap as any)[pId]?.purchasePrice : (typeof s.product === 'object' ? (s.product as any)?.purchasePrice : s.unitPrice);
+                  return { ...s, amount: (s.quantity || 0) * (pPurchase || 0), productName: pName || 'Coût produit' };
+                }));
+              }}
             />
             <StatCard
               icon={Activity}
@@ -842,7 +935,13 @@ function CashierCards({
               className=""
               iconColorClass="text-destructive"
               iconBgClass="bg-destructive/10 group-hover:bg-destructive"
-              onClick={() => onDetail("Détails Entrées & Charges", 'transactions', stats.items.entries)}
+              onClick={() => {
+                onDetail("Détails Entrées & Charges", 'transactions', stats.items.entries.map(s => {
+                  const pId = extractIdFromIri(s.product);
+                  const pName = pId ? (productMap as any)[pId]?.name : (typeof s.product === 'object' ? (s.product as any)?.name : null);
+                  return { ...s, amount: (s.quantity || 0) * (s.unitPrice || 0), productName: pName || 'Charge Directe' };
+                }));
+              }}
             />
           </>
         )}

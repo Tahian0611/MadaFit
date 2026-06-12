@@ -378,6 +378,7 @@ export default function Products() {
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Catégorie</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Achat</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Vente</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Vendus</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Stock</th>
                   <th className="w-12"></th>
                 </tr>
@@ -412,6 +413,7 @@ export default function Products() {
                     <td className="px-4 py-3 text-muted-foreground">{product.category}</td>
                     <td className="px-4 py-3 text-muted-foreground">{formatCurrency(product.purchasePrice)}</td>
                     <td className="px-4 py-3 font-medium text-foreground">{formatCurrency(product.salePrice)}</td>
+                    <td className="px-4 py-3 font-bold text-sky-600">{product.totalSales || 0}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                         product.currentStock === 0 

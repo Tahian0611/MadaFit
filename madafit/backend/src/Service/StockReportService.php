@@ -108,7 +108,7 @@ class StockReportService
                 'sale', 'credit' => [
                     $totalSales += ($transaction->getType() === 'sale' ? $quantity : 0),
                     $totalCredits += ($transaction->getType() === 'credit' ? $quantity : 0),
-                    $revenue    += ($quantity * ($unitPrice ?? $product->getSalePrice() ?? 0)),
+                    $revenue    += ($transaction->getType() === 'sale' ? ($quantity * ($unitPrice ?? $product->getSalePrice() ?? 0)) : 0),
                 ],
                 'non_sale_exit' => [
                     $totalNonSaleExits += $quantity,
@@ -123,7 +123,7 @@ class StockReportService
         $finalStock   = $currentStock;
 
         $purchasePrice   = $product->getPurchasePrice() ?? 0.0;
-        $costOfGoodsSold = ($totalSales + $totalCredits) * $purchasePrice;
+        $costOfGoodsSold = $totalSales * $purchasePrice;
         $profit          = $revenue - $costOfGoodsSold;
 
         return new StockReportRow(

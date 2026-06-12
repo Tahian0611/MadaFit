@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef, memo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Search } from "lucide-react";
 import api from "@/services/api";
 import { refreshNotifications } from '@/services/api';
 import { useAuth } from "@/hooks/useAuth";
@@ -14,6 +15,7 @@ import {
   getFullName,
   normalizeMemberStatus,
   normalizeSubscriptionType,
+  calculateGracePeriodStartDate,
   type SubscriptionType,
 } from "@/lib/madafit";
 import type { User, SubscriptionPlan, PromoCode } from "@/types/entities";
@@ -140,14 +142,29 @@ export default function Subscriptions() {
   const renewMutation = useMutation({
     mutationFn: async (member: User) => {
       const currentType = normalizeSubscriptionType(member.subscription);
-      const selectedPlan = plans.find((plan) => normalizeSubscriptionType(plan.type) === currentType);
+      
+      // Calculate current duration
+      const start = member.startDate ? new Date(member.startDate) : (member.joinDate ? new Date(member.joinDate) : null);
+      const end = member.expiryDate ? new Date(member.expiryDate) : null;
+      let currentDuration = 1;
+      if (start && end) {
+        const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+        currentDuration = Math.max(1, Math.round(diffMonths));
+      }
+
+      let selectedPlan = plans.find((plan) => normalizeSubscriptionType(plan.type) === currentType && Number(plan.duration) === currentDuration);
+      if (!selectedPlan) {
+        selectedPlan = plans.find((plan) => normalizeSubscriptionType(plan.type) === currentType);
+      }
+      
       const now = new Date();
       const expiry = new Date(now);
       expiry.setMonth(expiry.getMonth() + Number(selectedPlan?.duration ?? 1));
+      const today = now.toISOString().split("T")[0];
 
       await api.users.update(member.id!, {
         status: "active",
-        startDate: now.toISOString().split("T")[0],
+        startDate: today,
         expiryDate: expiry.toISOString().split("T")[0],
       });
 
@@ -170,7 +187,21 @@ export default function Subscriptions() {
       await queryClient.cancelQueries({ queryKey: ["users"] });
       const previousData = queryClient.getQueryData<any>(["users"]);
       const currentType = normalizeSubscriptionType(member.subscription);
-      const selectedPlan = plans.find((plan) => normalizeSubscriptionType(plan.type) === currentType);
+      
+      // Calculate current duration
+      const start = member.startDate ? new Date(member.startDate) : (member.joinDate ? new Date(member.joinDate) : null);
+      const end = member.expiryDate ? new Date(member.expiryDate) : null;
+      let currentDuration = 1;
+      if (start && end) {
+        const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+        currentDuration = Math.max(1, Math.round(diffMonths));
+      }
+
+      let selectedPlan = plans.find((plan) => normalizeSubscriptionType(plan.type) === currentType && Number(plan.duration) === currentDuration);
+      if (!selectedPlan) {
+        selectedPlan = plans.find((plan) => normalizeSubscriptionType(plan.type) === currentType);
+      }
+
       const now = new Date();
       const expiry = new Date(now);
       expiry.setMonth(expiry.getMonth() + Number(selectedPlan?.duration ?? 1));
@@ -205,7 +236,6 @@ export default function Subscriptions() {
     onSuccess: () => {
       toast.success("Abonnement renouvele");
       refreshNotifications();
-      setSelectedMember(null);
     },
   });
 
@@ -241,6 +271,10 @@ export default function Subscriptions() {
   const payerMutation = useMutation({
     mutationFn: async ({ id, amount, userIri, subscription }: { id: number, amount: number, userIri: string, subscription: string }) => {
       const today = new Date().toISOString().split("T")[0];
+      const currentUser = users.find(m => m.id === id);
+      const originalStart = currentUser?.startDate || currentUser?.joinDate || today;
+      const actualStartDate = calculateGracePeriodStartDate(originalStart, today);
+
       await api.paymentRecords.create({
         user: userIri,
         amount: amount,
@@ -249,7 +283,7 @@ export default function Subscriptions() {
         receiptNo: `VAL-${Date.now()}`,
         subscription: subscription,
       });
-      const currentUser = users.find(m => m.id === id);
+
       await api.payments.create({
         memberId: currentUser?.memberId,
         memberName: currentUser ? getFullName(currentUser) : undefined,
@@ -260,8 +294,33 @@ export default function Subscriptions() {
         subscription,
         cashRegister: currentCashRegister,
       });
+      const currentType = normalizeSubscriptionType(currentUser?.subscription);
+      
+      // Calculate current duration
+      const start = currentUser?.startDate ? new Date(currentUser.startDate) : (currentUser?.joinDate ? new Date(currentUser.joinDate) : null);
+      const end = currentUser?.expiryDate ? new Date(currentUser.expiryDate) : null;
+      let currentDuration = 1;
+      if (start && end) {
+        const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+        currentDuration = Math.max(1, Math.round(diffMonths));
+      }
+
+      let selectedPlan = plans.find(p => normalizeSubscriptionType(p.type) === currentType && Number(p.duration) === currentDuration);
+      if (!selectedPlan) {
+        selectedPlan = plans.find(p => normalizeSubscriptionType(p.type) === currentType);
+      }
+
+      const expiry = new Date(actualStartDate);
+      expiry.setMonth(expiry.getMonth() + Number(selectedPlan?.duration ?? 1));
+      const expiryDate = expiry.toISOString().split("T")[0];
+
       const newTotal = (currentUser?.totalPayments || 0) + amount;
-      return api.users.update(id, { totalPayments: newTotal });
+      return api.users.update(id, {
+        totalPayments: newTotal,
+        status: "active",
+        startDate: actualStartDate,
+        expiryDate,
+      });
     },
     onMutate: async ({ id, amount }) => {
       await queryClient.cancelQueries({ queryKey: ["users"] });
@@ -332,6 +391,17 @@ export default function Subscriptions() {
       toast.success("Paiement enregistré avec succès");
       setSelectedMember(null);
     },
+  });
+
+  const resilierMutation = useMutation({
+    mutationFn: (id: number) => api.users.update(id, { status: "suspended" }),
+    onSuccess: () => {
+      toast.success("Abonnement résilié");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      refreshNotifications();
+      setSelectedMember(null);
+    },
+    onError: () => toast.error("Erreur lors de la résiliation"),
   });
 
   const refuserMutation = useMutation({
@@ -405,14 +475,31 @@ export default function Subscriptions() {
     setIsModalOpen(true);
   }, []);
 
-  /* ── Helper findPlanForMember mémorisé ────────────────────────────── */
   const findPlanForMember = useCallback((m: User) => {
     if (!m.subscription) return null;
     const normalizedSub = normalizeSubscriptionType(m.subscription);
-    let p = plans.find(plan => normalizeSubscriptionType(plan.type) === normalizedSub);
+
+    // Calculate current duration
+    const start = m.startDate ? new Date(m.startDate) : (m.joinDate ? new Date(m.joinDate) : null);
+    const end = m.expiryDate ? new Date(m.expiryDate) : null;
+    let currentDuration = 1;
+    if (start && end) {
+      const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+      currentDuration = Math.max(1, Math.round(diffMonths));
+    }
+
+    // Prioritize match type + duration
+    let p = plans.find(plan => normalizeSubscriptionType(plan.type) === normalizedSub && Number(plan.duration) === currentDuration);
     if (p) return p;
+
+    // Fallback to type only
+    p = plans.find(plan => normalizeSubscriptionType(plan.type) === normalizedSub);
+    if (p) return p;
+
+    // Last resort fallbacks
     p = plans.find(plan => plan.name.toLowerCase().includes(normalizedSub) || normalizedSub.includes(plan.name.toLowerCase()));
     if (p) return p;
+
     return plans.find(plan => normalizeSubscriptionType(plan.type) === "monthly") || plans[0] || null;
   }, [plans]);
 

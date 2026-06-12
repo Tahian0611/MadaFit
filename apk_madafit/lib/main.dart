@@ -100,6 +100,9 @@ class _AuthScreenState extends State<AuthScreen> {
 
   // Controllers inscription étape 1
   final _regPhoneController = TextEditingController();
+  final _promoController = TextEditingController();
+  Map<String, dynamic>? _appliedPromo;
+  bool _isValidatingPromo = false;
   List<String> _selectedActivities = ['musculation'];
   String _regAccessType = 'abonnement';
   String? _regDob;
@@ -109,6 +112,19 @@ class _AuthScreenState extends State<AuthScreen> {
   List<Map<String, dynamic>> _selectedPlans = [];
   bool _plansLoading = false;
   // ─────────────────────────────────────────────────────────────────────────
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _regEmailController.dispose();
+    _regPasswordController.dispose();
+    _regFirstNameController.dispose();
+    _regLastNameController.dispose();
+    _regPhoneController.dispose();
+    _promoController.dispose();
+    super.dispose();
+  }
 
   final String _baseUrl = ApiConfig.baseUrl;
 
@@ -120,6 +136,47 @@ class _AuthScreenState extends State<AuthScreen> {
     'boxe': 'Boxe',
     'natation': 'Natation',
   };
+  
+  Future<void> _validatePromoCode() async {
+    final code = _promoController.text.trim();
+    if (code.isEmpty) return;
+
+    setState(() {
+      _isValidatingPromo = true;
+    });
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/promo_codes/validate'),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'code': code}),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _appliedPromo = data;
+          _isValidatingPromo = false;
+        });
+        _showSnackBar('✓ Code promo appliqué !', isSuccess: true);
+      } else {
+        setState(() {
+          _appliedPromo = null;
+          _isValidatingPromo = false;
+        });
+        _showSnackBar('Code promo invalide ou expiré');
+      }
+    } catch (e) {
+      setState(() {
+        _isValidatingPromo = false;
+      });
+      _showSnackBar('Erreur : $e');
+    }
+  }
 
   // ── FETCH DES PLANS DEPUIS LA BD ─────────────────────────────────────────
   Future<void> _fetchPlans() async {
@@ -384,9 +441,19 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final int totalPayments = _regAccessType == 'abonnement'
+      final int originalTotal = _regAccessType == 'abonnement'
           ? _selectedPlans.fold(0, (sum, p) => sum + ((p['price'] as num?)?.toInt() ?? 0))
           : 0;
+      
+      int totalPayments = originalTotal;
+      if (_appliedPromo != null) {
+        if (_appliedPromo!['discountPercentage'] != null) {
+          totalPayments = (originalTotal * (1 - (_appliedPromo!['discountPercentage'] / 100))).toInt();
+        } else if (_appliedPromo!['discountAmount'] != null) {
+          totalPayments = originalTotal - (_appliedPromo!['discountAmount'] as num).toInt();
+        }
+        if (totalPayments < 0) totalPayments = 0;
+      }
       
       final String subscriptionName = _regAccessType == 'abonnement'
           ? _selectedPlans.map((p) => p['name'] as String? ?? '').join(', ')
@@ -396,26 +463,32 @@ class _AuthScreenState extends State<AuthScreen> {
           ? (_selectedPlans.first['type'] as String? ?? 'monthly')
           : 'session';
 
+      final body = {
+        'email': _regEmailController.text.trim(),
+        'password': _regPasswordController.text,
+        'firstName': _regFirstNameController.text.trim(),
+        'lastName': _regLastNameController.text.trim(),
+        'phone': _regPhoneController.text.trim(),
+        'activities': _selectedActivities,
+        'activity': _selectedActivities.isNotEmpty ? _selectedActivities.first : '',
+        'accessType': _regAccessType,
+        'dob': _regDob,
+        'subscription': subscriptionName,
+        'totalPayments': totalPayments,
+        'subscriptionType': subscriptionType,
+      };
+
+      if (_appliedPromo != null) {
+        body['promotion'] = _appliedPromo!['code'];
+      }
+
       final response = await http.post(
         Uri.parse('$_baseUrl/register'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: jsonEncode({
-          'email': _regEmailController.text.trim(),
-          'password': _regPasswordController.text,
-          'firstName': _regFirstNameController.text.trim(),
-          'lastName': _regLastNameController.text.trim(),
-          'phone': _regPhoneController.text.trim(),
-          'activities': _selectedActivities,
-          'activity': _selectedActivities.isNotEmpty ? _selectedActivities.first : '',
-          'accessType': _regAccessType,
-          'dob': _regDob,
-          'subscription': subscriptionName,
-          'totalPayments': totalPayments,
-          'subscriptionType': subscriptionType,
-        }),
+        body: jsonEncode(body),
       );
 
       print('🟢 Register Status: ${response.statusCode}');
@@ -894,6 +967,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 if (_regAccessType == 'abonnement' && _selectedPlans.isNotEmpty)
                   _buildPlanSummary(),
 
+                const SizedBox(height: 15),
+                _buildPromoRegisterSection(),
+
                 const SizedBox(height: 25),
 
                 Row(
@@ -1236,7 +1312,17 @@ class _AuthScreenState extends State<AuthScreen> {
 
   // ── RÉCAPITULATIF DU PLAN ─────────────────────────────────────────────────
   Widget _buildPlanSummary() {
-    final totalPrice = _selectedPlans.fold(0, (sum, p) => sum + ((p['price'] as num?)?.toInt() ?? 0));
+    final originalPrice = _selectedPlans.fold(0, (sum, p) => sum + ((p['price'] as num?)?.toInt() ?? 0));
+    int totalPrice = originalPrice;
+
+    if (_appliedPromo != null) {
+      if (_appliedPromo!['discountPercentage'] != null) {
+        totalPrice = (originalPrice * (1 - (_appliedPromo!['discountPercentage'] / 100))).toInt();
+      } else if (_appliedPromo!['discountAmount'] != null) {
+        totalPrice = originalPrice - (_appliedPromo!['discountAmount'] as num).toInt();
+      }
+      if (totalPrice < 0) totalPrice = 0;
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1250,9 +1336,9 @@ class _AuthScreenState extends State<AuthScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.shopping_cart_checkout, color: Colors.redAccent, size: 18),
-              SizedBox(width: 8),
-              Text(
+              const Icon(Icons.shopping_cart_checkout, color: Colors.redAccent, size: 18),
+              const SizedBox(width: 8),
+              const Text(
                 "RÉCAPITULATIF",
                 style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1),
               ),
@@ -1273,6 +1359,16 @@ class _AuthScreenState extends State<AuthScreen> {
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Divider(color: Colors.white10),
           ),
+          if (_appliedPromo != null && totalPrice < originalPrice) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("SOUS-TOTAL", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                Text("${_formatPrice(originalPrice)} Ar", style: const TextStyle(color: Colors.white54, fontSize: 12, decoration: TextDecoration.lineThrough)),
+              ],
+            ),
+            const SizedBox(height: 4),
+          ],
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1287,6 +1383,90 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromoRegisterSection() {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "CODE PROMO",
+            style: TextStyle(
+              color: Colors.white38,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _promoController,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: "Saisir un code...",
+                    hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+                    filled: true,
+                    fillColor: Colors.black26,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 15),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 45,
+                child: ElevatedButton(
+                  onPressed: _isValidatingPromo ? null : _validatePromoCode,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white10,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: _isValidatingPromo
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text("VÉRIFIER", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+          if (_appliedPromo != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.green, size: 14),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    "Réduction de ${_appliedPromo!['discountPercentage'] != null ? '${_appliedPromo!['discountPercentage']}%' : '${_formatPrice((_appliedPromo!['discountAmount'] as num).toInt())} Ar'} appliquée !",
+                    style: const TextStyle(color: Colors.green, fontSize: 12),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => setState(() {
+                    _appliedPromo = null;
+                    _promoController.clear();
+                  }),
+                  child: const Icon(Icons.close, color: Colors.redAccent, size: 16),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

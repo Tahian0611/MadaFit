@@ -115,6 +115,32 @@ export function normalizeSubscriptionType(subscription?: string | null): string 
   return subscription ?? "standard";
 }
 
+/**
+ * Calcule la nouvelle date de début suivant la règle des 10 jours de grâce.
+ * - Si payé dans les 10 jours: garde la date d'origine (startDate).
+ * - Si payé après 10 jours: la nouvelle date est le 11ème jour.
+ */
+export function calculateGracePeriodStartDate(originalStartDate: string | Date, paymentDate: string | Date = new Date()): string {
+  const start = new Date(originalStartDate);
+  const payment = new Date(paymentDate);
+  
+  // Normalisation des dates (on ne compare que les jours)
+  start.setHours(0, 0, 0, 0);
+  payment.setHours(0, 0, 0, 0);
+  
+  const diffTime = payment.getTime() - start.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays <= 10) {
+    return start.toISOString().split("T")[0];
+  } else {
+    // 11ème jour = start + 10 jours
+    const eleventhDay = new Date(start);
+    eleventhDay.setDate(eleventhDay.getDate() + 10);
+    return eleventhDay.toISOString().split("T")[0];
+  }
+}
+
 export function formatCurrency(amount?: number | null) {
   return new Intl.NumberFormat("fr-MG", {
     style: "currency",
@@ -230,7 +256,7 @@ export function computeDashboardStats(
   const getMovementRevenueForMonth = (monthVal: number, yearVal: number): number => {
     return transactions
       .filter((tx) => {
-        if (tx.type !== "sale" && tx.type !== "credit") return false;
+        if (tx.type !== "sale") return false;
         const d = new Date(tx.date);
         return d.getMonth() === monthVal && d.getFullYear() === yearVal;
       })
@@ -397,7 +423,7 @@ export function computeReportsStats(
   const getMovementRevenueForMonth = (monthVal: number, yearVal: number): number => {
     return transactions
       .filter((tx) => {
-        if (tx.type !== "sale" && tx.type !== "credit") return false;
+        if (tx.type !== "sale") return false;
         const d = new Date(tx.date);
         return d.getMonth() === monthVal && d.getFullYear() === yearVal;
       })

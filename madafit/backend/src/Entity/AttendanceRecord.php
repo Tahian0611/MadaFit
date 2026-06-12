@@ -6,6 +6,8 @@ use App\Repository\AttendanceRecordRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use ApiPlatform\Metadata\ApiResource;
+use Symfony\Component\Serializer\Attribute\Groups;
+
 
 #[ORM\Entity(repositoryClass: AttendanceRecordRepository::class)]
 #[ApiResource]
@@ -14,25 +16,39 @@ class AttendanceRecord
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['user:read'])]
     private ?int $id = null;
 
+
     #[ORM\Column(length: 50, nullable: true)]
+    #[Groups(['user:read'])]
     private ?string $memberId = null;
 
+
     #[ORM\Column(length: 200, nullable: true)]
+    #[Groups(['user:read'])]
     private ?string $memberName = null;
 
+
     #[ORM\Column(length: 100, nullable: true)]
+    #[Groups(['user:read'])]
     private ?string $rfidCard = null;
 
+
     #[ORM\Column(type: Types::TIME_IMMUTABLE, nullable: true)]
+    #[Groups(['user:read'])]
     private ?\DateTimeImmutable $checkIn = null;
 
+
     #[ORM\Column(type: Types::TIME_IMMUTABLE, nullable: true)]
+    #[Groups(['user:read'])]
     private ?\DateTimeImmutable $checkOut = null;
 
+
     #[ORM\Column(type: Types::DATE_IMMUTABLE)]
+    #[Groups(['user:read'])]
     private ?\DateTimeImmutable $date = null;
+
 
     #[ORM\ManyToOne(inversedBy: 'attendanceRecords')]
     #[ORM\JoinColumn(onDelete: 'CASCADE')]
