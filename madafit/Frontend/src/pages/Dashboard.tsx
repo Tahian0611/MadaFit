@@ -31,7 +31,8 @@ type DashboardTransactionLite = {
 type CashRegister = "caisse1" | "caisse2";
 
 function resolveCashRegister(value?: string | null): CashRegister {
-  return value === "caisse1" ? "caisse1" : "caisse2";
+  const normalized = (value ?? "").toLowerCase().replace(/\s/g, "");
+  return normalized === "caisse1" ? "caisse1" : "caisse2";
 }
 
 function getTransactionPurchasePrice(tx: DashboardTransactionLite, productMap: Record<string, Product>) {
@@ -459,28 +460,28 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {filteredDetailData.length > 0 ? (
-                    filteredDetailData.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-primary/5 transition-colors group">
-                        <td className="p-4 text-xs font-bold text-muted-foreground whitespace-nowrap">
-                          {formatDate((item as any).date)}
-                        </td>
-                        <td className="p-4">
-                          <p className="text-sm font-black text-foreground">
-                            {activeDetail.type === 'payments' ? (item as any).memberName : ((item as any).productName || (typeof (item as any).product === 'object' ? (item as any).product?.name : null) || 'Charge/Divers')}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {activeDetail.type === 'payments' ? ((item as any).subscription || 'Abonnement') : `Type: ${(item as any).type}`}
-                          </p>
-                        </td>
-                        <td className="p-4 text-xs font-bold text-muted-foreground">
-                          {activeDetail.type === 'payments' ? (item as any).method : `${(item as any).quantity || 1} x ${formatCurrency((item as any).unitPrice)}`}
-                        </td>
-                        <td className="p-4 text-sm font-black text-primary text-right group-hover:scale-110 transition-transform origin-right">
-                          {formatCurrency(activeDetail.type === 'payments' ? (item as any).amount : (((item as any).quantity || 0) * ((item as any).unitPrice || 0)))}
-                        </td>
-                      </tr>
-                    ))
+                    {filteredDetailData.length > 0 ? (
+                      filteredDetailData.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-primary/5 transition-colors group">
+                          <td className="p-4 text-xs font-bold text-muted-foreground whitespace-nowrap">
+                            {formatDate((item as any).date)}
+                          </td>
+                          <td className="p-4">
+                            <p className="text-sm font-black text-foreground">
+                              {(item as any).memberName || (item as any).productName || 'Charge/Divers'}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {activeDetail.type === 'payments' ? ((item as any).subscription || 'Abonnement') : `Type: ${(item as any).type}`}
+                            </p>
+                          </td>
+                          <td className="p-4 text-xs font-bold text-muted-foreground">
+                            {activeDetail.type === 'payments' ? (item as any).method : `${(item as any).quantity || 1} x ${formatCurrency((item as any).unitPrice)}`}
+                          </td>
+                          <td className="p-4 text-sm font-black text-primary text-right group-hover:scale-110 transition-transform origin-right">
+                            {formatCurrency((item as any).amount)}
+                          </td>
+                        </tr>
+                      ))
                   ) : (
                     <tr>
                       <td colSpan={4} className="p-12 text-center text-muted-foreground">
@@ -502,9 +503,7 @@ export default function Dashboard() {
                     <p className="text-[9px] text-muted-foreground uppercase font-black mb-1">Sur les résultats filtrés</p>
                   )}
                   <span className="text-2xl font-black text-primary">
-                    {formatCurrency(filteredDetailData.reduce((sum, item) => 
-                      sum + (activeDetail.type === 'payments' ? ((item as any).amount || 0) : (((item as any).quantity || 0) * ((item as any).unitPrice || 0))), 0)
-                    )}
+                    {formatCurrency(filteredDetailData.reduce((sum, item) => sum + ((item as any).amount || 0), 0))}
                   </span>
                </div>
             </div>
@@ -881,7 +880,13 @@ function CashierCards({
           className=""
           iconColorClass="text-success"
           iconBgClass="bg-success/10 group-hover:bg-success"
-          onClick={() => onDetail("Détails Sorties (Ventes)", 'transactions', stats.items.sorties)}
+          onClick={() => {
+            onDetail("Détails Sorties (Ventes)", 'transactions', stats.items.sorties.map(s => {
+              const pId = extractIdFromIri(s.product);
+              const pName = pId ? (productMap as any)[pId]?.name : (typeof s.product === 'object' ? (s.product as any)?.name : null);
+              return { ...s, amount: (s.quantity || 0) * (s.unitPrice || 0), productName: pName || 'Vente produit' };
+            }));
+          }}
         />
 
         {/* Ligne Dépenses — visible par tous */}
@@ -893,7 +898,13 @@ function CashierCards({
           className="sm:col-span-2 md:col-span-1 bg-destructive/5 border-destructive/20 hover:border-destructive/50"
           iconColorClass="text-destructive"
           iconBgClass="bg-destructive/10 group-hover:bg-destructive"
-          onClick={() => onDetail("Total Dépenses", 'transactions', stats.items.depenses)}
+          onClick={() => {
+            onDetail("Total Dépenses", 'transactions', stats.items.depenses.map(s => {
+              const pId = extractIdFromIri(s.product);
+              const pName = pId ? (productMap as any)[pId]?.name : (typeof s.product === 'object' ? (s.product as any)?.name : null);
+              return { ...s, amount: (s.quantity || 0) * (s.unitPrice || 0), productName: pName || 'Charge/Divers' };
+            }));
+          }}
         />
 
         {/* Détail dépenses — admin uniquement */}
@@ -907,7 +918,14 @@ function CashierCards({
               className=""
               iconColorClass="text-destructive"
               iconBgClass="bg-destructive/10 group-hover:bg-destructive"
-              onClick={() => onDetail("Coût des Achats", 'transactions', stats.items.achats)}
+              onClick={() => {
+                onDetail("Coût des Achats", 'transactions', stats.items.achats.map(s => {
+                  const pId = extractIdFromIri(s.product);
+                  const pName = pId ? (productMap as any)[pId]?.name : (typeof s.product === 'object' ? (s.product as any)?.name : null);
+                  const pPurchase = pId ? (productMap as any)[pId]?.purchasePrice : (typeof s.product === 'object' ? (s.product as any)?.purchasePrice : s.unitPrice);
+                  return { ...s, amount: (s.quantity || 0) * (pPurchase || 0), productName: pName || 'Coût produit' };
+                }));
+              }}
             />
             <StatCard
               icon={Activity}
@@ -917,7 +935,13 @@ function CashierCards({
               className=""
               iconColorClass="text-destructive"
               iconBgClass="bg-destructive/10 group-hover:bg-destructive"
-              onClick={() => onDetail("Détails Entrées & Charges", 'transactions', stats.items.entries)}
+              onClick={() => {
+                onDetail("Détails Entrées & Charges", 'transactions', stats.items.entries.map(s => {
+                  const pId = extractIdFromIri(s.product);
+                  const pName = pId ? (productMap as any)[pId]?.name : (typeof s.product === 'object' ? (s.product as any)?.name : null);
+                  return { ...s, amount: (s.quantity || 0) * (s.unitPrice || 0), productName: pName || 'Charge Directe' };
+                }));
+              }}
             />
           </>
         )}
