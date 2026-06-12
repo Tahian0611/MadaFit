@@ -18,7 +18,7 @@ export default function Login() {
 
     try {
       const user = await api.auth.login({ email: form.email, password: form.password });
-
+      
       const roles: string[] = user.roles || [];
 
       // Admin OU Accueil (ROLE_RECEPTION) peuvent accéder au dashboard

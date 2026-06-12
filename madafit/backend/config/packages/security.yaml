@@ -13,8 +13,20 @@ security:
             pattern: ^/(_profiler|_wdt|assets|build)/
             security: false
 
+        # 🔧 LOGIN : authentification + génération JWT
+        # login:
+        #     pattern: ^/api/login$
+        #     stateless: true
+        #     json_login:
+        #         check_path: /api/login
+        #         username_path: email      # or as sent by the frontend
+        #         password_path: password
+        #         success_handler: lexik_jwt_authentication.handler.authentication_success
+        #         failure_handler: lexik_jwt_authentication.handler.authentication_failure
+
+        # 🔧 REGISTER & autres routes publiques (sans auth)
         public_api:
-            pattern: ^/api/(login|register|forgot-password|reset-password|subscription_plans|check-email)$
+            pattern: ^/api/(login|register|forgot-password|reset-password|check-email)$
             stateless: true
             security: false
 
