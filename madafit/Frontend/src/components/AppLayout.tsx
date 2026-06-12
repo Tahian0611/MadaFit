@@ -41,6 +41,7 @@ const ADMIN_NAV_ITEMS = [
   { icon: ClipboardList,   label: "Stock",            path: "/reports-stock" },
   { icon: BarChart3,       label: "Rapports",         path: "/reports" },
   { icon: HistoryIcon,     label: "Historique",       path: "/history" },
+  { icon: Tag,             label: "Code Promo",       path: "/promo-codes" },
   { icon: Newspaper,       label: "Articles",         path: "/articles" },
 ];
 
