@@ -2,7 +2,7 @@ import { useMemo, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   DollarSign, Users, UserCheck, Bell, TrendingUp, TrendingDown, Clock, Activity,
-  Receipt, Package, Calculator, Wallet, X
+  Receipt, Package, Calculator, Wallet, X, Search, Calendar, Filter, RotateCcw
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -152,6 +152,8 @@ export default function Dashboard() {
     data: any[];
   } | null>(null);
 
+  const [searchTerm, setSearchTerm] = useState("");
+
   const usersQuery = useQuery({
     queryKey: ["users"],
     queryFn: () => api.users.getAll({ itemsPerPage: 100 }),
@@ -209,12 +211,27 @@ export default function Dashboard() {
 
   const caisse1Stats = useMemo(
     () => computeCashierCAStats(payments, transactions, products, "caisse1"),
-    [paymentsQuery.data, transactionsQuery.data, productsQuery.data],
+    [payments, transactions, products],
   );
   const caisse2Stats = useMemo(
     () => computeCashierCAStats(payments, transactions, products, "caisse2"),
-    [paymentsQuery.data, transactionsQuery.data, productsQuery.data],
+    [payments, transactions, products],
   );
+
+  const filteredDetailData = useMemo(() => {
+    if (!activeDetail) return [];
+    let data = activeDetail.data;
+    if (searchTerm) {
+      const lower = searchTerm.toLowerCase();
+      data = data.filter(item => {
+        const designation = activeDetail.type === 'payments' 
+          ? item.memberName 
+          : (item.productName || (typeof item.product === 'object' ? item.product?.name : null) || 'Charge/Divers');
+        return designation?.toLowerCase().includes(lower);
+      });
+    }
+    return data;
+  }, [activeDetail, searchTerm]);
 
   const globalStats = useMemo(() => ({
     caTotal: caisse1Stats.caTotal + caisse2Stats.caTotal,
@@ -352,6 +369,7 @@ export default function Dashboard() {
                 <X size={20} />
               </button>
             </div>
+
             <div className="p-6 overflow-y-auto">
               <CashierCards 
                 title={activeCaisseModal === "caisse1" ? "Caisse 1 - Reception" : "Caisse 2 - Admin"} 
@@ -366,8 +384,8 @@ export default function Dashboard() {
 
       {/* ── Modal Détail (Compostition des chiffres) ──────────────── */}
       {activeDetail && (
-        <div className="fixed inset-0 z-[10000] h-full flex items-center justify-center bg-black/60 backdrop-blur-md p-0 sm:p-4 animate-in zoom-in !mt-0">
-          <div className="bg-card w-full max-w-4xl h-full sm:h-auto rounded-none sm:rounded-2xl shadow-2xl border border-primary/20 flex flex-col max-h-none sm:max-h-[85vh]">
+        <div className="fixed inset-0 z-[10000] h-full flex items-center justify-center bg-black/40 backdrop-blur-md p-0 sm:p-4 animate-in zoom-in !mt-0">
+          <div className="bg-card w-full max-w-4xl h-full sm:h-auto rounded-md sm:rounded-2xl border border-primary/20 flex flex-col max-h-none sm:max-h-[85vh]">
             <div className="flex items-center justify-between p-6 border-b border-border bg-muted/30">
               <div>
                 <h2 className="text-xl font-black flex items-center gap-2 text-foreground">
@@ -377,13 +395,59 @@ export default function Dashboard() {
                   Composition du montant
                 </p>
               </div>
+
+              {/* Barre de recherche uniquement */}
+              <div className="flex-1 max-w-md mx-6 hidden md:block">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Rechercher par nom ou désignation..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-background border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm hover:border-primary/30"
+                  />
+                  {searchTerm && (
+                    <button 
+                      onClick={() => setSearchTerm("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted rounded-full transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <button
-                onClick={() => setActiveDetail(null)}
+                onClick={() => {
+                  setActiveDetail(null);
+                  setSearchTerm("");
+                }}
                 className="p-2 hover:bg-destructive/10 hover:text-destructive rounded-full transition-all"
               >
                 <X size={24} />
               </button>
             </div>
+
+            {/* Barre de recherche uniquement (Mobile) */}
+            <div className="p-4 border-b border-border bg-muted/10 md:hidden">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Rechercher..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-background border border-border rounded-xl pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="p-0 overflow-y-auto">
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 bg-muted/90 backdrop-blur-md z-10">
@@ -395,32 +459,36 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {activeDetail.data.length > 0 ? (
-                    activeDetail.data.map((item, idx) => (
+                  {filteredDetailData.length > 0 ? (
+                    filteredDetailData.map((item, idx) => (
                       <tr key={idx} className="hover:bg-primary/5 transition-colors group">
                         <td className="p-4 text-xs font-bold text-muted-foreground whitespace-nowrap">
-                          {formatDate(item.date)}
+                          {formatDate((item as any).date)}
                         </td>
                         <td className="p-4">
                           <p className="text-sm font-black text-foreground">
-                            {activeDetail.type === 'payments' ? item.memberName : (item.productName || (typeof item.product === 'object' ? item.product?.name : null) || 'Charge/Divers')}
+                            {activeDetail.type === 'payments' ? (item as any).memberName : ((item as any).productName || (typeof (item as any).product === 'object' ? (item as any).product?.name : null) || 'Charge/Divers')}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
-                            {activeDetail.type === 'payments' ? (item.subscription || 'Abonnement') : `Type: ${item.type}`}
+                            {activeDetail.type === 'payments' ? ((item as any).subscription || 'Abonnement') : `Type: ${(item as any).type}`}
                           </p>
                         </td>
                         <td className="p-4 text-xs font-bold text-muted-foreground">
-                          {activeDetail.type === 'payments' ? item.method : `${item.quantity || 1} x ${formatCurrency(item.unitPrice)}`}
+                          {activeDetail.type === 'payments' ? (item as any).method : `${(item as any).quantity || 1} x ${formatCurrency((item as any).unitPrice)}`}
                         </td>
                         <td className="p-4 text-sm font-black text-primary text-right group-hover:scale-110 transition-transform origin-right">
-                          {formatCurrency(activeDetail.type === 'payments' ? item.amount : (item.quantity * (item.unitPrice || 0)))}
+                          {formatCurrency(activeDetail.type === 'payments' ? (item as any).amount : (((item as any).quantity || 0) * ((item as any).unitPrice || 0)))}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={4} className="p-12 text-center text-muted-foreground italic">
-                        Aucune donnée disponible pour cette sélection.
+                      <td colSpan={4} className="p-12 text-center text-muted-foreground">
+                        <div className="flex flex-col items-center gap-2 opacity-50">
+                           <Search size={40} className="mb-2" />
+                           <p className="font-bold">Aucun résultat trouvé</p>
+                           <p className="text-xs">Essayez d'autres mots-clés ou vérifiez l'orthographe.</p>
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -428,12 +496,17 @@ export default function Dashboard() {
               </table>
             </div>
             <div className="p-6 border-t border-border bg-muted/30 flex justify-between items-center">
-               <span className="text-xs font-bold text-muted-foreground uppercase">Total calculé</span>
-               <span className="text-2xl font-black text-primary">
-                 {formatCurrency(activeDetail.data.reduce((sum, item) => 
-                   sum + (activeDetail.type === 'payments' ? (item.amount || 0) : ((item.quantity || 0) * (item.unitPrice || 0))), 0)
-                 )}
-               </span>
+               <span className="text-xs font-bold text-muted-foreground uppercase">Total calculé ({filteredDetailData.length})</span>
+               <div className="text-right">
+                  {searchTerm && (
+                    <p className="text-[9px] text-muted-foreground uppercase font-black mb-1">Sur les résultats filtrés</p>
+                  )}
+                  <span className="text-2xl font-black text-primary">
+                    {formatCurrency(filteredDetailData.reduce((sum, item) => 
+                      sum + (activeDetail.type === 'payments' ? ((item as any).amount || 0) : (((item as any).quantity || 0) * ((item as any).unitPrice || 0))), 0)
+                    )}
+                  </span>
+               </div>
             </div>
           </div>
         </div>
