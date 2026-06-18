@@ -225,8 +225,8 @@ export default function Dashboard() {
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
       data = data.filter(item => {
-        const designation = activeDetail.type === 'payments' 
-          ? item.memberName 
+        const designation = activeDetail.type === 'payments'
+          ? item.memberName
           : (item.productName || (typeof item.product === 'object' ? item.product?.name : null) || 'Charge/Divers');
         return designation?.toLowerCase().includes(lower);
       });
@@ -257,18 +257,18 @@ export default function Dashboard() {
       {showCashierStats && (
         <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
           {isReception && !isAdmin && (
-            <div 
+            <div
               className="p-6 bg-card rounded-2xl border border-border shadow-lg cursor-pointer hover:border-primary/50 transition-all flex items-center justify-between group"
               onClick={() => setActiveCaisseModal("caisse1")}
             >
               <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                    <Wallet size={24} />
-                 </div>
-                 <div>
-                   <h2 className="font-bold text-foreground text-lg">Caisse 1</h2>
-                   <p className="text-sm text-muted-foreground">Reception</p>
-                 </div>
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <Wallet size={24} />
+                </div>
+                <div>
+                  <h2 className="font-bold text-foreground text-lg">Caisse 1</h2>
+                  <p className="text-sm text-muted-foreground">Reception</p>
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Chiffre d'affaires</p>
@@ -279,18 +279,18 @@ export default function Dashboard() {
 
           {isAdmin && (
             <>
-              <div 
+              <div
                 className="p-6 bg-card rounded-2xl border border-border shadow-lg cursor-pointer hover:border-primary/50 transition-all flex items-center justify-between group"
                 onClick={() => setActiveCaisseModal("caisse2")}
               >
                 <div className="flex items-center gap-4">
-                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                      <Wallet size={24} />
-                   </div>
-                   <div>
-                     <h2 className="font-bold text-foreground text-lg">Caisse 2</h2>
-                     <p className="text-sm text-muted-foreground">Admin</p>
-                   </div>
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                    <Wallet size={24} />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-foreground text-lg">Caisse 2</h2>
+                    <p className="text-sm text-muted-foreground">Admin</p>
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Chiffre d'affaires</p>
@@ -298,18 +298,18 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div 
+              <div
                 className="p-6 bg-card rounded-2xl border border-border shadow-lg cursor-pointer hover:border-primary/50 transition-all flex items-center justify-between group"
                 onClick={() => setActiveCaisseModal("caisse1")}
               >
                 <div className="flex items-center gap-4">
-                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                      <Wallet size={24} />
-                   </div>
-                   <div>
-                     <h2 className="font-bold text-foreground text-lg">Caisse 1</h2>
-                     <p className="text-sm text-muted-foreground">Reception</p>
-                   </div>
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                    <Wallet size={24} />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-foreground text-lg">Caisse 1</h2>
+                    <p className="text-sm text-muted-foreground">Reception</p>
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Chiffre d'affaires</p>
@@ -340,9 +340,8 @@ export default function Dashboard() {
             <p className="font-black text-2xl text-destructive">{formatCurrency(globalStats.depensesTotal)}</p>
           </div>
 
-          <div className={`p-5 rounded-2xl border shadow-md flex flex-col justify-center relative overflow-hidden group ${
-            globalStats.resultat >= 0 ? "bg-green-500/5 border-green-500/20" : "bg-red-500/5 border-red-500/20"
-          }`}>
+          <div className={`p-5 rounded-2xl border shadow-md flex flex-col justify-center relative overflow-hidden group ${globalStats.resultat >= 0 ? "bg-green-500/5 border-green-500/20" : "bg-red-500/5 border-red-500/20"
+            }`}>
             <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-125 transition-transform">
               <Calculator size={48} className={globalStats.resultat >= 0 ? "text-green-500" : "text-red-500"} />
             </div>
@@ -363,18 +362,32 @@ export default function Dashboard() {
                 <Wallet className="text-primary" />
                 {activeCaisseModal === "caisse1" ? "Détails Caisse 1 (Reception)" : "Détails Caisse 2 (Admin)"}
               </h2>
-              <button
-                onClick={() => setActiveCaisseModal(null)}
-                className="p-2 hover:bg-muted rounded-full transition-colors"
-              >
-                <X size={20} />
-              </button>
+
+              {/* -- My modifications start from that new <div> below --- Mirija -- */}
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button
+                  onClick={() => {
+                    console.log("Action: Effacer les mois précédents");
+                  }}
+                  className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-primary text-primary-foreground font-semibold text-sm shrink-0 sm:w-auto sm:px-4 hover:bg-primary/90 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100">
+                  Effacer les mois précédents
+                </button>
+
+                {/* - And I didn't touch the <button> below -- Mirija -*/}
+                <button
+                  onClick={() => setActiveCaisseModal(null)}
+                  className="p-2 hover:bg-muted rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              {/* -- And they stop here at this </div> --- Mirija -- */}
             </div>
 
             <div className="p-6 overflow-y-auto">
-              <CashierCards 
-                title={activeCaisseModal === "caisse1" ? "Caisse 1 - Reception" : "Caisse 2 - Admin"} 
-                stats={activeCaisseModal === "caisse1" ? caisse1Stats : caisse2Stats} 
+              <CashierCards
+                title={activeCaisseModal === "caisse1" ? "Caisse 1 - Reception" : "Caisse 2 - Admin"}
+                stats={activeCaisseModal === "caisse1" ? caisse1Stats : caisse2Stats}
                 isAdmin={isAdmin}
                 onDetail={(title, type, data) => setActiveDetail({ title, type, data })}
               />
@@ -401,15 +414,15 @@ export default function Dashboard() {
               <div className="flex-1 max-w-md mx-6 hidden md:block">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-                  <input 
-                    type="text" 
-                    placeholder="Rechercher par nom ou désignation..." 
+                  <input
+                    type="text"
+                    placeholder="Rechercher par nom ou désignation..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full bg-background border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm hover:border-primary/30"
                   />
                   {searchTerm && (
-                    <button 
+                    <button
                       onClick={() => setSearchTerm("")}
                       className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-muted rounded-full transition-colors"
                     >
@@ -434,9 +447,9 @@ export default function Dashboard() {
             <div className="p-4 border-b border-border bg-muted/10 md:hidden">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Rechercher..." 
+                <input
+                  type="text"
+                  placeholder="Rechercher..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full bg-background border border-border rounded-xl pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -460,35 +473,35 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                    {filteredDetailData.length > 0 ? (
-                      filteredDetailData.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-primary/5 transition-colors group">
-                          <td className="p-4 text-xs font-bold text-muted-foreground whitespace-nowrap">
-                            {formatDate((item as any).date)}
-                          </td>
-                          <td className="p-4">
-                            <p className="text-sm font-black text-foreground">
-                              {(item as any).memberName || (item as any).productName || 'Charge/Divers'}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {activeDetail.type === 'payments' ? ((item as any).subscription || 'Abonnement') : `Type: ${(item as any).type}`}
-                            </p>
-                          </td>
-                          <td className="p-4 text-xs font-bold text-muted-foreground">
-                            {activeDetail.type === 'payments' ? (item as any).method : `${(item as any).quantity || 1} x ${formatCurrency((item as any).unitPrice)}`}
-                          </td>
-                          <td className="p-4 text-sm font-black text-primary text-right group-hover:scale-110 transition-transform origin-right">
-                            {formatCurrency((item as any).amount)}
-                          </td>
-                        </tr>
-                      ))
+                  {filteredDetailData.length > 0 ? (
+                    filteredDetailData.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-primary/5 transition-colors group">
+                        <td className="p-4 text-xs font-bold text-muted-foreground whitespace-nowrap">
+                          {formatDate((item as any).date)}
+                        </td>
+                        <td className="p-4">
+                          <p className="text-sm font-black text-foreground">
+                            {(item as any).memberName || (item as any).productName || 'Charge/Divers'}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {activeDetail.type === 'payments' ? ((item as any).subscription || 'Abonnement') : `Type: ${(item as any).type}`}
+                          </p>
+                        </td>
+                        <td className="p-4 text-xs font-bold text-muted-foreground">
+                          {activeDetail.type === 'payments' ? (item as any).method : `${(item as any).quantity || 1} x ${formatCurrency((item as any).unitPrice)}`}
+                        </td>
+                        <td className="p-4 text-sm font-black text-primary text-right group-hover:scale-110 transition-transform origin-right">
+                          {formatCurrency((item as any).amount)}
+                        </td>
+                      </tr>
+                    ))
                   ) : (
                     <tr>
                       <td colSpan={4} className="p-12 text-center text-muted-foreground">
                         <div className="flex flex-col items-center gap-2 opacity-50">
-                           <Search size={40} className="mb-2" />
-                           <p className="font-bold">Aucun résultat trouvé</p>
-                           <p className="text-xs">Essayez d'autres mots-clés ou vérifiez l'orthographe.</p>
+                          <Search size={40} className="mb-2" />
+                          <p className="font-bold">Aucun résultat trouvé</p>
+                          <p className="text-xs">Essayez d'autres mots-clés ou vérifiez l'orthographe.</p>
                         </div>
                       </td>
                     </tr>
@@ -497,15 +510,15 @@ export default function Dashboard() {
               </table>
             </div>
             <div className="p-6 border-t border-border bg-muted/30 flex justify-between items-center">
-               <span className="text-xs font-bold text-muted-foreground uppercase">Total calculé ({filteredDetailData.length})</span>
-               <div className="text-right">
-                  {searchTerm && (
-                    <p className="text-[9px] text-muted-foreground uppercase font-black mb-1">Sur les résultats filtrés</p>
-                  )}
-                  <span className="text-2xl font-black text-primary">
-                    {formatCurrency(filteredDetailData.reduce((sum, item) => sum + ((item as any).amount || 0), 0))}
-                  </span>
-               </div>
+              <span className="text-xs font-bold text-muted-foreground uppercase">Total calculé ({filteredDetailData.length})</span>
+              <div className="text-right">
+                {searchTerm && (
+                  <p className="text-[9px] text-muted-foreground uppercase font-black mb-1">Sur les résultats filtrés</p>
+                )}
+                <span className="text-2xl font-black text-primary">
+                  {formatCurrency(filteredDetailData.reduce((sum, item) => sum + ((item as any).amount || 0), 0))}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -567,11 +580,11 @@ export default function Dashboard() {
                 <AreaChart data={stats.monthlyData}>
                   <defs>
                     <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="colorAtt" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#8884d8" stopOpacity={0.3} />
+                      <stop offset="5%" stopColor="#8884d8" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
                     </linearGradient>
                   </defs>
@@ -591,8 +604,8 @@ export default function Dashboard() {
                       v >= 1_000_000
                         ? `${(v / 1_000_000).toFixed(1)}M`
                         : v >= 1000
-                        ? `${(v / 1000).toFixed(0)}k`
-                        : String(v)
+                          ? `${(v / 1000).toFixed(0)}k`
+                          : String(v)
                     }
                   />
                   <YAxis
@@ -825,7 +838,7 @@ function CashierCards({
   onDetail: (title: string, type: 'payments' | 'transactions', data: any[]) => void;
 }) {
   const { caTotal, subscriptionTotal, sortiesTotal, depensesTotal, achatsTotal, entriesTotal, resultat, productMap } = stats;
-  
+
   // Fonctions de filtrage pour les détails
   // Note: On suppose que computeCashierCAStats stocke les éléments filtrés ou on les refiltre ici
   // Pour plus de simplicité et performance, on va passer les données brutes filtrées
@@ -851,15 +864,15 @@ function CashierCards({
           iconColorClass="text-success"
           iconBgClass="bg-success/10 group-hover:bg-success"
           onClick={() => {
-             // CA = Subscriptions + Sorties
-             onDetail("Chiffre d'Affaires Global", 'payments', [
-               ...stats.items.payments, 
-               ...stats.items.sorties.map(s => {
-                 const pId = extractIdFromIri(s.product);
-                 const pName = pId ? (productMap as any)[pId]?.name : (typeof s.product === 'object' ? (s.product as any)?.name : null);
-                 return {...s, amount: (s.quantity || 0) * (s.unitPrice || 0), memberName: pName || 'Vente produit'};
-               })
-             ]);
+            // CA = Subscriptions + Sorties
+            onDetail("Chiffre d'Affaires Global", 'payments', [
+              ...stats.items.payments,
+              ...stats.items.sorties.map(s => {
+                const pId = extractIdFromIri(s.product);
+                const pName = pId ? (productMap as any)[pId]?.name : (typeof s.product === 'object' ? (s.product as any)?.name : null);
+                return { ...s, amount: (s.quantity || 0) * (s.unitPrice || 0), memberName: pName || 'Vente produit' };
+              })
+            ]);
           }}
         />
         <StatCard
@@ -981,7 +994,7 @@ function StatCard({
 }) {
   const isPositive = trend !== undefined && trend > 0;
   return (
-    <div 
+    <div
       className={`stat-card group hover:-translate-y-1 hover:border-primary/40 transition-all duration-300 ${onClick ? "cursor-pointer" : ""} ${className}`}
       onClick={onClick}
     >
@@ -990,9 +1003,8 @@ function StatCard({
           <Icon size={20} className={`${iconColorClass} group-hover:text-white transition-colors`} />
         </div>
         {trend !== undefined && (
-          <div className={`flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full ${
-            isPositive ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
-          }`}>
+          <div className={`flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full ${isPositive ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
+            }`}>
             {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
             {isPositive ? "+" : ""}{trend}{trendSuffix}
           </div>
