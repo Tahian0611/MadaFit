@@ -1,0 +1,33 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # =========================================================================
+    # 0. FORCER LE HTTPS globalement
+    # =========================================================================
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # =========================================================================
+    # 1. Laisser passer les fichiers/dossiers réels (images, CSS, JS React)
+    # =========================================================================
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # =========================================================================
+    # 2. Servir les images uploadées depuis backend/public/uploads/
+    #    Ex: /uploads/articles/photo-xxx.jpg → backend/public/uploads/articles/photo-xxx.jpg
+    # =========================================================================
+    RewriteRule ^uploads/(.*)$ backend/public/uploads/$1 [L]
+
+    # =========================================================================
+    # 3. Rediriger /api/* vers Symfony
+    # =========================================================================
+    RewriteRule ^api/(.*)$ backend/public/index.php/$1 [QSA,L]
+
+    # =========================================================================
+    # 4. Tout le reste → React SPA
+    # =========================================================================
+    RewriteRule ^ index.html [L]
+</IfModule>

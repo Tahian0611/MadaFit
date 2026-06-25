@@ -1,0 +1,313 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Bebas+Neue&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* MadaFit Design System */
+    --background: 220 15% 96%;
+    --foreground: 220 20% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 8%;
+
+    /* Primary - Energetic Red */
+    --primary: 4 85% 48%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 4 90% 60%;
+    --primary-dark: 4 85% 35%;
+
+    /* Secondary - Deep Dark */
+    --secondary: 220 18% 12%;
+    --secondary-foreground: 0 0% 95%;
+
+    /* Muted */
+    --muted: 220 12% 92%;
+    --muted-foreground: 220 10% 50%;
+
+    /* Accent - Active Green */
+    --accent: 142 70% 42%;
+    --accent-foreground: 0 0% 100%;
+    --accent-glow: 142 70% 55%;
+
+    /* Sidebar */
+    --sidebar-bg: 220 20% 6%;
+    --sidebar-fg: 220 10% 85%;
+    --sidebar-border: 220 15% 15%;
+    --sidebar-active: 4 85% 48%;
+    --sidebar-hover: 220 15% 14%;
+    --sidebar-width: 260px;
+    --sidebar-collapsed-width: 72px;
+
+    /* Status colors */
+    --status-active: 142 70% 42%;
+    --status-expired: 4 85% 48%;
+    --status-suspended: 45 90% 50%;
+    --status-pending: 220 60% 55%;
+
+    /* UI */
+    --border: 220 15% 88%;
+    --input: 220 15% 94%;
+    --ring: 4 85% 48%;
+    --radius: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.25rem;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 3px hsl(220 20% 8% / 0.08), 0 1px 2px hsl(220 20% 8% / 0.05);
+    --shadow-md: 0 4px 12px hsl(220 20% 8% / 0.10), 0 2px 6px hsl(220 20% 8% / 0.06);
+    --shadow-lg: 0 8px 24px hsl(220 20% 8% / 0.12), 0 4px 10px hsl(220 20% 8% / 0.08);
+    --shadow-red: 0 4px 20px hsl(4 85% 48% / 0.35);
+    --shadow-green: 0 4px 20px hsl(142 70% 42% / 0.30);
+
+    /* Gradients */
+    --gradient-red: linear-gradient(135deg, hsl(4 85% 48%), hsl(15 90% 55%));
+    --gradient-dark: linear-gradient(135deg, hsl(220 20% 8%), hsl(220 18% 14%));
+    --gradient-sidebar: linear-gradient(180deg, hsl(220 22% 7%) 0%, hsl(220 18% 5%) 100%);
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%) 0%, hsl(220 15% 98%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(4 85% 48%) 0%, hsl(4 85% 35%) 100%);
+    --gradient-green: linear-gradient(135deg, hsl(142 70% 42%), hsl(160 65% 38%));
+
+    /* Destructive */
+    --destructive: 4 85% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Sidebar tokens for shadcn compat */
+    --sidebar-background: 220 20% 6%;
+    --sidebar-foreground: 220 10% 85%;
+    --sidebar-primary: 4 85% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 14%;
+    --sidebar-accent-foreground: 220 10% 85%;
+    --sidebar-border: 220 15% 15%;
+    --sidebar-ring: 4 85% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  /* Stat Cards */
+  .stat-card {
+    @apply relative overflow-hidden rounded-xl bg-card border border-border p-5;
+    box-shadow: var(--shadow-md);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+  .stat-card-red {
+    background: var(--gradient-hero);
+    @apply text-white border-0;
+    box-shadow: var(--shadow-red);
+  }
+  .stat-card-green {
+    background: var(--gradient-green);
+    @apply text-white border-0;
+    box-shadow: var(--shadow-green);
+  }
+  .stat-card-dark {
+    background: var(--gradient-dark);
+    @apply text-white border-0;
+  }
+
+  /* Status badges */
+  .badge-active {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    background: hsl(142 70% 42% / 0.12);
+    color: hsl(var(--accent));
+    border: 1px solid hsl(142 70% 42% / 0.25);
+  }
+  .badge-expired {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    background: hsl(4 85% 48% / 0.12);
+    color: hsl(var(--primary));
+    border: 1px solid hsl(4 85% 48% / 0.25);
+  }
+  .badge-suspended {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    background: hsl(45 90% 50% / 0.15);
+    color: hsl(35 85% 40%);
+    border: 1px solid hsl(45 90% 50% / 0.30);
+  }
+
+  /* Table styles */
+  .data-table {
+    @apply w-full text-sm;
+  }
+  .data-table th {
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide;
+    color: hsl(var(--muted-foreground));
+    border-bottom: 1px solid hsl(var(--border));
+  }
+  .data-table td {
+    @apply px-4 py-3.5;
+    border-bottom: 1px solid hsl(var(--border) / 0.6);
+  }
+  .data-table tr:hover td {
+    background: hsl(var(--primary) / 0.03);
+  }
+  .data-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Sidebar nav items */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150;
+    color: hsl(var(--sidebar-fg));
+  }
+  .nav-item:hover {
+    background: hsl(var(--sidebar-hover));
+    color: hsl(0 0% 100%);
+  }
+  .nav-item.active {
+    background: hsl(var(--primary));
+    color: hsl(0 0% 100%);
+    box-shadow: var(--shadow-red);
+  }
+  .nav-item-icon {
+    @apply flex-shrink-0;
+    width: 18px;
+    height: 18px;
+  }
+
+  /* RFID scanner pulse */
+  .rfid-pulse {
+    animation: rfid-pulse 2s ease-in-out infinite;
+  }
+  @keyframes rfid-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); }
+    50% { box-shadow: 0 0 0 16px hsl(var(--primary) / 0); }
+  }
+
+  .rfid-pulse-green {
+    animation: rfid-pulse-green 2s ease-in-out infinite;
+  }
+  @keyframes rfid-pulse-green {
+    0%, 100% { box-shadow: 0 0 0 0 hsl(142 70% 42% / 0.4); }
+    50% { box-shadow: 0 0 0 16px hsl(142 70% 42% / 0); }
+  }
+
+  /* Page header */
+  .page-header {
+    @apply mb-6;
+  }
+  .page-title {
+    @apply text-2xl font-bold tracking-tight;
+    color: hsl(var(--foreground));
+  }
+  .page-subtitle {
+    @apply text-sm mt-0.5;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Search input */
+  .search-input {
+    @apply w-full pl-10 pr-4 py-2.5 rounded-lg border text-sm transition-all duration-150;
+    background: hsl(var(--card));
+    border-color: hsl(var(--border));
+    outline: none;
+  }
+  .search-input:focus {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.10);
+  }
+
+  /* Settings input */
+  .settings-input {
+    @apply w-full px-3 py-2.5 rounded-lg border text-sm transition-all duration-150;
+    background: hsl(var(--card));
+    border-color: hsl(var(--border));
+    outline: none;
+    color: hsl(var(--foreground));
+  }
+  .settings-input:focus {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.10);
+  }
+
+  /* Animations */
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .animate-scale-in { animation: scale-in 0.2s ease-out; }
+
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .animate-slide-in { animation: slide-in 0.25s ease-out; }
+
+  @keyframes scan-line {
+    0% { top: 0%; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .animate-scan-line {
+    animation: scan-line 3s linear infinite;
+    position: absolute;
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 10s linear infinite;
+  }
+
+  /* Nettoyage interface Scanner QR */
+  #qr-reader img { display: none !important; }
+  #qr-reader video { 
+    border-radius: 20px !important; 
+    object-fit: cover !important; 
+    width: 100% !important; 
+    height: 100% !important; 
+  }
+  #qr-reader__dashboard { display: none !important; }
+  #qr-reader__status_span { display: none !important; }
+  #qr-reader { border: none !important; }
+  #qr-shaded-region { display: none !important; }
+  #qr-reader__scan_region { width: 100% !important; height: 100% !important; }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in { animation: fade-in 0.3s ease-out; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
+}

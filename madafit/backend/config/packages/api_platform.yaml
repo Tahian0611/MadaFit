@@ -1,0 +1,17 @@
+api_platform:
+    title: MadaFit API
+    version: 1.0.0
+    formats:
+        jsonld: ['application/ld+json']
+        json: ['application/json']
+    patch_formats:
+        json: ['application/merge-patch+json']
+    error_formats:
+        jsonproblem: ['application/problem+json']
+        jsonld: ['application/ld+json']
+    defaults:
+        stateless: true
+        pagination_client_items_per_page: true
+        pagination_items_per_page: 20
+        cache_headers:
+            vary: ['Content-Type', 'Authorization', 'Origin']
