@@ -1,0 +1,51 @@
+name: MadaFit Build
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  build-apk:
+    name: Build APK Flutter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: 'stable'
+      - run: flutter pub get
+        working-directory: ./apk_madafit
+      - run: dart run flutter_launcher_icons:main
+        working-directory: ./apk_madafit
+      - run: flutter build apk --release
+        working-directory: ./apk_madafit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: madafit-apk
+          path: apk_madafit/build/app/outputs/flutter-apk/app-release.apk
+
+  build-react-web:
+    name: Build React Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: madafit/Frontend/package-lock.json
+      - run: npm ci
+        working-directory: ./madafit/Frontend
+      - run: npm run build
+        working-directory: ./madafit/Frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name: madafit-react-web
+          path: madafit/Frontend/build
