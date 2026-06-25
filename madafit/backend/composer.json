@@ -1,4 +1,6 @@
 {
+    "name": "madafit/backend",
+    "description": "MadaFit gym management backend",
     "type": "project",
     "license": "proprietary",
     "minimum-stability": "stable",
