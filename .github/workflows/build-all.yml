@@ -7,7 +7,7 @@ on:
     branches: [main, master, develop]
 
 jobs:
-  build-apk:
+    build-apk:
     name: Build APK Flutter
     runs-on: ubuntu-latest
     steps:
@@ -18,7 +18,7 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
+          flutter-version: '3.44.4'  # ← CHANGÉ de 3.22.0 à 3.44.4
           channel: 'stable'
       - run: flutter pub get
         working-directory: ./apk_madafit
