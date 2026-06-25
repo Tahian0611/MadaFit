@@ -1,7 +1,7 @@
 import { QRCodeSVG } from "qrcode.react";
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Wifi, QrCode, UserCheck, UserX, Clock, X, History, Maximize2, Minimize2, BarChart3, Calendar, Download, FileText, Activity, Users, LogIn, Lock, Unlock } from "lucide-react";
+import { Search, Wifi, QrCode, UserCheck, UserX, Clock, X, History, Maximize2, Minimize2, BarChart3, Calendar, Download, FileText, Activity, Users, LogIn, Lock, Unlock, Bell } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { toast } from "sonner";
 import { createPortal } from "react-dom";
@@ -23,8 +23,130 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+/* ═══════════════════════════════════════════════════════════════════════
+   COMPOSANT SCANNER ISOLÉ
+   Démarre/arrête proprement la caméra à chaque mount/unmount.
+   La key différente selon le mode force React à démonter/remonter
+   le composant quand on passe admin ↔ kiosk, ce qui détruit et
+   recrée proprement le flux vidéo sur le bon élément DOM.
+   ═══════════════════════════════════════════════════════════════════════ */
+function QrScanner({
+  usersRef,
+  attendanceRef,
+  checkInMutationRef,
+  checkOutMutationRef,
+  handleNewScan,
+}: {
+  usersRef: React.MutableRefObject<User[]>;
+  attendanceRef: React.MutableRefObject<AttendanceRecord[]>;
+  checkInMutationRef: React.MutableRefObject<any>;
+  checkOutMutationRef: React.MutableRefObject<any>;
+  handleNewScan: (foundUser: User, timeStr: string) => void;
+}) {
+  useEffect(() => {
+    let scanner: Html5Qrcode | null = null;
+
+    const startScanner = async () => {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const element = document.getElementById("qr-reader");
+        if (!element) return;
+
+        scanner = new Html5Qrcode("qr-reader");
+
+        await scanner.start(
+          { facingMode: "user" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText) => {
+            if (decodedText.startsWith("MADAFIT:")) {
+              const memberId = decodedText.replace("MADAFIT:", "");
+              const foundUser = usersRef.current.find((u) => u.memberId === memberId);
+              if (foundUser) {
+                const nowObj = new Date();
+                const timeStr = nowObj.toTimeString().split(" ")[0];
+                const dateStr = `${nowObj.getFullYear()}-${String(nowObj.getMonth() + 1).padStart(2, '0')}-${String(nowObj.getDate()).padStart(2, '0')}`;
+
+                handleNewScan(foundUser, timeStr);
+
+                const currentAttendance = attendanceRef.current;
+                const userRecords = currentAttendance
+                  .filter((a) => extractIdFromIri(a.user) === foundUser.id)
+                  .sort((a, b) => {
+                    const timeA = `${a.date}T${a.checkIn || "00:00:00"}`;
+                    const timeB = `${b.date}T${b.checkIn || "00:00:00"}`;
+                    return timeB.localeCompare(timeA);
+                  });
+                
+                const latestRecord = userRecords[0]; 
+
+                let shouldCheckOut = false;
+                if (latestRecord && !latestRecord.checkOut) {
+                  const recordDate = new Date(latestRecord.date);
+                  const recordTime = latestRecord.checkIn || "00:00:00";
+                  if (recordTime.includes(":")) {
+                    const [h, m, s] = recordTime.split(":").map(Number);
+                    recordDate.setHours(h || 0, m || 0, s || 0);
+                  }
+                  
+                  const diffHours = (nowObj.getTime() - recordDate.getTime()) / (1000 * 60 * 60);
+                  if (diffHours >= 0 && diffHours < 15) {
+                    shouldCheckOut = true;
+                  }
+                }
+
+                if (shouldCheckOut && latestRecord && latestRecord.id) {
+                  checkOutMutationRef.current.mutate({
+                    id: latestRecord.id,
+                    data: { checkOut: timeStr },
+                  });
+                } else {
+                  checkInMutationRef.current.mutate({
+                    user: `/api/users/${foundUser.id}`,
+                    memberId: foundUser.memberId || "",
+                    memberName: getFullName(foundUser),
+                    rfidCard: foundUser.rfidCard || "",
+                    date: dateStr,
+                    checkIn: timeStr,
+                  });
+                }
+              }
+            }
+          },
+          () => {}
+        );
+      } catch (err) {
+        console.error("Erreur scanner QR:", err);
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      if (scanner) {
+        try {
+          if (scanner.isScanning) scanner.stop().catch(() => {});
+        } catch (e) {
+          // silence
+        }
+      }
+    };
+  }, []);
+
+  return (
+    <div
+      id="qr-reader"
+      className="absolute inset-0 w-full h-full object-cover opacity-80"
+      style={{ border: "none" }}
+    />
+  );
+}
+
 export default function AccessControl() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [scannedUser, setScannedUser] = useState<User | null>(null);
+  const [pendingScans, setPendingScans] = useState<User[]>([]);
+  const [currentScanTime, setCurrentScanTime] = useState<string | null>(null);
+  
   const [search, setSearch] = useState("");
   const [lastScan, setLastScan] = useState<AttendanceRecord | null>(null);
   const [showMemberModal, setShowMemberModal] = useState(false);
@@ -51,13 +173,21 @@ export default function AccessControl() {
       return false;
     }
   }, []);
-  const qrScannerRef = useRef<Html5Qrcode | null>(null);
   const [isKioskMode, setIsKioskMode] = useState(false);
   const [isScreenLocked, setIsScreenLocked] = useState(false);
   const [showLockButton, setShowLockButton] = useState(true);
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [currentScanTime, setCurrentScanTime] = useState<string | null>(null);
   const lastScanTime = useRef<number>(0);
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     REFS pour stabiliser le scanner — ne doivent pas causer de re-render
+     ═══════════════════════════════════════════════════════════════════════ */
+  const selectedUserRef = useRef<User | null>(null);
+  const attendanceRef = useRef<AttendanceRecord[]>([]);
+  const isKioskModeRef = useRef<boolean>(false);
+  const checkInMutationRef = useRef<any>(null);
+  const checkOutMutationRef = useRef<any>(null);
+  const usersRef = useRef<User[]>([]);
 
   useEffect(() => {
     const resetIdleTimer = () => {
@@ -128,105 +258,70 @@ export default function AccessControl() {
   const users = extractHydraMembers(usersQuery.data) as User[];
   const attendance = extractHydraMembers(attendanceQuery.data) as AttendanceRecord[];
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     SYNCHRONISATION DES REFS avec les states React
+     ═══════════════════════════════════════════════════════════════════════ */
   useEffect(() => {
-    let scanner: Html5Qrcode | null = null;
+    selectedUserRef.current = selectedUser;
+  }, [selectedUser]);
 
-    const startScanner = async () => {
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        const element = document.getElementById("qr-reader");
-        if (!element) return;
+  useEffect(() => {
+    attendanceRef.current = attendance;
+  }, [attendance]);
 
-        scanner = new Html5Qrcode("qr-reader");
-        qrScannerRef.current = scanner;
+  useEffect(() => {
+    isKioskModeRef.current = isKioskMode;
+  }, [isKioskMode]);
 
-        await scanner.start(
-          { facingMode: "user" },
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          (decodedText) => {
-            if (decodedText.startsWith("MADAFIT:")) {
-              const now = Date.now();
-              if (now - lastScanTime.current < 5000) return;
+  useEffect(() => {
+    checkInMutationRef.current = checkInMutation;
+  }, [checkInMutation]);
 
-              const memberId = decodedText.replace("MADAFIT:", "");
-              const foundUser = users.find((u) => u.memberId === memberId);
-              if (foundUser) {
-                lastScanTime.current = now;
-                const nowObj = new Date();
-                const timeStr = nowObj.toTimeString().split(" ")[0];
-                const dateStr = `${nowObj.getFullYear()}-${String(nowObj.getMonth() + 1).padStart(2, '0')}-${String(nowObj.getDate()).padStart(2, '0')}`;
+  useEffect(() => {
+    checkOutMutationRef.current = checkOutMutation;
+  }, [checkOutMutation]);
 
-                setSelectedUser(foundUser);
-                setCurrentScanTime(timeStr);
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
 
-                // Logique de Toggle: On ne regarde QUE le record le plus récent
-                const userRecords = attendance
-                  .filter((a) => extractIdFromIri(a.user) === foundUser.id)
-                  .sort((a, b) => {
-                    const timeA = `${a.date}T${a.checkIn || "00:00:00"}`;
-                    const timeB = `${b.date}T${b.checkIn || "00:00:00"}`;
-                    return timeB.localeCompare(timeA);
-                  });
-                
-                // Le premier est maintenant contractuellement le plus récent
-                const latestRecord = userRecords[0]; 
+  useEffect(() => {
+    if (scannedUser) {
+      const timer = setTimeout(() => {
+        setScannedUser(null);
+        setCurrentScanTime(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [scannedUser]);
 
-                let shouldCheckOut = false;
-                if (latestRecord && !latestRecord.checkOut) {
-                  // On vérifie quand même que le record n'est pas trop vieux (max 15h)
-                  const recordDate = new Date(latestRecord.date);
-                  const recordTime = latestRecord.checkIn || "00:00:00";
-                  if (recordTime.includes(":")) {
-                    const [h, m, s] = recordTime.split(":").map(Number);
-                    recordDate.setHours(h || 0, m || 0, s || 0);
-                  }
-                  
-                  const diffHours = (now - recordDate.getTime()) / (1000 * 60 * 60);
-                  if (diffHours >= 0 && diffHours < 15) {
-                    shouldCheckOut = true;
-                  }
-                }
+  /* ═══════════════════════════════════════════════════════════════════════
+     handleNewScan — UTILISE UNIQUEMENT DES REFS, aucun state React dans deps
+     ═══════════════════════════════════════════════════════════════════════ */
+  const handleNewScan = useCallback((foundUser: User, timeStr: string) => {
+    const now = Date.now();
+    if (now - lastScanTime.current < 5000) return;
+    lastScanTime.current = now;
 
-                if (shouldCheckOut && latestRecord && latestRecord.id) {
-                  checkOutMutation.mutate({
-                    id: latestRecord.id,
-                    data: { checkOut: timeStr },
-                  });
-                } else {
-                  // On crée une NOUVELLE entrée si le dernier record est déjà fermé
-                  // ou s'il n'y a pas de record du tout.
-                  checkInMutation.mutate({
-                    user: `/api/users/${foundUser.id}`,
-                    memberId: foundUser.memberId || "",
-                    memberName: getFullName(foundUser),
-                    rfidCard: foundUser.rfidCard || "",
-                    date: dateStr,
-                    checkIn: timeStr,
-                  });
-                }
-              }
-            }
-          },
-          () => {}
-        );
-      } catch (err) {
-        console.error("Erreur scanner QR:", err);
-      }
-    };
+    setScannedUser(foundUser);
+    setCurrentScanTime(timeStr);
 
-    if (users.length > 0) startScanner();
+    if (isKioskModeRef.current) {
+      return;
+    }
 
-    return () => {
-      if (scanner) {
-        try {
-          if (scanner.isScanning) scanner.stop().catch(() => {});
-        } catch (e) {
-          // silence
-        }
-        qrScannerRef.current = null;
-      }
-    };
-  }, [users.length, isKioskMode]);
+    const currentSelectedUser = selectedUserRef.current;
+
+    if (currentSelectedUser && currentSelectedUser.id !== foundUser.id) {
+      setPendingScans((prev) => {
+        const filtered = prev.filter((u) => u.id !== foundUser.id);
+        const updated = [foundUser, ...filtered].slice(0, 5);
+        return updated;
+      });
+    } else if (!currentSelectedUser) {
+      setSelectedUser(foundUser);
+    }
+  }, []);
 
   const toggleFullScreen = () => {
     setIsKioskMode(!isKioskMode);
@@ -242,18 +337,12 @@ export default function AccessControl() {
     );
   }, [users, search]);
 
-  // Timer pour réinitialiser l'affichage après un scan
-  useEffect(() => {
-    if (selectedUser) {
-      const timer = setTimeout(() => {
-        setSelectedUser(null);
-        setCurrentScanTime(null);
-      }, 5000); // Réduit à 5 secondes pour une meilleure réactivité
-      return () => clearTimeout(timer);
-    }
-  }, [selectedUser]);
-
-  const displayUser = selectedUser; // On n'affiche plus le dernier scan par défaut
+  /* ═══════════════════════════════════════════════════════════════════════
+     displayUser différencié selon le mode
+     Mode kiosk = scannedUser uniquement (pas de fallback sur selectedUser)
+     Mode admin = scannedUser prioritaire, sinon selectedUser
+     ═══════════════════════════════════════════════════════════════════════ */
+  const displayUser = isKioskMode ? scannedUser : (scannedUser ?? selectedUser);
 
   const isAccessDenied = displayUser && !isMemberAccessAuthorized(displayUser as User);
 
@@ -310,21 +399,17 @@ export default function AccessControl() {
   }), [attendance, todayStr]);
 
   const membersInRoomToday = useMemo(() => {
-    // 1. On regroupe par utilisateur pour ne garder que le passage le plus récent
     const latestRecordsByUser = new Map<number, AttendanceRecord>();
     
     attendance.forEach(r => {
       const userId = extractIdFromIri(r.user);
       if (!userId) return;
       
-      // On garde le record avec l'ID le plus grand (le plus récent si l'API trie par ID)
-      // Ou on compare les dates si possible. L'API renvoie généralement par date DESC.
       if (!latestRecordsByUser.has(userId)) {
         latestRecordsByUser.set(userId, r);
       }
     });
 
-    // 2. On compte ceux dont le record le plus récent n'a pas de checkOut et est "frais"
     let count = 0;
     const now = new Date();
     
@@ -339,7 +424,7 @@ export default function AccessControl() {
       }
       
       const diffHours = (now.getTime() - recordDate.getTime()) / (1000 * 60 * 60);
-      if (diffHours >= 0 && diffHours < 15) { // Fenêtre réduite à 15h pour plus de précision
+      if (diffHours >= 0 && diffHours < 15) {
         count++;
       }
     });
@@ -348,10 +433,9 @@ export default function AccessControl() {
   }, [attendance]);
 
   const totalPassagesToday = todayAttendance.length;
-  const todayUniqueMembers = Array.from(new Set(todayAttendance.map(r => extractIdFromIri(r.user)).filter(Boolean))).length;
+  const todayUniqueMembers = Array.from(new Set(todayAttendance.map(r => extractIdFromIri(r.user)).filter(Boolean))).size;
   const yesterdayData = historyData[historyData.length - 2] || { passages: 0, uniques: 0 };
 
-  // ── STATISTIQUES MENSUELLES (ADMIN UNIQUEMENT) ──────────────────────
   const dateRange = useMemo(() => {
     const [year, month] = selectedMonth.split("-").map(Number);
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -509,14 +593,12 @@ export default function AccessControl() {
     doc.save(`madafit-passages-${selectedMonth}.pdf`);
   };
 
-  // ── CONTENU DU SCANNER (REUTILISABLE) ──────────────────────────────────
   const renderScannerContent = () => (
     <div 
       className={`flex flex-col md:flex-row h-full w-full bg-card overflow-hidden relative ${
         isKioskMode ? "" : "rounded-2xl border border-border/50 shadow-xl"
       }`}
     >
-      {/* Bouton pour activer/quitter le plein écran */}
       <button
         onClick={toggleFullScreen}
         className="absolute top-4 right-4 z-[60] p-2.5 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60 transition-all shadow-lg"
@@ -525,12 +607,14 @@ export default function AccessControl() {
         {isKioskMode ? <X size={18} /> : <Maximize2 size={18} />}
       </button>
 
-      {/* Partie Gauche : Scanner QR */}
       <div className="relative bg-black w-full md:w-[45%] min-h-[250px] md:min-h-full flex items-center justify-center overflow-hidden border-b md:border-b-0 md:border-r border-border/50">
-        <div
-          id="qr-reader"
-          className="absolute inset-0 w-full h-full object-cover opacity-80"
-          style={{ border: "none" }}
+        <QrScanner
+          key={isKioskMode ? "kiosk-scanner" : "admin-scanner"}
+          usersRef={usersRef}
+          attendanceRef={attendanceRef}
+          checkInMutationRef={checkInMutationRef}
+          checkOutMutationRef={checkOutMutationRef}
+          handleNewScan={handleNewScan}
         />
         <div className="absolute inset-0 z-10 pointer-events-none border border-primary/20">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 sm:w-56 sm:h-56 border-2 border-primary/40 rounded-2xl">
@@ -546,7 +630,6 @@ export default function AccessControl() {
         </div>
       </div>
 
-      {/* Partie Droite : Infos Membre */}
       <div
         className={`w-full md:w-[55%] p-5 md:p-7 flex flex-col justify-between bg-gradient-to-br from-card via-card to-muted/20 relative transition-all duration-300 ${
           isAccessDenied ? "access-denied-flash" : ""
@@ -598,11 +681,11 @@ export default function AccessControl() {
                       <Clock size={14} />
                     </div>
                     <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.1em]">
-                      {currentScanTime ? (attendance.find(a => !a.checkOut && extractIdFromIri(a.user) === displayUser?.id) ? "Heure de Sortie" : "Heure d'Entrée") : "Dernier passage"}
+                      {currentScanTime && scannedUser?.id === displayUser.id ? (attendance.find(a => !a.checkOut && extractIdFromIri(a.user) === displayUser?.id) ? "Heure de Sortie" : "Heure d'Entrée") : "Dernier passage"}
                     </p>
                   </div>
                   <p className="font-black text-foreground text-base pl-1">
-                    {formatTime(currentScanTime || (lastScan?.checkOut || lastScan?.checkIn))}
+                    {currentScanTime && scannedUser?.id === displayUser.id ? formatTime(currentScanTime) : formatTime(lastScan?.checkOut || lastScan?.checkIn)}
                   </p>
                 </div>
 
@@ -695,6 +778,64 @@ export default function AccessControl() {
     </div>
   );
 
+  const renderPendingNotifications = () => {
+    if (isKioskMode || pendingScans.length === 0) return null;
+    
+    const visibleScans = pendingScans.slice(0, 3);
+    const remainingCount = Math.max(0, pendingScans.length - 3);
+
+    return (
+      <div className="fixed bottom-20 right-6 z-[100] flex flex-col gap-2 max-w-[320px]">
+        {visibleScans.map((user, index) => (
+          <div 
+            key={`${user.id}-${index}`}
+            className="bg-card border border-border/50 shadow-xl rounded-xl p-3 animate-in slide-in-from-right duration-300"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
+                <Bell size={14} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-foreground truncate">
+                  {getFullName(user)}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  vient de scanner
+                </p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => {
+                    setSelectedUser(user);
+                    setPendingScans((prev) => prev.filter((u) => u.id !== user.id));
+                  }}
+                  className="px-2 py-1 rounded-lg bg-primary text-white text-[10px] font-bold hover:bg-primary/90 transition-colors"
+                >
+                  Vérifier
+                </button>
+                <button
+                  onClick={() => {
+                    setPendingScans((prev) => prev.filter((u) => u.id !== user.id));
+                  }}
+                  className="px-2 py-1 rounded-lg bg-muted text-muted-foreground text-[10px] font-bold hover:bg-muted/80 transition-colors"
+                >
+                  Plus tard
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {remainingCount > 0 && (
+          <div className="bg-muted/80 border border-border/30 rounded-lg px-3 py-1.5 text-center">
+            <p className="text-[10px] font-bold text-muted-foreground">
+              +{remainingCount} en attente
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       <style>{`
@@ -752,12 +893,10 @@ export default function AccessControl() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-stretch">
-          {/* Section Normale sur la page */}
           <div className="xl:col-span-3 min-h-[420px]">
              {!isKioskMode && renderScannerContent()}
           </div>
 
-          {/* PORTAIL : Affichage en mode "Modale Plein Écran" */}
           {isKioskMode && createPortal(
             <div className="fixed inset-0 z-[999] bg-background flex items-center justify-center p-0 sm:p-10 overflow-hidden">
               <div className="absolute inset-0 bg-red-900 backdrop-blur-md" />
@@ -768,9 +907,7 @@ export default function AccessControl() {
             document.body
           )}
 
-          {/* Stats column */}
           <div className="grid grid-cols-2 xl:grid-cols-1 gap-4 md:hidden xl:grid">
-            {/* Membres en salle */}
             <div
               className="p-6 rounded-3xl text-white shadow-xl shadow-primary/20 flex flex-col justify-between min-h-[160px] overflow-hidden relative"
               style={{ background: "var(--gradient-hero)" }}
@@ -796,7 +933,6 @@ export default function AccessControl() {
               </div>
             </div>
 
-            {/* Total passages jour */}
             <div className="p-5 md:p-6 rounded-3xl bg-card border border-border shadow-lg flex flex-col justify-between min-h-[160px] overflow-hidden relative">
               <Clock className="absolute -right-4 -bottom-4 w-24 h-24 text-primary opacity-5" />
               <div className="relative z-10">
@@ -817,7 +953,6 @@ export default function AccessControl() {
                 </div>
               </div>
               
-              {/* Mini historique */}
               <div className="relative z-10 mt-4 flex items-end justify-between h-12 gap-1.5 border-t border-border/50 pt-3">
                  {historyData.map((day, i) => {
                     const maxPassages = Math.max(...historyData.map(d => d.passages), 1);
@@ -842,10 +977,8 @@ export default function AccessControl() {
           </div>
         </div>
 
-        {/* ── LISTE CARTES + HISTORIQUE ── */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1.8fr] gap-6">
 
-          {/* RFID card list */}
           <div className="rounded-3xl border bg-card p-6 flex flex-col h-[500px]">
             <div className="flex items-center gap-3 mb-4 shrink-0">
               <Wifi size={20} className="text-primary" />
@@ -869,7 +1002,12 @@ export default function AccessControl() {
                 return (
                   <button
                     key={user.id}
-                    onClick={() => setSelectedUser(user)}
+                    onClick={() => {
+                      setSelectedUser(user);
+                      setScannedUser(null);
+                      setCurrentScanTime(null);
+                      setPendingScans((prev) => prev.filter((u) => u.id !== user.id));
+                    }}
                     className={`w-full rounded-2xl border p-3 text-left transition-all hover:shadow-md flex items-center justify-between ${
                       selectedUser?.id === user.id
                         ? "border-primary bg-primary/5"
@@ -908,7 +1046,6 @@ export default function AccessControl() {
             </div>
           </div>
 
-          {/* Historique inline */}
           <div className="rounded-3xl border bg-card overflow-hidden flex flex-col h-[500px] shadow-lg">
             <div className="px-6 py-4 border-b flex items-center justify-between bg-muted/30 shrink-0">
               <h3 className="font-black uppercase text-sm tracking-tighter text-foreground">
@@ -948,7 +1085,8 @@ export default function AccessControl() {
         </div>
       </div>
 
-      {/* ── MODAL HISTORIQUE MEMBRE ── */}
+      {renderPendingNotifications()}
+
       {showMemberModal && selectedUser && createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full h-full sm:h-auto max-w-3xl rounded-none sm:rounded-3xl border bg-card shadow-2xl flex flex-col max-h-none sm:max-h-[85vh]" style={{ borderColor: "hsl(var(--border))" }}>
@@ -989,7 +1127,6 @@ export default function AccessControl() {
         document.body
       )}
 
-      {/* ── MODAL HISTORIQUE GÉNÉRAL ── */}
       {showAllModal && createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full h-full sm:h-auto max-w-4xl rounded-none sm:rounded-3xl border bg-card shadow-2xl flex flex-col max-h-none sm:max-h-[85vh]" style={{ borderColor: "hsl(var(--border))" }}>
@@ -1021,11 +1158,9 @@ export default function AccessControl() {
         document.body
       )}
 
-      {/* ── MODAL STATISTIQUES EN TEMPS RÉEL (Admin Uniquement) ── */}
       {showStatsModal && createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm overflow-hidden animate-in fade-in duration-300">
           <div className="w-full h-full sm:h-auto max-w-6xl rounded-none sm:rounded-3xl border bg-card shadow-2xl flex flex-col max-h-none sm:max-h-[95vh] overflow-hidden" style={{ borderColor: "hsl(var(--border))" }}>
-            {/* Header */}
             <div className="px-6 py-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0" style={{ borderColor: "hsl(var(--border))" }}>
               <div>
                 <h2 className="font-black text-foreground text-lg uppercase tracking-tight flex items-center gap-2">
@@ -1069,7 +1204,6 @@ export default function AccessControl() {
               </div>
             </div>
 
-            {/* Content Split Layout */}
             <div className="overflow-hidden flex-1 flex flex-col lg:flex-row min-h-0">
               {monthlyAttendanceQuery.isLoading ? (
                 <div className="w-full h-96 flex flex-col items-center justify-center text-muted-foreground italic">
@@ -1078,7 +1212,6 @@ export default function AccessControl() {
                 </div>
               ) : (
                 <>
-                  {/* Left Column: Calendar */}
                   <div className="w-full lg:w-[45%] p-6 border-r flex flex-col overflow-y-auto custom-scrollbar" style={{ borderColor: "hsl(var(--border))" }}>
                     <div className="space-y-4">
                       <div>
@@ -1149,11 +1282,9 @@ export default function AccessControl() {
                     </div>
                   </div>
 
-                  {/* Right Column: Diagram + Selected Day Details */}
                   <div className="w-full lg:w-[55%] p-6 flex flex-col min-h-0 bg-muted/5 overflow-y-auto custom-scrollbar">
                     <div className="space-y-6 flex-1 flex flex-col min-h-0">
                       
-                      {/* Diagram */}
                       <div className="p-4 rounded-2xl border border-border/50 bg-card">
                         <h4 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground mb-3">
                           Diagramme de fréquentation du mois
@@ -1179,7 +1310,6 @@ export default function AccessControl() {
                         </div>
                       </div>
 
-                      {/* Selected Day Details */}
                       {selectedDate ? (
                         <div className="flex-1 flex flex-col min-h-0 space-y-4">
                           <div className="border-t pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2" style={{ borderColor: "hsl(var(--border))" }}>
@@ -1204,7 +1334,6 @@ export default function AccessControl() {
                             </div>
                           </div>
 
-                          {/* List of Passages */}
                           <div className="flex-1 flex flex-col min-h-0 space-y-2">
                             <h4 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
                               Passages de la journée ({selectedDateRecords.length})
@@ -1267,7 +1396,6 @@ export default function AccessControl() {
         </div>,
         document.body
       )}
-      {/* Overlay de verrouillage d'écran */}
       {isScreenLocked && (
         <div 
           className="fixed inset-0 z-[1500]" 
@@ -1285,7 +1413,6 @@ export default function AccessControl() {
         />
       )}
 
-      {/* Bouton de verrouillage/déverrouillage (Cadenas) */}
       <button
         onClick={() => {
           setIsScreenLocked(!isScreenLocked);
@@ -1308,7 +1435,6 @@ export default function AccessControl() {
   );
 }
 
-// ── COMPOSANT TABLE RÉUTILISABLE ─────────────────────────────────────────────
 function AttendanceTable({
   records,
   getRecordAccessStatus,
@@ -1318,7 +1444,6 @@ function AttendanceTable({
   getRecordAccessStatus: (record: AttendanceRecord) => "authorized" | "denied";
   emptyMessage?: string;
 }) {
-  // On aplatit les records : une ligne par checkIn, une ligne par checkOut
   const events: any[] = [];
   records.forEach(r => {
     if (r.checkIn) {
@@ -1339,7 +1464,6 @@ function AttendanceTable({
     }
   });
 
-  // Tri par date/heure décroissante
   events.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
 
   return (
@@ -1418,7 +1542,7 @@ function AttendanceTable({
               );
             })
           )}
-        </tbody>
+          </tbody>
       </table>
     </div>
   );

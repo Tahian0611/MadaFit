@@ -100,9 +100,6 @@ class _AuthScreenState extends State<AuthScreen> {
 
   // Controllers inscription étape 1
   final _regPhoneController = TextEditingController();
-  final _promoController = TextEditingController();
-  Map<String, dynamic>? _appliedPromo;
-  bool _isValidatingPromo = false;
   List<String> _selectedActivities = ['musculation'];
   String _regAccessType = 'abonnement';
   String? _regDob;
@@ -122,7 +119,6 @@ class _AuthScreenState extends State<AuthScreen> {
     _regFirstNameController.dispose();
     _regLastNameController.dispose();
     _regPhoneController.dispose();
-    _promoController.dispose();
     super.dispose();
   }
 
@@ -136,46 +132,111 @@ class _AuthScreenState extends State<AuthScreen> {
     'boxe': 'Boxe',
     'natation': 'Natation',
   };
-  
-  Future<void> _validatePromoCode() async {
-    final code = _promoController.text.trim();
-    if (code.isEmpty) return;
 
-    setState(() {
-      _isValidatingPromo = true;
-    });
-
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/promo_codes/validate'),
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({'code': code}),
-          )
-          .timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _appliedPromo = data;
-          _isValidatingPromo = false;
-        });
-        _showSnackBar('✓ Code promo appliqué !', isSuccess: true);
-      } else {
-        setState(() {
-          _appliedPromo = null;
-          _isValidatingPromo = false;
-        });
-        _showSnackBar('Code promo invalide ou expiré');
-      }
-    } catch (e) {
-      setState(() {
-        _isValidatingPromo = false;
-      });
-      _showSnackBar('Erreur : $e');
+  // ── VALIDATION PRÉNOM ────────────────────────────────────────────────────
+  String? _validateFirstName(String? value) {
+    if (value == null || value.trim().isEmpty) return "Le prénom est obligatoire.";
+    if (value.trim().length < 2) return "Minimum 2 caractères.";
+    if (!RegExp(r"^[A-Z][a-zA-ZÀ-ÿ\s'-]*$").hasMatch(value.trim())) {
+      return "Le prénom doit commencer par une majuscule (ex: Jean).";
     }
+    return null;
+  }
+
+  // ── VALIDATION NOM ───────────────────────────────────────────────────────
+  String? _validateLastName(String? value) {
+    if (value == null || value.trim().isEmpty) return "Le nom est obligatoire.";
+    if (value.trim().length < 2) return "Minimum 2 caractères.";
+    if (!RegExp(r"^[A-Z][a-zA-ZÀ-ÿ\s'-]*$").hasMatch(value.trim())) {
+      return "Le nom doit commencer par une majuscule (ex: Dupont).";
+    }
+    return null;
+  }
+
+  // ── VALIDATION EMAIL ─────────────────────────────────────────────────────
+  String? _validateEmail(String? value) {
+    if (value == null || value.trim().isEmpty) return "L'email est obligatoire.";
+    if (!RegExp(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").hasMatch(value.trim())) {
+      return "Format d'email invalide (ex: nom@domaine.com).";
+    }
+    return null;
+  }
+
+  // ── VALIDATION TÉLÉPHONE MADAGASCAR ──────────────────────────────────────
+  String? _validatePhone(String? value) {
+    if (value == null || value.trim().isEmpty) return "Le téléphone est obligatoire.";
+    if (!RegExp(r"^(\+261\s(32|33|34|37|38)\s\d{2}\s\d{3}\s\d{2}|0(32|33|34|37|38)\s\d{2}\s\d{3}\s\d{2})$")
+        .hasMatch(value.trim())) {
+      return "Format invalide. Ex: +261 34 00 000 00 ou 034 00 000 00 (opérateurs: 032, 033, 034, 037, 038).";
+    }
+    return null;
+  }
+
+  // ── VALIDATION DATE DE NAISSANCE ───────────────────────────────────────
+  String? _validateDob(String? value) {
+    if (value == null || value.isEmpty) return "La date de naissance est obligatoire.";
+    final dob = DateTime.parse(value);
+    final now = DateTime.now();
+    final age = now.year - dob.year - (now.month < dob.month || (now.month == dob.month && now.day < dob.day) ? 1 : 0);
+    if (age < 5) return "Âge minimum : 5 ans.";
+    if (age > 100) return "Date de naissance invalide.";
+    return null;
+  }
+
+  // ── AUTO-FORMATAGE TÉLÉPHONE ────────────────────────────────────────────
+  String _formatPhoneInput(String value) {
+    String cleaned = "";
+    bool hasPlus = false;
+
+    for (int i = 0; i < value.length; i++) {
+      final char = value[i];
+      if (char == "+" && i == 0 && !hasPlus) {
+        hasPlus = true;
+        cleaned += char;
+      } else if (RegExp(r"\d").hasMatch(char)) {
+        cleaned += char;
+      }
+    }
+
+    final digits = cleaned.replaceAll(RegExp(r"\D"), "");
+
+    if (hasPlus || (digits.length > 3 && digits.startsWith("261"))) {
+      final rest = hasPlus ? digits.substring(3) : digits.substring(3);
+      if (rest.isEmpty) return hasPlus ? "+261" : digits;
+      final op = rest.substring(0, min(2, rest.length));
+      final p1 = rest.length > 2 ? rest.substring(2, min(4, rest.length)) : "";
+      final p2 = rest.length > 4 ? rest.substring(4, min(7, rest.length)) : "";
+      final p3 = rest.length > 7 ? rest.substring(7, min(9, rest.length)) : "";
+      String formatted = "+261 $op";
+      if (p1.isNotEmpty) formatted += " $p1";
+      if (p2.isNotEmpty) formatted += " $p2";
+      if (p3.isNotEmpty) formatted += " $p3";
+      return formatted.trim();
+    }
+
+    final op = digits.substring(0, min(3, digits.length));
+    final rest = digits.length > 3 ? digits.substring(3) : "";
+    if (op.length < 3) return op;
+    final p1 = rest.substring(0, min(2, rest.length));
+    final p2 = rest.length > 2 ? rest.substring(2, min(5, rest.length)) : "";
+    final p3 = rest.length > 5 ? rest.substring(5, min(7, rest.length)) : "";
+    String formatted = op;
+    if (p1.isNotEmpty) formatted += " $p1";
+    if (p2.isNotEmpty) formatted += " $p2";
+    if (p3.isNotEmpty) formatted += " $p3";
+    return formatted.trim();
+  }
+
+  void _handlePhoneChange(String rawValue) {
+    if (rawValue.length < _regPhoneController.text.length) {
+      final cleaned = rawValue.replaceAll(RegExp(r"[^\d+]"), "");
+      _regPhoneController.text = _formatPhoneInput(cleaned);
+    } else {
+      _regPhoneController.text = _formatPhoneInput(rawValue);
+    }
+    _regPhoneController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _regPhoneController.text.length),
+    );
   }
 
   // ── FETCH DES PLANS DEPUIS LA BD ─────────────────────────────────────────
@@ -210,7 +271,6 @@ class _AuthScreenState extends State<AuthScreen> {
             _plans = members
                 .map((e) => Map<String, dynamic>.from(e as Map))
                 .toList();
-            // Initialiser avec la première offre par défaut si vide
             if (_selectedPlans.isEmpty && _plans.isNotEmpty) {
               _selectedPlans = [_plans.first];
             }
@@ -291,7 +351,6 @@ class _AuthScreenState extends State<AuthScreen> {
   void _goToStep1() async {
     if (!_registerStep0Key.currentState!.validate()) return;
 
-    // ── VÉRIFICATION EMAIL EXISTANT AVANT PASSAGE ÉTAPE 1 ──
     setState(() => _isLoading = true);
 
     try {
@@ -309,23 +368,20 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
 
       if (checkResponse.statusCode == 409) {
-        // Email déjà existant → modal + bloque la progression
         _showEmailExistsModal();
-        return; // ← Reste bloqué sur l'étape 0
+        return;
       }
     } catch (e) {
       // En cas d'erreur réseau, on laisse passer (fail-safe)
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-    // ─────────────────────────────────────────────────────────
 
     _fetchPlans();
     setState(() => _registerStep = 1);
   }
 
   // ── MODAL EMAIL EXISTE DÉJÀ ───────────────────────────────────────────────
-  // Affiché quand l'email est déjà en base (inscription physique préalable)
   void _showEmailExistsModal() {
     showDialog(
       context: context,
@@ -337,7 +393,6 @@ class _AuthScreenState extends State<AuthScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Icône
             Container(
               width: 60,
               height: 60,
@@ -352,7 +407,6 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            // Titre
             const Text(
               "Compte déjà existant",
               style: TextStyle(
@@ -363,7 +417,6 @@ class _AuthScreenState extends State<AuthScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
-            // Message
             const Text(
               "Cet email est déjà enregistré dans notre système.\n\n"
               "Si vous avez déjà fait une inscription à l'accueil MadaFit, "
@@ -379,7 +432,6 @@ class _AuthScreenState extends State<AuthScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            // Bouton Se connecter
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -398,9 +450,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 onPressed: () {
                   Navigator.pop(context);
-                  // Pré-remplir l'email de connexion avec celui saisi
                   _emailController.text = _regEmailController.text;
-                  // Redirection vers le formulaire de connexion
                   setState(() {
                     _isLogin = true;
                     _registerStep = 0;
@@ -409,7 +459,6 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            // Bouton Annuler (rester sur l'inscription)
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text(
@@ -441,20 +490,10 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final int originalTotal = _regAccessType == 'abonnement'
+      final int totalPayments = _regAccessType == 'abonnement'
           ? _selectedPlans.fold(0, (sum, p) => sum + ((p['price'] as num?)?.toInt() ?? 0))
           : 0;
-      
-      int totalPayments = originalTotal;
-      if (_appliedPromo != null) {
-        if (_appliedPromo!['discountPercentage'] != null) {
-          totalPayments = (originalTotal * (1 - (_appliedPromo!['discountPercentage'] / 100))).toInt();
-        } else if (_appliedPromo!['discountAmount'] != null) {
-          totalPayments = originalTotal - (_appliedPromo!['discountAmount'] as num).toInt();
-        }
-        if (totalPayments < 0) totalPayments = 0;
-      }
-      
+
       final String subscriptionName = _regAccessType == 'abonnement'
           ? _selectedPlans.map((p) => p['name'] as String? ?? '').join(', ')
           : 'Séance simple';
@@ -477,10 +516,6 @@ class _AuthScreenState extends State<AuthScreen> {
         'totalPayments': totalPayments,
         'subscriptionType': subscriptionType,
       };
-
-      if (_appliedPromo != null) {
-        body['promotion'] = _appliedPromo!['code'];
-      }
 
       final response = await http.post(
         Uri.parse('$_baseUrl/register'),
@@ -512,7 +547,6 @@ class _AuthScreenState extends State<AuthScreen> {
           final code = errorData['code'] ?? '';
 
           if (code == 'EMAIL_EXISTS') {
-            // ── Modal dédié au lieu d'un simple snackbar ──
             _showEmailExistsModal();
           } else {
             _showSnackBar(
@@ -571,10 +605,9 @@ class _AuthScreenState extends State<AuthScreen> {
             onPressed: () async {
               final email = resetEmailController.text.trim();
               if (email.isNotEmpty) {
-                Navigator.pop(context); // Close dialog
+                Navigator.pop(context);
                 _showSnackBar("Si ce compte existe, un code a été envoyé.");
                 
-                // Navigate to the new reset page
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -670,44 +703,6 @@ class _AuthScreenState extends State<AuthScreen> {
                               ),
                             ),
 
-                            if (_isLogin) ...[
-                              const SizedBox(height: 20),
-                              Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.07),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: Colors.redAccent.withOpacity(0.3),
-                                  ),
-                                ),
-                                child: const Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      Icons.info_outline,
-                                      color: Colors.redAccent,
-                                      size: 18,
-                                    ),
-                                    SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        "Déjà inscrit(e) à l'accueil MadaFit ? "
-                                        "Entrez simplement votre email et choisissez "
-                                        "un mot de passe — votre compte sera activé "
-                                        "automatiquement. Pas besoin de vous inscrire à nouveau.",
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                          height: 1.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-
                             const SizedBox(height: 40),
                           ],
                         ),
@@ -743,6 +738,7 @@ class _AuthScreenState extends State<AuthScreen> {
             label: "Email",
             icon: Icons.email_outlined,
             controller: _emailController,
+            validator: _validateEmail,
           ),
           const SizedBox(height: 15),
           MadafitTextField(
@@ -864,18 +860,21 @@ class _AuthScreenState extends State<AuthScreen> {
                   label: "Prénom",
                   icon: Icons.person_outline,
                   controller: _regFirstNameController,
+                  validator: _validateFirstName,
                 ),
                 const SizedBox(height: 15),
                 MadafitTextField(
                   label: "Nom",
                   icon: Icons.person_add_alt_1,
                   controller: _regLastNameController,
+                  validator: _validateLastName,
                 ),
                 const SizedBox(height: 15),
                 MadafitTextField(
                   label: "Email",
                   icon: Icons.email_outlined,
                   controller: _regEmailController,
+                  validator: _validateEmail,
                 ),
                 const SizedBox(height: 15),
                 MadafitTextField(
@@ -927,7 +926,9 @@ class _AuthScreenState extends State<AuthScreen> {
                   label: "Téléphone",
                   icon: Icons.phone_outlined,
                   controller: _regPhoneController,
-                  isRequired: false,
+                  validator: _validatePhone,
+                  onChanged: _handlePhoneChange,
+                  maxLength: 17,
                 ),
                 const SizedBox(height: 15),
 
@@ -966,9 +967,6 @@ class _AuthScreenState extends State<AuthScreen> {
                 // Récap plan sélectionné
                 if (_regAccessType == 'abonnement' && _selectedPlans.isNotEmpty)
                   _buildPlanSummary(),
-
-                const SizedBox(height: 15),
-                _buildPromoRegisterSection(),
 
                 const SizedBox(height: 25),
 
@@ -1155,11 +1153,9 @@ class _AuthScreenState extends State<AuthScreen> {
       ),
     );
   }
-  // \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
-  // \u2500\u2500 S\u00c9LECTEUR DE PLAN (depuis la BD) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // ── SÉLECTEUR DE PLAN (depuis la BD) ──────────────────────────────────────
   Widget _buildPlanSelector() {
-    // Nettoyer la sélection si les plans changent
     _selectedPlans.removeWhere((selected) => !_plans.any((p) => p['id'] == selected['id']));
     if (_selectedPlans.isEmpty && _plans.isNotEmpty) {
       _selectedPlans = [_plans.first];
@@ -1313,16 +1309,6 @@ class _AuthScreenState extends State<AuthScreen> {
   // ── RÉCAPITULATIF DU PLAN ─────────────────────────────────────────────────
   Widget _buildPlanSummary() {
     final originalPrice = _selectedPlans.fold(0, (sum, p) => sum + ((p['price'] as num?)?.toInt() ?? 0));
-    int totalPrice = originalPrice;
-
-    if (_appliedPromo != null) {
-      if (_appliedPromo!['discountPercentage'] != null) {
-        totalPrice = (originalPrice * (1 - (_appliedPromo!['discountPercentage'] / 100))).toInt();
-      } else if (_appliedPromo!['discountAmount'] != null) {
-        totalPrice = originalPrice - (_appliedPromo!['discountAmount'] as num).toInt();
-      }
-      if (totalPrice < 0) totalPrice = 0;
-    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1359,22 +1345,12 @@ class _AuthScreenState extends State<AuthScreen> {
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Divider(color: Colors.white10),
           ),
-          if (_appliedPromo != null && totalPrice < originalPrice) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("SOUS-TOTAL", style: TextStyle(color: Colors.white54, fontSize: 12)),
-                Text("${_formatPrice(originalPrice)} Ar", style: const TextStyle(color: Colors.white54, fontSize: 12, decoration: TextDecoration.lineThrough)),
-              ],
-            ),
-            const SizedBox(height: 4),
-          ],
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text("TOTAL À PAYER", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
               Text(
-                '${_formatPrice(totalPrice)} Ar',
+                '${_formatPrice(originalPrice)} Ar',
                 style: const TextStyle(
                   color: Colors.redAccent,
                   fontWeight: FontWeight.w900,
@@ -1383,90 +1359,6 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPromoRegisterSection() {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "CODE PROMO",
-            style: TextStyle(
-              color: Colors.white38,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _promoController,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: "Saisir un code...",
-                    hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
-                    filled: true,
-                    fillColor: Colors.black26,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 15),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                height: 45,
-                child: ElevatedButton(
-                  onPressed: _isValidatingPromo ? null : _validatePromoCode,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white10,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: _isValidatingPromo
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text("VÉRIFIER", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
-          if (_appliedPromo != null) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 14),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    "Réduction de ${_appliedPromo!['discountPercentage'] != null ? '${_appliedPromo!['discountPercentage']}%' : '${_formatPrice((_appliedPromo!['discountAmount'] as num).toInt())} Ar'} appliquée !",
-                    style: const TextStyle(color: Colors.green, fontSize: 12),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => setState(() {
-                    _appliedPromo = null;
-                    _promoController.clear();
-                  }),
-                  child: const Icon(Icons.close, color: Colors.redAccent, size: 16),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -1485,50 +1377,62 @@ class _AuthScreenState extends State<AuthScreen> {
 
   // ── DATE PICKER ───────────────────────────────────────────────────────────
   Widget _buildDateField() {
-    return GestureDetector(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: DateTime(2000),
-          firstDate: DateTime(1920),
-          lastDate: DateTime.now(),
-          builder: (context, child) => Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: ColorScheme.dark(
-                primary: Colors.redAccent,
-                surface: Colors.grey.shade900,
+    return FormField<String>(
+      validator: _validateDob,
+      builder: (field) {
+        return GestureDetector(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: DateTime(2000),
+              firstDate: DateTime(1920),
+              lastDate: DateTime.now(),
+              builder: (context, child) => Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: ColorScheme.dark(
+                    primary: Colors.redAccent,
+                    surface: Colors.grey.shade900,
+                  ),
+                ),
+                child: child!,
+              ),
+            );
+            if (picked != null) {
+              final dateStr = picked.toIso8601String().split('T')[0];
+              setState(() => _regDob = dateStr);
+              field.didChange(dateStr);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: field.hasError
+                    ? Colors.redAccent.withOpacity(0.5)
+                    : Colors.transparent,
               ),
             ),
-            child: child!,
+            child: Row(
+              children: [
+                const Icon(Icons.cake_outlined, color: Colors.redAccent, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _regDob ?? "Date de naissance *",
+                    style: TextStyle(
+                      color: _regDob != null ? Colors.white : Colors.white54,
+                      fontSize: 15,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
         );
-        if (picked != null) {
-          setState(() => _regDob = picked.toIso8601String().split('T')[0]);
-        }
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.cake_outlined, color: Colors.redAccent, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _regDob ?? "Date de naissance (optionnel)",
-                style: TextStyle(
-                  color: _regDob != null ? Colors.white : Colors.white54,
-                  fontSize: 15,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1572,6 +1476,9 @@ class MadafitTextField extends StatefulWidget {
   final bool isPassword;
   final bool isRequired;
   final TextEditingController controller;
+  final String? Function(String?)? validator;
+  final void Function(String)? onChanged;
+  final int? maxLength;
 
   const MadafitTextField({
     super.key,
@@ -1580,6 +1487,9 @@ class MadafitTextField extends StatefulWidget {
     required this.controller,
     this.isPassword = false,
     this.isRequired = true,
+    this.validator,
+    this.onChanged,
+    this.maxLength,
   });
 
   @override
@@ -1595,6 +1505,8 @@ class _MadafitTextFieldState extends State<MadafitTextField> {
       controller: widget.controller,
       obscureText: widget.isPassword ? _obscureText : false,
       style: const TextStyle(color: Colors.white),
+      onChanged: widget.onChanged,
+      maxLength: widget.maxLength,
       decoration: InputDecoration(
         labelText: widget.label,
         labelStyle: const TextStyle(color: Colors.white70, fontSize: 15),
@@ -1619,8 +1531,10 @@ class _MadafitTextFieldState extends State<MadafitTextField> {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
+        errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 12),
+        counterText: widget.maxLength != null ? '' : null,
       ),
-      validator: (value) {
+      validator: widget.validator ?? (value) {
         if (!widget.isRequired) return null;
         if (value == null || value.isEmpty) return "Champ obligatoire";
         if (widget.label.toLowerCase().contains("email")) {

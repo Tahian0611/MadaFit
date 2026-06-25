@@ -59,6 +59,11 @@ class Payment
     #[Groups(['payment:read', 'payment:write'])]
     private string $cashRegister = 'caisse2';
 
+    #[ORM\ManyToOne(targetEntity: UserSubscription::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    #[Groups(['payment:read', 'payment:write'])]
+    private ?UserSubscription $userSubscription = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -149,6 +154,17 @@ class Payment
     public function setCashRegister(?string $cashRegister): static
     {
         $this->cashRegister = $cashRegister ?: 'caisse2';
+        return $this;
+    }
+
+    public function getUserSubscription(): ?UserSubscription
+    {
+        return $this->userSubscription;
+    }
+
+    public function setUserSubscription(?UserSubscription $userSubscription): static
+    {
+        $this->userSubscription = $userSubscription;
         return $this;
     }
 }

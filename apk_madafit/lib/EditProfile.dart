@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'main.dart';
 import 'api_config.dart';
 
@@ -152,6 +154,45 @@ class UserApiService {
     }
   }
 
+    static Future<String?> uploadPhoto({
+    required int userId,
+    required String token,
+    required File imageFile,
+  }) async {
+    try {
+      final uri = Uri.parse('${ApiConfig.domainUrl}/user/$userId/photo');
+      final request = http.MultipartRequest('POST', uri);
+      request.headers['Authorization'] = 'Bearer $token';
+      
+      final stream = http.ByteStream(imageFile.openRead());
+      final length = await imageFile.length();
+      
+      final multipartFile = http.MultipartFile(
+        'photo',
+        stream,
+        length,
+        filename: 'profile_${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+      
+      request.files.add(multipartFile);
+      
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      debugPrint('📤 Upload Photo Status: ${response.statusCode}');
+      debugPrint('📤 Upload Photo Body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['photoUrl'] as String?;
+      }
+      throw Exception('Upload failed: ${response.statusCode} - ${response.body}');
+    } catch (e) {
+      debugPrint('💥 EXCEPTION uploadPhoto: $e');
+      rethrow;
+    }
+  }
+
   static Future<http.Response> changePassword({
     required String token,
     required String currentPassword,
@@ -198,6 +239,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
   // Gender selection: stored as 'M' or 'F', displayed as 'Homme'/'Femme'
   String? _selectedGenderCode; // 'M' or 'F' or null
   DateTime? _selectedDob;
+  String? _photoUrl;
+  bool _isUploadingPhoto = false;
+  final ImagePicker _picker = ImagePicker();
 
   String _originalEmail = '';
   bool _isLoading = true;
@@ -225,6 +269,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         _medicalNotesController.text = user.medicalNotes ?? '';
         _selectedGenderCode = user.gender; // 'M' or 'F' or null
         _selectedDob = user.dob;
+        _photoUrl = user.photo;
         _isLoading = false;
       });
     } catch (e) {
@@ -233,6 +278,82 @@ class _EditProfilePageState extends State<EditProfilePage> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _pickPhoto() async {
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Changer la photo',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.redAccent),
+              title: const Text('Caméra', style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.redAccent),
+              title: const Text('Galerie', style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    try {
+      final pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 600,
+        maxHeight: 600,
+        imageQuality: 85,
+      );
+
+      if (pickedFile == null) return;
+
+      final file = File(pickedFile.path);
+      final fileSize = await file.length();
+
+      if (fileSize > 5 * 1024 * 1024) {
+        _showSnackBar('La photo ne doit pas dépasser 5MB.');
+        return;
+      }
+
+      setState(() => _isUploadingPhoto = true);
+
+      final photoUrl = await UserApiService.uploadPhoto(
+        userId: widget.userId,
+        token: widget.token,
+        imageFile: file,
+      );
+
+      if (photoUrl != null) {
+        setState(() => _photoUrl = photoUrl);
+        _showSnackBar('Photo mise à jour !', isSuccess: true);
+      }
+    } catch (e) {
+      _showSnackBar('Erreur upload: $e');
+    } finally {
+      setState(() => _isUploadingPhoto = false);
+    }
+  }
+
+  void _showSnackBar(String msg, {bool isSuccess = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isSuccess ? Colors.green.shade700 : Colors.redAccent,
+      ),
+    );
   }
 
   Future<void> _saveProfile() async {
@@ -579,27 +700,58 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Widget _buildPhotoSection() {
-    return Stack(
-      alignment: Alignment.bottomRight,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(3),
-          decoration: const BoxDecoration(
-            color: Colors.redAccent,
-            shape: BoxShape.circle,
+    final String fullPhotoUrl = _photoUrl != null && _photoUrl!.isNotEmpty
+        ? ApiConfig.getFullPhotoUrl(_photoUrl)
+        : '';
+
+    return GestureDetector(
+      onTap: _isUploadingPhoto ? null : _pickPhoto,
+      child: Stack(
+        alignment: Alignment.bottomRight,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: const BoxDecoration(
+              color: Colors.redAccent,
+              shape: BoxShape.circle,
+            ),
+            child: CircleAvatar(
+              radius: 55,
+              backgroundColor: const Color(0xFF151515),
+              backgroundImage: fullPhotoUrl.isNotEmpty
+                  ? NetworkImage(fullPhotoUrl)
+                  : null,
+              child: fullPhotoUrl.isEmpty
+                  ? const Icon(Icons.person, color: Colors.white24, size: 60)
+                  : null,
+            ),
           ),
-          child: const CircleAvatar(
-            radius: 55,
-            backgroundColor: Color(0xFF151515),
-            child: Icon(Icons.person, color: Colors.white24, size: 60),
+          if (_isUploadingPhoto)
+            const Positioned.fill(
+              child: Center(
+                child: SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(
+                    color: Colors.redAccent,
+                    strokeWidth: 3,
+                  ),
+                ),
+              ),
+            ),
+          Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.white,
+              child: Icon(Icons.camera_alt, color: Colors.black, size: 18),
+            ),
           ),
-        ),
-        const CircleAvatar(
-          radius: 18,
-          backgroundColor: Colors.white,
-          child: Icon(Icons.camera_alt, color: Colors.black, size: 18),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

@@ -4,7 +4,6 @@ namespace App\EventSubscriber;
 
 use App\Entity\Article;
 use App\Entity\Payment;
-use App\Entity\PaymentRecord;
 use App\Entity\Transaction;
 use App\Entity\User;
 use App\Service\NotificationService;
@@ -15,7 +14,6 @@ use Doctrine\Persistence\Event\LifecycleEventArgs;
 #[AsEntityListener(event: Events::postPersist, entity: User::class,         method: 'onUserCreated')]
 #[AsEntityListener(event: Events::postPersist, entity: Payment::class,       method: 'onPaymentCreated')]
 #[AsEntityListener(event: Events::postPersist, entity: Transaction::class,   method: 'onTransactionCreated')]
-#[AsEntityListener(event: Events::postPersist, entity: PaymentRecord::class, method: 'onPaymentRecorded')]
 // ✅ Article : notifier lors de la création et du passage en publié
 #[AsEntityListener(event: Events::postPersist, entity: Article::class,       method: 'onArticleCreated')]
 #[AsEntityListener(event: Events::postUpdate,  entity: Article::class,       method: 'onArticleUpdated')]
@@ -64,13 +62,6 @@ class NotificationSubscriber
         if ($product->getCurrentStock() <= 5 && $isExit) {
             $this->notificationService->notifyLowStock($product->getName(), $product->getCurrentStock());
         }
-    }
-
-    public function onPaymentRecorded(PaymentRecord $record, LifecycleEventArgs $args): void
-    {
-        $user = $record->getUser();
-        if (!$user instanceof User) return;
-        $this->notificationService->notifyPaymentReceived($user, $record->getAmount());
     }
 
     /**

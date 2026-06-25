@@ -72,7 +72,7 @@ class _PayementPageState extends State<PayementPage> {
     }
   }
 
-  String _formatCurrency(double? amount) {
+  String _formatCurrency(num? amount) {
     if (amount == null) return '0 Ar';
     final str = amount.toInt().toString();
     final buffer = StringBuffer();
@@ -104,28 +104,15 @@ class _PayementPageState extends State<PayementPage> {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  String _getSubscriptionLabel() {
-    final sub = _user?['subscription'] ?? 'standard';
-    switch (sub) {
-      case 'monthly':
-        return 'Abonnement Mensuel';
-      case 'yearly':
-        return 'Abonnement Annuel';
-      case 'premium':
-        return 'Pack Premium';
-      default:
-        return sub.toString().toUpperCase();
-    }
-  }
-
-  double? _getCurrentPlanPrice() {
-    // If totalPayments is available, use it; otherwise estimate from subscription type
-    final total = _user?['totalPayments'];
-    if (total != null) return total.toDouble();
-    // Fallback: if subscription is 'monthly' -> 90k, 'yearly' -> 900k etc.
-    final sub = _user?['subscription'];
-    if (sub == 'yearly') return 900000.0;
-    return 90000.0;
+  // ═══════════════════════════════════════════════════════════════════════
+  // NOUVEAU : Calculer le total payé et le nombre de transactions
+  // ═══════════════════════════════════════════════════════════════════════
+  num _calculateTotalPaid() {
+    return _paymentRecords.fold<num>(0, (sum, record) {
+      final amount = record['amount'];
+      if (amount is num) return sum + amount;
+      return sum;
+    });
   }
 
   @override
@@ -140,8 +127,8 @@ class _PayementPageState extends State<PayementPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          "PAIEMENT",
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+          "HISTORIQUE DES PAIEMENTS",
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.5),
         ),
         centerTitle: true,
       ),
@@ -172,92 +159,110 @@ class _PayementPageState extends State<PayementPage> {
                 ],
               ),
             )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "ABONNEMENT ACTUEL",
-                    style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _buildCurrentPlan(),
-                  const SizedBox(height: 30),
-                  const Text(
-                    "HISTORIQUE",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (_paymentRecords.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF151515),
-                        borderRadius: BorderRadius.circular(15),
+          : RefreshIndicator(
+              onRefresh: _fetchData,
+              color: Colors.redAccent,
+              backgroundColor: const Color(0xFF1A1A1A),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ═══════════════════════════════════════════════════════════════════════
+                    // NOUVEAU : Carte récapitulative (remplace "Abonnement actuel")
+                    // ═══════════════════════════════════════════════════════════════════════
+                    _buildSummaryCard(),
+
+                    const SizedBox(height: 30),
+
+                    const Text(
+                      "TRANSACTIONS",
+                      style: TextStyle(
+                        color: Colors.white38,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
                       ),
-                      child: const Center(
-                        child: Text(
-                          "Aucun paiement enregistré.",
-                          style: TextStyle(color: Colors.white38),
+                    ),
+                    const SizedBox(height: 15),
+
+                    if (_paymentRecords.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(30),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF151515),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withOpacity(0.05)),
                         ),
-                      ),
-                    )
-                  else
-                    ..._paymentRecords.map((record) => _historyItem(record)),
-                ],
+                        child: const Center(
+                          child: Column(
+                            children: [
+                              Icon(Icons.receipt_long, color: Colors.white24, size: 50),
+                              SizedBox(height: 12),
+                              Text(
+                                "Aucun paiement enregistré.",
+                                style: TextStyle(color: Colors.white38, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      ..._paymentRecords.map((record) => _historyItem(record)),
+                  ],
+                ),
               ),
             ),
     );
   }
 
-  Widget _buildCurrentPlan() {
-    final price = _getCurrentPlanPrice();
-    final label = _getSubscriptionLabel();
-    final expiry = _user?['expiryDate'];
-    final expiryStr = expiry != null ? _formatDate(expiry) : 'N/A';
+  // ═══════════════════════════════════════════════════════════════════════
+  // NOUVEAU : Carte récapitulative avec total et nombre de transactions
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildSummaryCard() {
+    final totalPaid = _calculateTotalPaid();
+    final transactionCount = _paymentRecords.length;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFB71C1C), Color(0xFFD32F2F)],
+        gradient: LinearGradient(
+          colors: [Colors.red.shade900.withOpacity(0.8), const Color(0xFF1A0000)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                ),
-              ),
-              Text(
-                "Valable jusqu'au $expiryStr",
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-            ],
+        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.account_balance_wallet, color: Colors.redAccent, size: 40),
+          const SizedBox(height: 12),
           Text(
-            _formatCurrency(price),
+            _formatCurrency(totalPaid),
             style: const TextStyle(
               color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "$transactionCount transaction${transactionCount > 1 ? 's' : ''}",
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w300,
             ),
           ),
         ],
@@ -265,29 +270,99 @@ class _PayementPageState extends State<PayementPage> {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // MODIFIÉ : Meilleure présentation des transactions
+  // ═══════════════════════════════════════════════════════════════════════
   Widget _historyItem(Map<String, dynamic> record) {
     final date = _formatDate(record['date']);
     final amount = _formatCurrency(record['amount']);
-    final method = record['method'] ?? 'Inconnu';
+    final method = record['method'] ?? 'Espèces';
     final subscription = record['subscription'] ?? '';
-    final status = _getStatus(record);
+    final receiptNo = record['receiptNo'] ?? '';
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
-        "$date - ${subscription.isNotEmpty ? subscription : method}",
-        style: const TextStyle(color: Colors.white70),
+    // Déterminer la couleur selon le montant
+    final num? amountValue = record['amount'];
+    final bool isPositive = (amountValue ?? 0) > 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151515),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
       ),
-      subtitle: Text(
-        status,
-        style: const TextStyle(color: Colors.green, fontSize: 12),
-      ),
-      trailing: Text(
-        amount,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-        ),
+      child: Row(
+        children: [
+          // Icône de transaction
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: isPositive ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              isPositive ? Icons.arrow_downward : Icons.arrow_upward,
+              color: isPositive ? Colors.greenAccent : Colors.redAccent,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Détails
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  subscription.isNotEmpty ? subscription.toUpperCase() : 'PAIEMENT',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  date,
+                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                ),
+                if (receiptNo.isNotEmpty)
+                  Text(
+                    'N° $receiptNo',
+                    style: const TextStyle(color: Colors.white24, fontSize: 10),
+                  ),
+              ],
+            ),
+          ),
+          // Montant
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                amount,
+                style: TextStyle(
+                  color: isPositive ? Colors.greenAccent : Colors.redAccent,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  method,
+                  style: const TextStyle(color: Colors.white38, fontSize: 10),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

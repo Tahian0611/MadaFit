@@ -251,6 +251,10 @@ class _AbonnementPageState extends State<AbonnementPage> {
     return Color(int.parse(buffer.toString(), radix: 16));
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // MODIFIÉ : _onSubscribe crée maintenant un UserSubscription au lieu de
+  // modifier le champ subscription du User
+  // ═══════════════════════════════════════════════════════════════════════
   void _onSubscribe(SubscriptionPlan plan) async {
     if (widget.userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -268,32 +272,12 @@ class _AbonnementPageState extends State<AbonnementPage> {
     );
 
     try {
-      // IMPORTANT: ne pas écraser les abonnements actifs.
-      // On ajoute la nouvelle offre à la liste existante (CSV), si elle n'y est pas déjà.
-      final String rawExisting = (_user?['subscription'] ?? '').toString();
-      final List<String> existingSubs = rawExisting.isNotEmpty
-          ? rawExisting
-                .split(',')
-                .map((s) => s.trim())
-                .where((s) => s.isNotEmpty)
-                .toList()
-          : <String>[];
-
-      final String newSub = plan.name.trim();
-      final List<String> updatedSubs = <String>[...existingSubs];
-      if (!updatedSubs.contains(newSub)) {
-        updatedSubs.add(newSub);
-      }
-
-      final String updatedCsv = updatedSubs.join(',');
-
+      // NOUVEAU : Créer un UserSubscription avec status 'pending'
       final body = {
-        // On ajoute la nouvelle offre MAIS on ne met pas tous les anciens en "pending".
-        // On garde l'état actuel côté backend, et on met seulement la nouvelle offre en attente.
-        // (Le backend doit gérer l'ajout d'une ligne/transaction avec status pending pour la nouvelle offre.)
-        'subscription': updatedCsv,
-        'status': 'active',
-        'newSubscriptionStatus': 'pending',
+        'user': '/api/users/${widget.userId}',
+        'planName': plan.name,
+        'status': 'pending',
+        'totalPaid': 0.0,
       };
 
       if (_appliedPromo != null) {
@@ -301,11 +285,11 @@ class _AbonnementPageState extends State<AbonnementPage> {
       }
 
       final response = await http
-          .patch(
-            Uri.parse('$_baseUrl/users/${widget.userId}'),
+          .post(
+            Uri.parse('$_baseUrl/user_subscriptions'),
             headers: {
               'Authorization': 'Bearer ${widget.token}',
-              'Content-Type': 'application/merge-patch+json',
+              'Content-Type': 'application/ld+json',
               'Accept': 'application/ld+json',
             },
             body: jsonEncode(body),
@@ -314,11 +298,11 @@ class _AbonnementPageState extends State<AbonnementPage> {
 
       if (mounted) Navigator.of(context).pop();
 
-      if (response.statusCode == 200 || response.statusCode == 204) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('✓ Offres mises à jour (ajout : ${plan.name})'),
+              content: Text('✓ Demande envoyée : ${plan.name}'),
               backgroundColor: Colors.green,
             ),
           );
@@ -723,7 +707,7 @@ class _AbonnementPageState extends State<AbonnementPage> {
           const SizedBox(width: 15),
           Expanded(
             child: Text(
-              "Paiements acceptés via MVola, AirtelMoney ou directement à la salle. Sans engagement.",
+              "Sans engagement. Paiement directement à la salle.",
               style: TextStyle(
                 color: Colors.white.withOpacity(0.4),
                 fontSize: 12,

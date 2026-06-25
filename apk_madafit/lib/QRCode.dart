@@ -148,7 +148,6 @@ class _QRCodePageState extends State<QRCodePage> {
         '${_user?['firstName'] ?? ''} ${_user?['lastName'] ?? ''}'.trim();
     final String memberId = _user?['memberId'] ?? 'MAD-${_user?['id']}';
     final String memberType = _getMemberType();
-    final String expiryDate = _formatExpiryDate();
 
     // QR size based on screen width, fixed value — no LayoutBuilder needed
     final double screenWidth = MediaQuery.of(context).size.width;
@@ -218,14 +217,6 @@ class _QRCodePageState extends State<QRCodePage> {
                 "ID: $memberId",
                 style: const TextStyle(color: Colors.white38, fontSize: 12),
               ),
-              const SizedBox(height: 50),
-
-              _buildInfoCard(
-                Icons.timer_outlined,
-                "Validité",
-                "Jusqu'au $expiryDate",
-              ),
-              const SizedBox(height: 30),
             ],
           ),
         ),

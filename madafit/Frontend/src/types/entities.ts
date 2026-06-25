@@ -25,6 +25,22 @@ export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type ArticleCategory = 'news' | 'promo' | 'event' | 'tips';
 
 // ============================================================================
+// USER SUBSCRIPTION ENTITY (NOUVEAU)
+// ============================================================================
+export interface UserSubscription {
+  id?: number;
+  user?: User | string;
+  planName: string;
+  status: 'pending' | 'active' | 'expired' | 'suspended';
+  startDate?: string;
+  expiryDate?: string;
+  totalPaid?: number;
+  validatedBy?: string;
+  validatedAt?: string;
+  promotion?: string;
+}
+
+// ============================================================================
 // USER ENTITY
 // ============================================================================
 export interface User {
@@ -70,6 +86,7 @@ export interface User {
   paymentRecords?: PaymentRecord[];
   visitRecords?: VisitRecord[];
   notifications?: Notification[];
+  userSubscriptions?: UserSubscription[];
 }
 
 // ============================================================================
@@ -145,6 +162,7 @@ export interface Payment {
   subscription?: string;
   receiptNo?: string;
   cashRegister?: string;
+  userSubscription?: UserSubscription | string;
 }
 
 // ============================================================================
@@ -158,6 +176,7 @@ export interface PaymentRecord {
   subscription?: string;
   receiptNo?: string;
   user?: User | string; // IRI ou objet User
+  userSubscription?: UserSubscription | string;
 }
 
 // ============================================================================

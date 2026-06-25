@@ -697,7 +697,7 @@ class _ContenuArticlesPageState extends State<ContenuArticlesPage> {
               borderRadius: BorderRadius.circular(10),
               child: Image.network(
                 article.fullImageUrl,
-                fit: BoxFit.cover,
+                fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) => Container(
                   color: const Color(0xFF1A1A1A),
                   child: const Icon(
@@ -853,7 +853,7 @@ class DetailsArticlePage extends StatelessWidget {
                 height: 280,
                 child: Image.network(
                   article.fullImageUrl,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => Container(
                     height: 100,
                     color: const Color(0xFF1A1A1A),

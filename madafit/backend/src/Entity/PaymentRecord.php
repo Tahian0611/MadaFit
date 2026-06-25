@@ -62,6 +62,11 @@ class PaymentRecord
     #[ORM\JoinColumn(onDelete: 'CASCADE')]
     private ?User $user = null;
 
+    #[ORM\ManyToOne(targetEntity: UserSubscription::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    #[Groups(['user:read'])]
+    private ?UserSubscription $userSubscription = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -132,5 +137,15 @@ class PaymentRecord
         $this->user = $user;
         return $this;
     }
-}
 
+    public function getUserSubscription(): ?UserSubscription
+    {
+        return $this->userSubscription;
+    }
+
+    public function setUserSubscription(?UserSubscription $userSubscription): static
+    {
+        $this->userSubscription = $userSubscription;
+        return $this;
+    }
+}

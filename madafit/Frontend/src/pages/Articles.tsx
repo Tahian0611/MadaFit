@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useCallback, memo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -27,6 +27,150 @@ const EMPTY_FORM: Partial<Article> = {
   isPublished: true,
 };
 
+// ── Options communes React Query ─────────────────────────────────────────────
+const ARTICLES_QUERY_OPTIONS = {
+  staleTime: 1000 * 60 * 5,
+  gcTime: 1000 * 60 * 10,
+  refetchOnWindowFocus: false,
+  placeholderData: (previousData: any) => previousData,
+} as const;
+
+// ============================================================================
+// SOUS-COMPOSANT : Carte article mémoïsée
+// ============================================================================
+
+interface ArticleCardProps {
+  article: Article;
+  onToggle: (id: number, isPublished: boolean) => void;
+  onEdit: (article: Article) => void;
+  onDelete: (id: number) => void;
+  isTogglePending: boolean;
+}
+
+const ArticleCard = memo(function ArticleCard({
+  article,
+  onToggle,
+  onEdit,
+  onDelete,
+  isTogglePending,
+}: ArticleCardProps) {
+  const catInfo = CATEGORY_MAP[article.category || "news"] || CATEGORY_MAP.news;
+
+  return (
+    <div
+      className="bg-card rounded-2xl border overflow-hidden hover:shadow-lg transition-all group break-inside-avoid mb-5"
+      style={{ borderColor: "hsl(var(--border))", contentVisibility: "auto", contain: "layout style paint" }}
+    >
+      {/* Image adaptative — ratio natif préservé */}
+      {article.imageUrl ? (
+        <div className="overflow-hidden bg-muted/20">
+          <img
+            src={getFullImageUrl(article.imageUrl)}
+            alt={article.title}
+            loading="lazy"
+            decoding="async"
+            className="w-full h-auto object-contain group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              const container = (e.target as HTMLImageElement).closest(".overflow-hidden");
+              if (container) {
+                container.innerHTML =
+                  '<div class="h-40 flex items-center justify-center text-muted-foreground/30"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg></div>';
+              }
+            }}
+          />
+        </div>
+      ) : (
+        <div className="h-40 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
+          <Newspaper size={40} className="text-primary/30" />
+        </div>
+      )}
+
+      <div className="p-4 space-y-3">
+        {/* Badges */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${catInfo.color}`}>
+            {catInfo.label}
+          </span>
+        </div>
+
+        {/* Titre */}
+        <h3 className="font-bold text-foreground leading-tight line-clamp-2">
+          {article.title}
+        </h3>
+
+        {/* Extrait */}
+        <p className="text-xs text-muted-foreground line-clamp-3">{article.content}</p>
+
+        {/* Date */}
+        {article.createdAt && (
+          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <Calendar size={10} />
+            {new Date(article.createdAt).toLocaleDateString("fr-FR", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </p>
+        )}
+
+        {/* Actions */}
+        <div
+          className="flex items-center gap-2 pt-2 border-t"
+          style={{ borderColor: "hsl(var(--border))" }}
+        >
+          <button
+            onClick={() => onToggle(article.id!, !article.isPublished)}
+            disabled={isTogglePending}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              article.isPublished
+                ? "bg-muted text-muted-foreground hover:bg-muted/80"
+                : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+            }`}
+          >
+            {article.isPublished ? "Dépublier" : "Publier"}
+          </button>
+          <button
+            onClick={() => onEdit(article)}
+            className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          >
+            <Pencil size={14} />
+          </button>
+          <button
+            onClick={() => onDelete(article.id!)}
+            className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ============================================================================
+// SOUS-COMPOSANT : Stat catégorie mémoïsée
+// ============================================================================
+
+interface CategoryStatProps {
+  cat: typeof CATEGORIES[number];
+  count: number;
+}
+
+const CategoryStat = memo(function CategoryStat({ cat, count }: CategoryStatProps) {
+  return (
+    <div className="stat-card">
+      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold mb-2 ${cat.color}`}>
+        {cat.label}
+      </span>
+      <p className="text-2xl font-black text-foreground">{count}</p>
+    </div>
+  );
+});
+
+// ============================================================================
+// COMPOSANT PRINCIPAL
+// ============================================================================
+
 export default function Articles() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,14 +181,76 @@ export default function Articles() {
   const [form, setForm]           = useState<Partial<Article>>(EMPTY_FORM);
   const [uploading, setUploading] = useState(false);
 
-  // ── Query ──────────────────────────────────────────────────────────────────
+  // ── Query avec options optimisées ─────────────────────────────────────────
   const articlesQuery = useQuery({
     queryKey: ["articles"],
     queryFn: () => api.articles.getAll({ itemsPerPage: 100, order: { createdAt: "desc" } }),
+    ...ARTICLES_QUERY_OPTIONS,
   });
 
-  const articles  = extractHydraMembers<Article>(articlesQuery.data);
-  const published = articles.filter((a) => a.isPublished).length;
+  const articles = extractHydraMembers<Article>(articlesQuery.data);
+
+  // ── Mémoïsation des calculs dérivés ──────────────────────────────────────
+  const { published, categoryCounts } = useMemo(() => {
+    const published = articles.filter((a) => a.isPublished).length;
+    const categoryCounts = Object.fromEntries(
+      CATEGORIES.map((cat) => [
+        cat.value,
+        articles.filter((a) => a.category === cat.value).length,
+      ])
+    );
+    return { published, categoryCounts };
+  }, [articles]);
+
+  // ── Handlers mémoïsés ──────────────────────────────────────────────────────
+  const openCreate = useCallback(() => {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setIsOpen(true);
+  }, []);
+
+  const openEdit = useCallback((article: Article) => {
+    setEditingId(article.id!);
+    setForm({
+      title:       article.title,
+      content:     article.content,
+      imageUrl:    article.imageUrl || "",
+      category:    article.category || "news",
+      isPublished: article.isPublished,
+    });
+    setIsOpen(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setIsOpen(false);
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+  }, []);
+
+  const handleTogglePublish = useCallback((id: number, isPublished: boolean) => {
+    toggleMutation.mutate({ id, isPublished });
+  }, []);
+
+  const handleDelete = useCallback((id: number) => {
+    setDeleteId(id);
+  }, []);
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const url = await uploadImage(file);
+      setForm((f) => ({ ...f, imageUrl: url }));
+      toast.success("Image uploadée avec succès");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de l'upload");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, []);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const saveMutation = useMutation({
@@ -64,7 +270,7 @@ export default function Articles() {
     },
     onSuccess: () => {
       toast.success(editingId ? "Article mis à jour" : "Article créé");
-      queryClient.invalidateQueries({ queryKey: ["articles"] });
+      queryClient.invalidateQueries({ queryKey: ["articles"], exact: true });
       closeModal();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -73,7 +279,7 @@ export default function Articles() {
   const toggleMutation = useMutation({
     mutationFn: ({ id, isPublished }: { id: number; isPublished: boolean }) =>
       api.articles.update(id, { isPublished }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["articles"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["articles"], exact: true }),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -81,55 +287,11 @@ export default function Articles() {
     mutationFn: (id: number) => api.articles.delete(id),
     onSuccess: () => {
       toast.success("Article supprimé");
-      queryClient.invalidateQueries({ queryKey: ["articles"] });
+      queryClient.invalidateQueries({ queryKey: ["articles"], exact: true });
       setDeleteId(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
-  const openCreate = () => {
-    setEditingId(null);
-    setForm(EMPTY_FORM);
-    setIsOpen(true);
-  };
-
-  const openEdit = (article: Article) => {
-    setEditingId(article.id!);
-    setForm({
-      title:       article.title,
-      content:     article.content,
-      imageUrl:    article.imageUrl || "",
-      category:    article.category || "news",
-      isPublished: article.isPublished,
-    });
-    setIsOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsOpen(false);
-    setEditingId(null);
-    setForm(EMPTY_FORM);
-  };
-
-  // ── Upload fichier ─────────────────────────────────────────────────────────
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    try {
-      const url = await uploadImage(file);
-      setForm((f) => ({ ...f, imageUrl: url }));
-      toast.success("Image uploadée avec succès");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de l'upload");
-    } finally {
-      setUploading(false);
-      // Reset l'input pour permettre de re-sélectionner le même fichier
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -156,20 +318,16 @@ export default function Articles() {
 
       {/* Stats catégories */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {CATEGORIES.map((cat) => {
-          const count = articles.filter((a) => a.category === cat.value).length;
-          return (
-            <div key={cat.value} className="stat-card">
-              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold mb-2 ${cat.color}`}>
-                {cat.label}
-              </span>
-              <p className="text-2xl font-black text-foreground">{count}</p>
-            </div>
-          );
-        })}
+        {CATEGORIES.map((cat) => (
+          <CategoryStat
+            key={cat.value}
+            cat={cat}
+            count={categoryCounts[cat.value] || 0}
+          />
+        ))}
       </div>
 
-      {/* Grille d'articles */}
+      {/* Grille masonry responsive */}
       {articlesQuery.isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 size={28} className="animate-spin text-muted-foreground" />
@@ -213,103 +371,17 @@ export default function Articles() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {articles.map((article) => {
-            const catInfo = CATEGORY_MAP[article.category || "news"] || CATEGORY_MAP.news;
-            return (
-              <div
-                key={article.id}
-                className="bg-card rounded-2xl border overflow-hidden hover:shadow-lg transition-all group"
-                style={{ borderColor: "hsl(var(--border))" }}
-              >
-                {/* Image */}
-                {article.imageUrl ? (
-                  <div className="h-40 overflow-hidden bg-muted/20">
-                    <img
-                      src={getFullImageUrl(article.imageUrl)}
-                      alt={article.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        const container = (e.target as HTMLImageElement).closest(".h-40");
-                        if (container) {
-                          container.innerHTML =
-                            '<div class="h-full flex items-center justify-center text-muted-foreground/30"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg></div>';
-                        }
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="h-40 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
-                    <Newspaper size={40} className="text-primary/30" />
-                  </div>
-                )}
-
-                <div className="p-4 space-y-3">
-                  {/* Badges */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${catInfo.color}`}>
-                      {catInfo.label}
-                    </span>
-                  </div>
-
-                  {/* Titre */}
-                  <h3 className="font-bold text-foreground leading-tight line-clamp-2">
-                    {article.title}
-                  </h3>
-
-                  {/* Extrait */}
-                  <p className="text-xs text-muted-foreground line-clamp-3">{article.content}</p>
-
-                  {/* Date */}
-                  {article.createdAt && (
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                      <Calendar size={10} />
-                      {new Date(article.createdAt).toLocaleDateString("fr-FR", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </p>
-                  )}
-
-                  {/* Actions */}
-                  <div
-                    className="flex items-center gap-2 pt-2 border-t"
-                    style={{ borderColor: "hsl(var(--border))" }}
-                  >
-                    <button
-                      onClick={() =>
-                        toggleMutation.mutate({
-                          id: article.id!,
-                          isPublished: !article.isPublished,
-                        })
-                      }
-                      disabled={toggleMutation.isPending}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                        article.isPublished
-                          ? "bg-muted text-muted-foreground hover:bg-muted/80"
-                          : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
-                      }`}
-                    >
-                      {article.isPublished ? "Dépublier" : "Publier"}
-                    </button>
-                    <button
-                      onClick={() => openEdit(article)}
-                      className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteId(article.id!)}
-                      className="p-2 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="columns-1 md:columns-2 xl:columns-3 gap-5 space-y-5">
+          {articles.map((article) => (
+            <ArticleCard
+              key={article.id}
+              article={article}
+              onToggle={handleTogglePublish}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+              isTogglePending={toggleMutation.isPending}
+            />
+          ))}
         </div>
       )}
 
@@ -447,7 +519,9 @@ export default function Articles() {
                     <img
                       src={getFullImageUrl(form.imageUrl)}
                       alt="Aperçu"
-                      className="h-32 w-full object-cover rounded-lg border"
+                      loading="lazy"
+                      decoding="async"
+                      className="h-32 w-full object-contain rounded-lg border"
                       style={{ borderColor: "hsl(var(--border))" }}
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";

@@ -52,9 +52,9 @@ class NotificationService
     }
 
     /**
-     * Notifications pour un user normal (membres APK) :
+     * Notifications pour un user normal (membres APK + réceptionnistes web) :
      * - Ses propres notifications (user = $user)
-     * - Notifications globales de type 'article' uniquement (user IS NULL AND type = 'article')
+     * - Notifications globales de type 'article', 'payment', 'member', 'stock', 'subscription'
      */
     public function getUserNotifications(?User $user, int $page = 1, int $limit = 20): array
     {
@@ -65,18 +65,24 @@ class NotificationService
         if ($user === null) {
             $qb->where('n.user IS NULL');
         } else {
-            // User reçoit : ses propres notifs (abonnement) + les articles globaux
+            // User reçoit : ses propres notifs + les globales autorisées
             $qb->where(
                 $qb->expr()->orX(
                     $qb->expr()->eq('n.user', ':user'),
                     $qb->expr()->andX(
                         $qb->expr()->isNull('n.user'),
-                        $qb->expr()->eq('n.type', ':articleType')
+                        $qb->expr()->in('n.type', ':allowedTypes')
                     )
                 )
             )
             ->setParameter('user', $user)
-            ->setParameter('articleType', Notification::TYPE_ARTICLE);
+            ->setParameter('allowedTypes', [
+                Notification::TYPE_ARTICLE,
+                Notification::TYPE_PAYMENT,
+                Notification::TYPE_MEMBER,
+                Notification::TYPE_STOCK,
+                Notification::TYPE_SUBSCRIPTION,
+            ]);
         }
 
         $items = $qb
@@ -97,12 +103,18 @@ class NotificationService
                     $countQb->expr()->eq('n.user', ':user'),
                     $countQb->expr()->andX(
                         $countQb->expr()->isNull('n.user'),
-                        $countQb->expr()->eq('n.type', ':articleType')
+                        $countQb->expr()->in('n.type', ':allowedTypes')
                     )
                 )
             )
             ->setParameter('user', $user)
-            ->setParameter('articleType', Notification::TYPE_ARTICLE);
+            ->setParameter('allowedTypes', [
+                Notification::TYPE_ARTICLE,
+                Notification::TYPE_PAYMENT,
+                Notification::TYPE_MEMBER,
+                Notification::TYPE_STOCK,
+                Notification::TYPE_SUBSCRIPTION,
+            ]);
         }
 
         $total = (int) $countQb->getQuery()->getSingleScalarResult();
@@ -207,7 +219,7 @@ class NotificationService
             'Nouvelle inscription',
             sprintf('%s %s vient de s\'inscrire (%s).', $member->getFirstName(), $member->getLastName(), $member->getMemberId()),
             Notification::TYPE_MEMBER,
-            null, // global admin
+            null, // global
             Notification::PRIORITY_NORMAL,
             '/members',
             'UserPlus',
@@ -222,7 +234,7 @@ class NotificationService
             'Paiement reçu',
             sprintf('%s a payé %s Ar.', $member->getFirstName(), number_format($amount, 0, ',', ' ')),
             Notification::TYPE_PAYMENT,
-            null, // global admin
+            null, // global
             Notification::PRIORITY_NORMAL,
             '/subscriptions',
             'DollarSign'
@@ -254,8 +266,8 @@ class NotificationService
     }
 
     /**
-     * ✅ Alerte expiration — user = $member (user-specific, visible APK du membre uniquement)
-     * Admin voit via getAllNotifications
+     * ✅ Alerte expiration — user = $member (user-specific, visible APK du membre)
+     * + notif globale pour réceptionniste/admin (web)
      */
     public function notifySubscriptionExpiring(User $member, int $daysLeft): void
     {
@@ -265,11 +277,23 @@ class NotificationService
         $priority = $daysLeft <= 1 ? Notification::PRIORITY_URGENT :
                    ($daysLeft <= 3 ? Notification::PRIORITY_HIGH : Notification::PRIORITY_NORMAL);
 
+        // Notif privée pour le membre (APK)
         $this->create(
             'Abonnement à renouveler',
             sprintf('Votre abonnement expire %s. Pensez à le renouveler à l\'accueil.', $label),
             Notification::TYPE_SUBSCRIPTION,
-            $member, // ✅ user-specific — le membre voit seulement SA propre alerte
+            $member,
+            $priority,
+            '/subscriptions',
+            'CalendarClock'
+        );
+
+        // Notif globale pour réceptionniste/admin (web)
+        $this->create(
+            'Rappel abonnement client',
+            sprintf('%s (%s) expire %s.', $member->getFullName(), $member->getMemberId(), $label),
+            Notification::TYPE_SUBSCRIPTION,
+            null,
             $priority,
             '/subscriptions',
             'CalendarClock'
@@ -277,17 +301,34 @@ class NotificationService
     }
 
     /**
-     * ✅ Expiration confirmée — user = $member (user-specific)
+     * ✅ Expiration confirmée — user = $member (user-specific, APK)
+     * + notif globale pour réceptionniste/admin (web)
      */
     public function notifySubscriptionExpired(User $member): void
     {
+        // Notif privée pour le membre (APK)
         $this->create(
             'Abonnement expiré',
             sprintf('Votre abonnement a expiré le %s. Renouvelez-le à l\'accueil MadaFit.',
                 $member->getExpiryDate()?->format('d/m/Y') ?? 'date inconnue'
             ),
             Notification::TYPE_SUBSCRIPTION,
-            $member, // ✅ user-specific
+            $member,
+            Notification::PRIORITY_URGENT,
+            '/subscriptions',
+            'AlertTriangle'
+        );
+
+        // Notif globale pour réceptionniste/admin (web)
+        $this->create(
+            'Abonnement client expiré',
+            sprintf('%s (%s) a expiré le %s.',
+                $member->getFullName(),
+                $member->getMemberId(),
+                $member->getExpiryDate()?->format('d/m/Y') ?? 'date inconnue'
+            ),
+            Notification::TYPE_SUBSCRIPTION,
+            null,
             Notification::PRIORITY_URGENT,
             '/subscriptions',
             'AlertTriangle'
@@ -371,7 +412,7 @@ class NotificationService
             'Nouvel article',
             sprintf('"%s" vient d\'être publié sur MadaFit.', $article->getTitle()),
             Notification::TYPE_ARTICLE,
-            null, // global — visible par tous les utilisateurs
+            null,
             Notification::PRIORITY_NORMAL,
             null,
             'Newspaper'

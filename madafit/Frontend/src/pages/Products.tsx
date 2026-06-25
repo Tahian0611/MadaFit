@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback, memo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
   History, 
@@ -94,6 +94,19 @@ const TRANSACTION_CONFIG: Record<string, TransactionTypeConfig> = {
 };
 
 // ============================================================================
+// OPTIONS REACT QUERY PARTAGÉES
+// ============================================================================
+
+const COMMON_QUERY_OPTIONS = {
+  staleTime: 1000 * 60 * 5,
+  gcTime: 1000 * 60 * 10,
+  refetchOnWindowFocus: false,
+  placeholderData: (previousData: any) => previousData,
+  retry: 2,
+  retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 10000),
+} as const;
+
+// ============================================================================
 // FONCTIONS UTILITAIRES POUR L'HISTORIQUE
 // ============================================================================
 
@@ -132,6 +145,165 @@ function getTransactionTotal(transaction: Transaction): number | null {
 }
 
 // ============================================================================
+// SOUS-COMPOSANTS MÉMOÏSÉS
+// ============================================================================
+
+interface ProductRowProps {
+  product: Product;
+  index: number;
+  selectedProduct: Product | null;
+  onSelect: (product: Product) => void;
+  onDelete: (id: number) => void;
+  isDeletePending: boolean;
+  deleteVariables: number | undefined;
+}
+
+const ProductRow = memo(function ProductRow({
+  product,
+  index,
+  selectedProduct,
+  onSelect,
+  onDelete,
+  isDeletePending,
+  deleteVariables,
+}: ProductRowProps) {
+  const animDelay = Math.min(index * 30, 300);
+
+  return (
+    <tr 
+      className="group transition-all duration-200 hover:bg-muted/30 cursor-pointer"
+      style={{ 
+        animationDelay: `${animDelay}ms`,
+        animation: "fade-in 0.3s ease-out forwards",
+        opacity: 0,
+        contentVisibility: "auto",
+        contain: "layout style paint",
+      }}
+      onClick={() => onSelect(product)}
+    >
+      <td className="px-4 py-3">
+        <button 
+          className={`font-semibold transition-colors ${
+            selectedProduct?.id === product.id 
+              ? "text-primary" 
+              : "text-foreground hover:text-primary"
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(product);
+          }}
+        >
+          {product.name}
+        </button>
+      </td>
+      <td className="px-4 py-3 text-muted-foreground">{product.category}</td>
+      <td className="px-4 py-3 text-muted-foreground">{formatCurrency(product.purchasePrice)}</td>
+      <td className="px-4 py-3 font-medium text-foreground">{formatCurrency(product.salePrice)}</td>
+      <td className="px-4 py-3 font-bold text-sky-600">{product.totalSales || 0}</td>
+      <td className="px-4 py-3">
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+          product.currentStock === 0 
+            ? "bg-destructive/10 text-destructive" 
+            : product.currentStock <= 5 
+              ? "bg-amber-500/10 text-amber-600" 
+              : "bg-emerald-500/10 text-emerald-600"
+        }`}>
+          {product.currentStock} u.
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <button
+          className="p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-destructive/10 text-destructive"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (product.id) onDelete(product.id);
+          }}
+          disabled={isDeletePending}
+        >
+          {isDeletePending && deleteVariables === product.id ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Trash2 size={14} />
+          )}
+        </button>
+      </td>
+    </tr>
+  );
+});
+
+interface TransactionCardProps {
+  transaction: Transaction;
+  index: number;
+}
+
+const TransactionCard = memo(function TransactionCard({
+  transaction,
+  index,
+}: TransactionCardProps) {
+  const config = TRANSACTION_CONFIG[transaction.type] || TRANSACTION_CONFIG.non_sale_exit;
+  const Icon = config.icon;
+  const total = getTransactionTotal(transaction);
+  const qtyPositive = transaction.type === 'entry' || transaction.type === 'charge';
+  const pricePositive = transaction.type === 'sale' || transaction.type === 'credit';
+  const animDelay = Math.min(index * 50, 300);
+
+  return (
+    <div 
+      className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-md ${config.bgColor} ${config.borderColor}`}
+      style={{
+        animationDelay: `${animDelay}ms`,
+        animation: "slide-in 0.3s ease-out forwards",
+        opacity: 0,
+        willChange: "transform",
+      }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center bg-white/80 ${config.color}`}>
+            <Icon className="w-4 h-4" />
+          </div>
+          <div>
+            <p className={`text-sm font-semibold ${config.color}`}>{config.label}</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              {formatTransactionDate(transaction.date)}
+            </p>
+          </div>
+        </div>
+        <span className={`text-sm font-bold ${qtyPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+          {qtyPositive ? '+' : '-'}{transaction.quantity} u.
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between pt-2 border-t border-black/5">
+        <div className="flex items-center gap-3">
+          {transaction.unitPrice && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Banknote className="w-3 h-3" />
+              {formatCurrency(transaction.unitPrice)}/u.
+            </span>
+          )}
+        </div>
+        {total !== null && (
+          <span className={`text-sm font-bold ${pricePositive ? 'text-emerald-700' : 'text-rose-700'}`}>
+            {pricePositive ? '+' : '-'}{formatCurrency(total)}
+          </span>
+        )}
+      </div>
+
+      {transaction.note && (
+        <div className="mt-2 pt-2 border-t border-black/5">
+          <p className="text-xs text-muted-foreground flex items-start gap-1">
+            <StickyNote className="w-3 h-3 mt-0.5 shrink-0" />
+            <span className="line-clamp-2">{transaction.note}</span>
+          </p>
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ============================================================================
 // COMPOSANT PRINCIPAL
 // ============================================================================
 
@@ -149,17 +321,19 @@ export default function Products() {
   });
 
   // -------------------------------------------------------------------------
-  // QUERIES
+  // QUERIES AVEC OPTIONS OPTIMISÉES
   // -------------------------------------------------------------------------
 
   const productsQuery = useQuery({
     queryKey: ["products"],
     queryFn: () => api.products.getAll({ itemsPerPage: 100 }),
+    ...COMMON_QUERY_OPTIONS,
   });
 
   const transactionsQuery = useQuery({
     queryKey: ["transactions"],
     queryFn: () => api.transactions.getAll({ itemsPerPage: 100 }),
+    ...COMMON_QUERY_OPTIONS,
   });
 
   const rawProducts = extractHydraMembers(productsQuery.data);
@@ -185,6 +359,28 @@ export default function Products() {
   }, [products, search]);
 
   // -------------------------------------------------------------------------
+  // HANDLERS MÉMOÏSÉS
+  // -------------------------------------------------------------------------
+
+  const handleSelectProduct = useCallback((product: Product) => {
+    setSelectedProduct(product);
+  }, []);
+
+  const handleDeleteClick = useCallback((id: number) => {
+    if (window.confirm("Supprimer ce produit ?")) {
+      deleteMutation.mutate(id);
+    }
+  }, []);
+
+  const openCreate = useCallback(() => {
+    setIsOpen(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setIsOpen(false);
+  }, []);
+
+  // -------------------------------------------------------------------------
   // MUTATIONS
   // -------------------------------------------------------------------------
 
@@ -201,7 +397,7 @@ export default function Products() {
       }),
     onSuccess: () => {
       toast.success("Produit ajouté avec succès");
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products"], exact: true });
       refreshNotifications();
       setIsOpen(false);
       setForm({ name: "", category: "Boissons", purchasePrice: 0, salePrice: 0, initialStock: 0 });
@@ -215,7 +411,7 @@ export default function Products() {
     mutationFn: (id: number) => api.products.delete(id),
     onSuccess: () => {
       toast.success("Produit supprimé");
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products"], exact: true });
       if (selectedProduct) setSelectedProduct(null);
       refreshNotifications();
     },
@@ -235,7 +431,6 @@ export default function Products() {
       extractIdFromIri(transaction.product) === selectedProduct.id
     );
     
-    // Tri par date décroissante (plus récent en premier)
     return [...filtered].sort((a, b) => 
       new Date(b.date).getTime() - new Date(a.date).getTime()
     );
@@ -300,7 +495,7 @@ export default function Products() {
           </p>
         </div>
         <button 
-          onClick={() => setIsOpen(true)} 
+          onClick={openCreate} 
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:scale-105 active:scale-95"
           style={{ background: "var(--gradient-hero)", boxShadow: "var(--shadow-red)" }}
         >
@@ -385,65 +580,16 @@ export default function Products() {
               </thead>
               <tbody className="divide-y" style={{ borderColor: "hsl(var(--border))" }}>
                 {filteredProducts.map((product, index) => (
-                  <tr 
-                    key={product.id} 
-                    className="group transition-all duration-200 hover:bg-muted/30 cursor-pointer"
-                    style={{ 
-                      animationDelay: `${index * 30}ms`,
-                      animation: "fade-in 0.3s ease-out forwards",
-                      opacity: 0
-                    }}
-                    onClick={() => setSelectedProduct(product)}
-                  >
-                    <td className="px-4 py-3">
-                      <button 
-                        className={`font-semibold transition-colors ${
-                          selectedProduct?.id === product.id 
-                            ? "text-primary" 
-                            : "text-foreground hover:text-primary"
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedProduct(product);
-                        }}
-                      >
-                        {product.name}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{product.category}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatCurrency(product.purchasePrice)}</td>
-                    <td className="px-4 py-3 font-medium text-foreground">{formatCurrency(product.salePrice)}</td>
-                    <td className="px-4 py-3 font-bold text-sky-600">{product.totalSales || 0}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        product.currentStock === 0 
-                          ? "bg-destructive/10 text-destructive" 
-                          : product.currentStock <= 5 
-                            ? "bg-amber-500/10 text-amber-600" 
-                            : "bg-emerald-500/10 text-emerald-600"
-                      }`}>
-                        {product.currentStock} u.
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        className="p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-destructive/10 text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (product.id && window.confirm("Supprimer ce produit ?")) {
-                            deleteMutation.mutate(product.id);
-                          }
-                        }}
-                        disabled={deleteMutation.isPending}
-                      >
-                        {deleteMutation.isPending && deleteMutation.variables === product.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 size={14} />
-                        )}
-                      </button>
-                    </td>
-                  </tr>
+                  <ProductRow
+                    key={product.id}
+                    product={product}
+                    index={index}
+                    selectedProduct={selectedProduct}
+                    onSelect={handleSelectProduct}
+                    onDelete={handleDeleteClick}
+                    isDeletePending={deleteMutation.isPending}
+                    deleteVariables={deleteMutation.variables}
+                  />
                 ))}
                 {filteredProducts.length === 0 && (
                   <tr>
@@ -528,68 +674,13 @@ export default function Products() {
 
                 {/* Liste des transactions */}
                 <div className="space-y-2">
-                  {productTransactions.map((transaction, index) => {
-                    const config = TRANSACTION_CONFIG[transaction.type] || TRANSACTION_CONFIG.non_sale_exit;
-                    const Icon = config.icon;
-                    const total = getTransactionTotal(transaction);
-                    const qtyPositive = transaction.type === 'entry' || transaction.type === 'charge';
-                    const pricePositive = transaction.type === 'sale' || transaction.type === 'credit';
-                    
-                    return (
-                      <div 
-                        key={transaction.id}
-                        className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-md ${config.bgColor} ${config.borderColor}`}
-                        style={{
-                          animationDelay: `${index * 50}ms`,
-                          animation: "slide-in 0.3s ease-out forwards",
-                          opacity: 0
-                        }}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center bg-white/80 ${config.color}`}>
-                              <Icon className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <p className={`text-sm font-semibold ${config.color}`}>{config.label}</p>
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {formatTransactionDate(transaction.date)}
-                              </p>
-                            </div>
-                          </div>
-                          <span className={`text-sm font-bold ${qtyPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {qtyPositive ? '+' : '-'}{transaction.quantity} u.
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-2 border-t border-black/5">
-                          <div className="flex items-center gap-3">
-                            {transaction.unitPrice && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Banknote className="w-3 h-3" />
-                                {formatCurrency(transaction.unitPrice)}/u.
-                              </span>
-                            )}
-                          </div>
-                          {total !== null && (
-                            <span className={`text-sm font-bold ${pricePositive ? 'text-emerald-700' : 'text-rose-700'}`}>
-                              {pricePositive ? '+' : '-'}{formatCurrency(total)}
-                            </span>
-                          )}
-                        </div>
-
-                        {transaction.note && (
-                          <div className="mt-2 pt-2 border-t border-black/5">
-                            <p className="text-xs text-muted-foreground flex items-start gap-1">
-                              <StickyNote className="w-3 h-3 mt-0.5 shrink-0" />
-                              <span className="line-clamp-2">{transaction.note}</span>
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {productTransactions.map((transaction, index) => (
+                    <TransactionCard
+                      key={transaction.id}
+                      transaction={transaction}
+                      index={index}
+                    />
+                  ))}
                 </div>
               </>
             )}
@@ -621,7 +712,7 @@ export default function Products() {
       {isOpen && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/50 animate-fade-in"
-          onClick={() => setIsOpen(false)}
+          onClick={closeModal}
         >
           <div 
             className="w-full h-full sm:h-auto max-w-lg rounded-none sm:rounded-2xl border bg-card p-6 flex flex-col space-y-4 animate-scale-in overflow-y-auto"
@@ -669,7 +760,7 @@ export default function Products() {
               <button 
                 className="px-4 py-2 rounded-lg border transition-colors hover:bg-muted"
                 style={{ borderColor: "hsl(var(--border))" }} 
-                onClick={() => setIsOpen(false)}
+                onClick={closeModal}
               >
                 Annuler
               </button>
@@ -697,10 +788,10 @@ export default function Products() {
 }
 
 // ============================================================================
-// COMPOSANTS INTERNES
+// COMPOSANTS INTERNES MÉMOÏSÉS
 // ============================================================================
 
-function Field({
+const Field = memo(function Field({
   label,
   value,
   onChange,
@@ -726,9 +817,9 @@ function Field({
       />
     </div>
   );
-}
+});
 
-function MetricCard({ 
+const MetricCard = memo(function MetricCard({ 
   label, 
   value, 
   icon: Icon,
@@ -747,7 +838,8 @@ function MetricCard({
       style={{
         animationDelay: `${delay * 100}ms`,
         animation: "fade-in 0.4s ease-out forwards",
-        opacity: 0
+        opacity: 0,
+        willChange: "transform",
       }}
     >
       <div className="flex items-center justify-between mb-2">
@@ -757,4 +849,4 @@ function MetricCard({
       <p className="text-2xl font-black text-foreground mt-1">{value}</p>
     </div>
   );
-}
+});

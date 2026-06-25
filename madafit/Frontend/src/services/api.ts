@@ -12,6 +12,7 @@ import type {
   SubscriptionPlan,
   Transaction,
   User,
+  UserSubscription,
   VisitRecord,
 } from "../types/entities";
 
@@ -104,6 +105,11 @@ async function fetchFromApi<T>(
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+  // Propager l'annulation externe (React Query) vers notre controller
+  if (options.signal) {
+    options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
 
   const response = await fetchWithRetry(url, {
     signal: controller.signal,
@@ -200,7 +206,7 @@ export const authApi = {
         const payload = JSON.parse(atob(data.token.split(".")[1]));
         const userData = {
           id:        data.id        || payload.id        || undefined,
-          email:     payload.username || payload.email   || data.email || "",
+          email:     payload.username || payload.email   || data.email || "Utilisateur",
           roles:     payload.roles   || data.roles       || [],
           firstName: data.firstName  || payload.firstName || (payload.username ? payload.username.split("@")[0] : "Utilisateur"),
           lastName:  data.lastName   || payload.lastName  || "",
@@ -232,6 +238,7 @@ export const authApi = {
 };
 
 export const userApi             = createCrudApi<User>("users");
+export const userSubscriptionApi = createCrudApi<UserSubscription>("user_subscriptions");
 export const productApi          = createCrudApi<Product>("products");
 export const subscriptionPlanApi = createCrudApi<SubscriptionPlan>("subscription_plans");
 export const attendanceRecordApi = createCrudApi<AttendanceRecord>("attendance_records");
@@ -349,6 +356,7 @@ export async function uploadImage(file: File): Promise<string> {
 export const api = {
   auth:              authApi,
   users:             userApi,
+  userSubscriptions: userSubscriptionApi,
   products:          productApi,
   subscriptionPlans: subscriptionPlanApi,
   attendanceRecords: attendanceRecordApi,
@@ -361,6 +369,22 @@ export const api = {
   articles:          articleApi,
   promoCodes:        promoCodeApi,
   backups:           backupApi,
+  /* ═══════════════════════════════════════════════════════════════════════
+     CASHIER RESET — gestion du marqueur de reset pour masquer
+     l'historique confidentiel aux réceptionnistes (Caisse 1)
+     ═══════════════════════════════════════════════════════════════════════ */
+  cashierResets: {
+    async getLatest(cashRegister: string): Promise<{ month: string | null }> {
+      return fetchFromApi(`/cashier_resets?cashRegister=${cashRegister}`);
+    },
+    async create(resetMonth: string): Promise<{ month: string }> {
+      return fetchFromApi(
+        '/cashier_resets',
+        { method: 'POST', body: JSON.stringify({ resetMonth }) },
+        'application/json'
+      );
+    },
+  },
   stockReports: {
     getSummary: async (params: { from: string; to: string }): Promise<StockReportSummary> => {
       const token = localStorage.getItem("madafit_token");

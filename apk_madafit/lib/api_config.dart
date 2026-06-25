@@ -7,17 +7,29 @@ class ApiConfig {
   // 2. URL de Développement (Local)
   // - Utilisez '10.0.2.2' pour l'émulateur Android
   // - Utilisez l'IP de votre machine (ex: '192.168.1.XX') pour un appareil réel
-  static const String _localIp = '192.168.88.120'; // À MODIFIER selon votre IP
+  static const String _localIp = '192.168.1.145'; // À MODIFIER selon votre IP
   static const String _devUrl = 'https://$_localIp:8000/api';
 
   /// The base URL for the API.
   /// Force l'utilisation de l'URL de production pour l'APK.
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: _devUrl, // Forcer l'URL de production ici
+    defaultValue: _devUrl,
   );
 
-  /// Helper to get the full URL for an image.
+  static String get domainUrl {
+    String domain = baseUrl;
+    if (domain.endsWith('/api')) {
+      domain = domain.substring(0, domain.length - 4);
+    } else if (domain.endsWith('/api/')) {
+      domain = domain.substring(0, domain.length - 5);
+    }
+    if (domain.endsWith('/')) {
+      domain = domain.substring(0, domain.length - 1);
+    }
+    return domain;
+  }
+
   static String getFullImageUrl(String? imageUrl) {
     if (imageUrl == null || imageUrl.isEmpty) return '';
     if (imageUrl.startsWith('http')) return imageUrl;
@@ -39,5 +51,9 @@ class ApiConfig {
     }
 
     return '$domain$path';
+  }
+
+  static String getFullPhotoUrl(String? photoUrl) {
+    return getFullImageUrl(photoUrl);
   }
 }

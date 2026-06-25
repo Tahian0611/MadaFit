@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback, memo } from 'react';
 import { useStockReport } from '@/hooks/useStockReport';
 import {
   Select,
@@ -31,7 +31,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
-import type { StockReportSummary } from '@/services/api';
+import type { StockReportSummary, StockReportRow } from '@/services/api';
 
 type Period = 'today' | 'week' | 'month' | 'custom';
 
@@ -65,6 +65,13 @@ function getPeriodRange(period: Period, from: string, to: string): { from: strin
     return { from: formatLocalDate(firstDay), to: formatLocalDate(lastDay) };
   }
   return { from, to };
+}
+
+// ── Instance réutilisable Intl.NumberFormat ────────────────────────────────────
+const numberFormatter = new Intl.NumberFormat('fr-MG');
+
+function formatMGA(v: number) {
+  return numberFormatter.format(Math.round(v)) + ' Ar';
 }
 
 // ── Export CSV ────────────────────────────────────────────────────────────────
@@ -333,104 +340,103 @@ function exportToPDF(report: StockReportSummary, periodLabel: string, from: stri
   pdf.save(`madafit-stock-${from}_${to}.pdf`);
 }
 
-function formatMGA(v: number) {
-  return new Intl.NumberFormat('fr-MG').format(Math.round(v)) + ' Ar';
-}
-
 // ============================================================================
-// ANIMATIONS CSS INJECTÉES
+// ANIMATIONS CSS INJECTÉES — Mémoïsé pour éviter la réinjection
 // ============================================================================
 
-const GlobalStyles = () => (
-  <style>{`
-    @keyframes fade-in-up {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes fade-in-left {
-      from { opacity: 0; transform: translateX(-20px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-    @keyframes scale-in {
-      from { opacity: 0; transform: scale(0.95); }
-      to { opacity: 1; transform: scale(1); }
-    }
-    @keyframes count-up {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes slide-in-right {
-      from { opacity: 0; transform: translateX(30px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-    @keyframes bar-fill {
-      from { width: 0%; }
-      to { width: var(--target-width); }
-    }
-    .animate-fade-in-up {
-      animation: fade-in-up 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-      opacity: 0;
-    }
-    .animate-fade-in-left {
-      animation: fade-in-left 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-      opacity: 0;
-    }
-    .animate-scale-in {
-      animation: scale-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-      opacity: 0;
-    }
-    .animate-slide-in-right {
-      animation: slide-in-right 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-      opacity: 0;
-    }
-    .animate-count-up {
-      animation: count-up 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-      opacity: 0;
-    }
-    .animate-bar-fill {
-      animation: bar-fill 1s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-    }
-    .glass-card {
-      background: rgba(255, 255, 255, 0.7);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-    }
-    .dark .glass-card {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    .premium-shadow {
-      box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.08), 0 8px 48px -8px rgba(0, 0, 0, 0.04);
-    }
-    .premium-shadow-hover {
-      transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
-    }
-    .premium-shadow-hover:hover {
-      box-shadow: 0 8px 40px -4px rgba(0, 0, 0, 0.12), 0 16px 64px -16px rgba(0, 0, 0, 0.08);
-      transform: translateY(-2px);
-    }
-    .gradient-text {
-      background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--muted-foreground)) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .table-row-anim {
-      transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    }
-    .table-row-anim:hover {
-      background: hsl(var(--muted) / 0.6);
-      transform: scale(1.002);
-      box-shadow: 0 2px 12px -2px rgba(0,0,0,0.05);
-    }
-  `}</style>
-);
+const globalStylesString = `
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-in-left {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes count-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(30px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes bar-fill {
+    from { width: 0%; }
+    to { width: var(--target-width); }
+  }
+  .animate-fade-in-up {
+    animation: fade-in-up 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    opacity: 0;
+  }
+  .animate-fade-in-left {
+    animation: fade-in-left 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    opacity: 0;
+  }
+  .animate-scale-in {
+    animation: scale-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    opacity: 0;
+  }
+  .animate-slide-in-right {
+    animation: slide-in-right 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    opacity: 0;
+  }
+  .animate-count-up {
+    animation: count-up 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    opacity: 0;
+  }
+  .animate-bar-fill {
+    animation: bar-fill 1s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+  .glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  .dark .glass-card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .premium-shadow {
+    box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.08), 0 8px 48px -8px rgba(0, 0, 0, 0.04);
+  }
+  .premium-shadow-hover {
+    transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .premium-shadow-hover:hover {
+    box-shadow: 0 8px 40px -4px rgba(0, 0, 0, 0.12), 0 16px 64px -16px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+  }
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--muted-foreground)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .table-row-anim {
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    will-change: transform;
+  }
+  .table-row-anim:hover {
+    background: hsl(var(--muted) / 0.6);
+    transform: scale(1.002);
+    box-shadow: 0 2px 12px -2px rgba(0,0,0,0.05);
+  }
+`;
+
+const GlobalStyles = memo(function GlobalStyles() {
+  return <style>{globalStylesString}</style>;
+});
 
 // ============================================================================
-// COMPOSANTS PREMIUM INTERNES
+// COMPOSANTS PREMIUM INTERNES — Mémoïsés
 // ============================================================================
 
-function PremiumKPI({ 
+const PremiumKPI = memo(function PremiumKPI({ 
   label, value, icon: Icon, color, bgGradient, delay = 0, trend
 }: { 
   label: string; value: string; icon: React.ElementType; color: string; bgGradient: string;
@@ -465,9 +471,9 @@ function PremiumKPI({
       </div>
     </div>
   );
-}
+});
 
-function StatCard({ label, value, sub, icon: Icon, delay = 0 }: { 
+const StatCard = memo(function StatCard({ label, value, sub, icon: Icon, delay = 0 }: { 
   label: string; value: string; sub: string; icon: React.ElementType; delay?: number;
 }) {
   return (
@@ -487,9 +493,9 @@ function StatCard({ label, value, sub, icon: Icon, delay = 0 }: {
       </div>
     </div>
   );
-}
+});
 
-function EmptyState({ icon: Icon, title, subtitle }: { 
+const EmptyState = memo(function EmptyState({ icon: Icon, title, subtitle }: { 
   icon: React.ElementType; title: string; subtitle: string;
 }) {
   return (
@@ -501,7 +507,83 @@ function EmptyState({ icon: Icon, title, subtitle }: {
       <p className="text-xs text-muted-foreground/60 mt-1.5 max-w-[240px] leading-relaxed">{subtitle}</p>
     </div>
   );
+});
+
+// ── Sous-composant de ligne de tableau mémoïsé ───────────────────────────────
+interface TableRowProps {
+  row: StockReportRow;
+  index: number;
 }
+
+const TableRow = memo(function TableRow({ row, index }: TableRowProps) {
+  const stockStatus =
+    row.finalStock === 0
+      ? { label: "RUPTURE", className: "bg-destructive/10 text-destructive" }
+      : row.finalStock <= 5
+      ? { label: "FAIBLE", className: "bg-amber-500/10 text-amber-600" }
+      : { label: "OK", className: "bg-emerald-500/10 text-emerald-600" };
+
+  // Plafonnement du délai d'animation pour éviter les files d'attente trop longues
+  const animDelay = Math.min(index * 30, 300);
+
+  return (
+    <tr 
+      className="table-row-anim animate-fade-in-up"
+      style={{ animationDelay: `${animDelay}ms` }}
+    >
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center text-xs font-bold text-primary">
+            {row.product.name.charAt(0).toUpperCase()}
+          </div>
+          <span className="font-semibold text-foreground">{row.product.name}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-muted/60 text-muted-foreground text-[11px] font-medium">
+          {row.product.category}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-foreground font-mono text-xs">{row.initialStock}</td>
+      <td className="px-4 py-3">
+        <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold text-xs">
+          <ArrowDown className="w-3 h-3" />{row.totalEntries}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span className="inline-flex items-center gap-1 text-sky-600 font-semibold text-xs">
+          <ShoppingCart className="w-3 h-3" />{row.totalSales}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span className="inline-flex items-center gap-1 text-amber-600 font-semibold text-xs">
+          <CreditCard className="w-3 h-3" />{row.totalCredits ?? 0}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span className="inline-flex items-center gap-1 text-rose-600 font-semibold text-xs">
+          <ArrowUpRight className="w-3 h-3" />{row.totalNonSaleExits}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${stockStatus.className}`}>
+          {row.finalStock}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{formatMGA(row.totalCost)}</td>
+      <td className="px-4 py-3 text-sky-600 font-semibold font-mono text-xs">{formatMGA(row.revenue)}</td>
+      <td className="px-4 py-3">
+        <span className={`inline-flex items-center gap-1 text-xs font-bold ${
+          row.profit > 0 ? 'text-emerald-600' : row.profit < 0 ? 'text-rose-600' : 'text-muted-foreground'
+        }`}>
+          {row.profit > 0 && <TrendingUp className="w-3 h-3" />}
+          {row.profit < 0 && <TrendingDown className="w-3 h-3" />}
+          {formatMGA(row.profit)}
+        </span>
+      </td>
+    </tr>
+  );
+});
 
 // ============================================================================
 // COMPOSANT PRINCIPAL
@@ -530,10 +612,27 @@ export default function Reports() {
     custom: 'Période personnalisée',
   };
 
-  const activeProducts = summary.filter((r) => r.totalEntries > 0 || r.totalExits > 0 || r.revenue > 0);
-  const topProducts    = [...activeProducts].sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+  // ── Mémoïsation des calculs dérivés ──────────────────────────────────────
+  const activeProducts = useMemo(() => {
+    return summary.filter((r) => r.totalEntries > 0 || r.totalExits > 0 || r.revenue > 0);
+  }, [summary]);
 
-  const totalArticlesVendus = totals.totalSales + (totals.totalCredits ?? 0);
+  const topProducts = useMemo(() => {
+    return [...activeProducts].sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+  }, [activeProducts]);
+
+  const totalArticlesVendus = useMemo(() => {
+    return totals.totalSales + (totals.totalCredits ?? 0);
+  }, [totals.totalSales, totals.totalCredits]);
+
+  // ── Handlers d'export mémoïsés ──────────────────────────────────────────
+  const handleExportCSV = useCallback(() => {
+    if (report) exportToCSV(report, periodLabel[period], from, to);
+  }, [report, period, from, to]);
+
+  const handleExportPDF = useCallback(() => {
+    if (report) exportToPDF(report, periodLabel[period], from, to);
+  }, [report, period, from, to]);
 
   if (isLoading) {
     return (
@@ -650,9 +749,7 @@ export default function Reports() {
 
               {/* Bouton Export CSV */}
               <button
-                onClick={() => {
-                  if (report) exportToCSV(report, periodLabel[period], from, to);
-                }}
+                onClick={handleExportCSV}
                 disabled={!report || summary.length === 0}
                 title="Exporter en CSV"
                 className="flex items-center justify-center w-full h-11 rounded-xl border border-border/60 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm shrink-0 sm:w-11 hover:shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
@@ -662,9 +759,7 @@ export default function Reports() {
 
               {/* Bouton Export PDF */}
               <button
-                onClick={() => {
-                  if (report) exportToPDF(report, periodLabel[period], from, to);
-                }}
+                onClick={handleExportPDF}
                 disabled={!report || summary.length === 0}
                 title="Exporter en PDF"
                 className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-primary text-primary-foreground font-semibold text-sm shrink-0 sm:w-auto sm:px-4 hover:bg-primary/90 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
@@ -737,7 +832,7 @@ export default function Reports() {
                 topProducts.map((row, i) => {
                   const pct = totals.revenue > 0 ? (row.revenue / totals.revenue) * 100 : 0;
                   return (
-                    <div key={row.product.id} className="space-y-2 animate-fade-in-left" style={{ animationDelay: `${i * 80}ms` }}>
+                    <div key={row.product.id} className="space-y-2 animate-fade-in-left" style={{ animationDelay: `${Math.min(i * 80, 400)}ms` }}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
                           <span className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
@@ -839,68 +934,7 @@ export default function Reports() {
                   </tr>
                 ) : (
                   summary.map((row, index) => (
-                    <tr 
-                      key={row.product.id} 
-                      className="table-row-anim animate-fade-in-up"
-                      style={{ animationDelay: `${index * 30}ms` }}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center text-xs font-bold text-primary">
-                            {row.product.name.charAt(0).toUpperCase()}
-                          </div>
-                          <span className="font-semibold text-foreground">{row.product.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-muted/60 text-muted-foreground text-[11px] font-medium">
-                          {row.product.category}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-foreground font-mono text-xs">{row.initialStock}</td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold text-xs">
-                          <ArrowDown className="w-3 h-3" />{row.totalEntries}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1 text-sky-600 font-semibold text-xs">
-                          <ShoppingCart className="w-3 h-3" />{row.totalSales}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1 text-amber-600 font-semibold text-xs">
-                          <CreditCard className="w-3 h-3" />{row.totalCredits ?? 0}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1 text-rose-600 font-semibold text-xs">
-                          <ArrowUpRight className="w-3 h-3" />{row.totalNonSaleExits}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${
-                          row.finalStock === 0 
-                            ? 'bg-destructive/10 text-destructive' 
-                            : row.finalStock <= 5 
-                              ? 'bg-amber-500/10 text-amber-600' 
-                              : 'bg-emerald-500/10 text-emerald-600'
-                        }`}>
-                          {row.finalStock}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{formatMGA(row.totalCost)}</td>
-                      <td className="px-4 py-3 text-sky-600 font-semibold font-mono text-xs">{formatMGA(row.revenue)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 text-xs font-bold ${
-                          row.profit > 0 ? 'text-emerald-600' : row.profit < 0 ? 'text-rose-600' : 'text-muted-foreground'
-                        }`}>
-                          {row.profit > 0 && <TrendingUp className="w-3 h-3" />}
-                          {row.profit < 0 && <TrendingDown className="w-3 h-3" />}
-                          {formatMGA(row.profit)}
-                        </span>
-                      </td>
-                    </tr>
+                    <TableRow key={row.product.id} row={row} index={index} />
                   ))
                 )}
               </tbody>

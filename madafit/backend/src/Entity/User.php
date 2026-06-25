@@ -37,7 +37,7 @@ use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
         ),
         new Post(processor: UserPasswordProcessor::class, validationContext: ['groups' => ['Default', 'user:create']]),
         new Patch(
-            processor: UserPasswordProcessor::class, 
+            processor: UserPasswordProcessor::class,
             security: "is_granted('ROLE_ADMIN') or is_granted('ROLE_RECEPTION') or object == user",
             validationContext: ['groups' => ['Default', 'user:update']]
         ),
@@ -224,6 +224,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(['user:read'])]
     private Collection $attendanceRecords;
 
+    /**
+     * @var Collection<int, UserSubscription>
+     */
+    #[ORM\OneToMany(targetEntity: UserSubscription::class, mappedBy: 'user', cascade: ['remove'], orphanRemoval: true)]
+    #[Groups(['user:read'])]
+    private Collection $userSubscriptions;
+
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $resetToken = null;
 
@@ -235,6 +242,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->visitRecords = new ArrayCollection();
         $this->paymentRecords = new ArrayCollection();
         $this->attendanceRecords = new ArrayCollection();
+        $this->userSubscriptions = new ArrayCollection();
     }
 
     #[Groups(['user:read'])]
@@ -744,6 +752,34 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         if ($this->attendanceRecords->removeElement($attendanceRecord)) {
             if ($attendanceRecord->getUser() === $this) {
                 $attendanceRecord->setUser(null);
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, UserSubscription>
+     */
+    #[Groups(['user:read'])]
+    public function getUserSubscriptions(): Collection
+    {
+        return $this->userSubscriptions;
+    }
+
+    public function addUserSubscription(UserSubscription $userSubscription): static
+    {
+        if (!$this->userSubscriptions->contains($userSubscription)) {
+            $this->userSubscriptions->add($userSubscription);
+            $userSubscription->setUser($this);
+        }
+        return $this;
+    }
+
+    public function removeUserSubscription(UserSubscription $userSubscription): static
+    {
+        if ($this->userSubscriptions->removeElement($userSubscription)) {
+            if ($userSubscription->getUser() === $this) {
+                $userSubscription->setUser(null);
             }
         }
         return $this;

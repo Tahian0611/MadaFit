@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\User;
+use App\Entity\UserSubscription;
 use App\Repository\UserRepository;
 use App\Repository\SubscriptionPlanRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -73,6 +74,10 @@ class SecurityController extends AbstractController
         throw new \LogicException('Intercepté par le firewall.');
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // MODIFIÉ : register() crée maintenant des UserSubscription pour chaque
+    // offre choisie lors de l'inscription
+    // ═══════════════════════════════════════════════════════════════════════
     #[Route('/api/register', name: 'api_register', methods: ['POST'])]
     public function register(
         Request $request,
@@ -122,11 +127,10 @@ class SecurityController extends AbstractController
         if (!is_array($activitiesArray) && isset($data['activity'])) {
             $activitiesArray = [$data['activity']];
         }
-        
+
         if (count($activitiesArray) > 0) {
             $cleanActivities = array_map('trim', $activitiesArray);
             $user->setActivities($cleanActivities);
-            // On force le CSV dans le champ legacy (max 50 chars)
             $csv = implode(',', $cleanActivities);
             $user->setActivity(strlen($csv) > 50 ? substr($csv, 0, 47) . '...' : $csv);
         }
@@ -146,6 +150,29 @@ class SecurityController extends AbstractController
         // Promotion / Code Promo
         if (!empty($data['promotion'])) {
             $user->setPromotion($data['promotion']);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // NOUVEAU : Créer les UserSubscriptions pour chaque offre choisie
+        // ═══════════════════════════════════════════════════════════════════════
+        if ($accessType === 'abonnement' && !empty($data['subscription'])) {
+            $planNames = array_map('trim', explode(',', $data['subscription']));
+
+            foreach ($planNames as $planName) {
+                if (empty($planName)) continue;
+
+                $userSubscription = new UserSubscription();
+                $userSubscription->setUser($user);
+                $userSubscription->setPlanName($planName);
+                $userSubscription->setStatus('pending');
+                $userSubscription->setTotalPaid(0);
+
+                if (!empty($data['promotion'])) {
+                    $userSubscription->setPromotion($data['promotion']);
+                }
+
+                $entityManager->persist($userSubscription);
+            }
         }
 
         try {
@@ -201,7 +228,6 @@ class SecurityController extends AbstractController
         $user = $userRepository->findOneBy(['email' => $email]);
 
         if ($user) {
-            // Generate a 6-digit numeric code for mobile usage
             $code = (string) random_int(100000, 999999);
             $user->setResetToken($code);
             $entityManager->flush();
@@ -327,7 +353,7 @@ class SecurityController extends AbstractController
         </body></html>');
     }
 
-    #[Route('/api/me', name: 'api_me', methods: ['GET'])]
+        #[Route('/api/me', name: 'api_me', methods: ['GET'])]
     public function me(): Response
     {
         $user = $this->getUser();
@@ -354,7 +380,8 @@ class SecurityController extends AbstractController
             'dob'           => $user->getDob()?->format('Y-m-d'),
             'startDate'     => $user->getStartDate()?->format('Y-m-d'),
             'expiryDate'    => $user->getExpiryDate()?->format('Y-m-d'),
-            'weeklyGoalProgress' => 0.0, // Champ non présent en base, valeur par défaut pour l'app
+            'weeklyGoalProgress' => 0.0,
+            'photo'         => $user->getPhoto(),
         ]);
     }
 
@@ -378,7 +405,7 @@ class SecurityController extends AbstractController
             return $this->json([
                 'error' => 'Cet email est déjà utilisé.',
                 'code'  => 'EMAIL_EXISTS',
-            ], Response::HTTP_CONFLICT); // 409
+            ], Response::HTTP_CONFLICT);
         }
 
         return $this->json(['available' => true]);
