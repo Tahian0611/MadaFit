@@ -2,10 +2,10 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useMemo, useState, useCallback, useRef, memo } from "react";
 import { Link } from "react-router-dom";
 import { refreshNotifications } from '@/services/api';
-import { Search, Trash2, UserPlus, Wifi, RefreshCw, CreditCard, Loader2, RotateCcw, AlertCircle } from "lucide-react";
+import { Search, Trash2, UserPlus, Wifi, RefreshCw, CreditCard, Loader2, RotateCcw, AlertCircle, Eye, X, User, Layers } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import api from "@/services/api";
+import api, { getFullImageUrl } from "@/services/api";
 import { useAuth } from "@/hooks/useAuth";
 import PromptModal from "@/components/PromptModal";
 import {
@@ -21,7 +21,10 @@ import {
   calculateSubscriptionProgress,
   type MemberStatus,
   type SubscriptionType,
-  calculateGracePeriodStartDate,
+  calculateNewSubscriptionStartDate,
+  calculateRenewalStartDate,
+  calculateExpiryDate,
+  getLastSubscriptionForPlan,
 } from "@/lib/madafit";
 import type { User, SubscriptionPlan, PromoCode, UserSubscription } from "@/types/entities";
 
@@ -113,7 +116,7 @@ function getMemberEffectiveStatus(member: User): MemberStatus {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   NOUVEAU : Formater l'affichage des offres pour la colonne
+   MODIFIÉ : Formater l'affichage des offres pour la colonne (troncature)
    ═══════════════════════════════════════════════════════════════════════ */
 function formatSubscriptionsDisplay(member: User): string {
   const userSubs = member.userSubscriptions ?? [];
@@ -127,7 +130,10 @@ function formatSubscriptionsDisplay(member: User): string {
   if (pendingCount > 0) parts.push(`${pendingCount} en attente`);
   if (expiredCount > 0) parts.push(`${expiredCount} expirée${expiredCount > 1 ? "s" : ""}`);
   if (suspendedCount > 0) parts.push(`${suspendedCount} suspendue${suspendedCount > 1 ? "s" : ""}`);
-  return parts.join(", ");
+  
+  const result = parts.join(", ");
+  if (result.length > 25) return result.substring(0, 22) + "...";
+  return result;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -139,6 +145,71 @@ function hasPendingWhileActive(member: User): boolean {
   const hasActive = userSubs.some((s) => s.status === "active");
   const hasPending = userSubs.some((s) => s.status === "pending");
   return hasActive && hasPending;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MODIFIÉ : Récupérer les offres actives avec leurs dates et niveau d'urgence
+   ═══════════════════════════════════════════════════════════════════════ */
+function getActiveSubscriptionsWithDates(member: User): Array<{
+  planName: string;
+  startDate: string | null;
+  expiryDate: string | null;
+  daysLeft: number | null;
+  isExpired: boolean;
+  isWarning: boolean;
+}> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const userSubs = member.userSubscriptions ?? [];
+  return userSubs
+    .filter((sub) => sub.status === "active")
+    .map((sub) => {
+      const expiry = sub.expiryDate ? new Date(sub.expiryDate) : null;
+      const daysLeft = expiry
+        ? Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+      return {
+        planName: sub.planName,
+        startDate: sub.startDate || null,
+        expiryDate: sub.expiryDate || null,
+        daysLeft,
+        isExpired: daysLeft !== null && daysLeft < 0,
+        isWarning: daysLeft !== null && daysLeft >= 0 && daysLeft <= 7,
+      };
+    })
+    .sort((a, b) => {
+      const score = (s: typeof a) => (s.isExpired ? 0 : s.isWarning ? 1 : 2);
+      const scoreA = score(a);
+      const scoreB = score(b);
+      if (scoreA !== scoreB) return scoreA - scoreB;
+      if (!a.expiryDate || !b.expiryDate) return 0;
+      return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   NOUVEAU : Récupérer TOUTES les offres d'un membre groupées par statut
+   ═══════════════════════════════════════════════════════════════════════ */
+function getAllSubscriptionsWithDates(member: User): {
+  active: Array<{ planName: string; startDate: string | null; expiryDate: string | null; totalPaid: number; price: number }>;
+  pending: Array<{ planName: string; startDate: string | null; expiryDate: string | null; totalPaid: number; price: number }>;
+  suspended: Array<{ planName: string; startDate: string | null; expiryDate: string | null; totalPaid: number; price: number }>;
+  expired: Array<{ planName: string; startDate: string | null; expiryDate: string | null; totalPaid: number; price: number }>;
+} {
+  const userSubs = member.userSubscriptions ?? [];
+  const mapSub = (sub: UserSubscription) => ({
+    planName: sub.planName,
+    startDate: sub.startDate || null,
+    expiryDate: sub.expiryDate || null,
+    totalPaid: sub.totalPaid || 0,
+    price: sub.price || 0,
+  });
+  return {
+    active: userSubs.filter((s) => s.status === "active").map(mapSub),
+    pending: userSubs.filter((s) => s.status === "pending").map(mapSub),
+    suspended: userSubs.filter((s) => s.status === "suspended").map(mapSub),
+    expired: userSubs.filter((s) => s.status === "expired").map(mapSub),
+  };
 }
 
 /* ─── Ligne de tableau mémoïsée ───────────────────────────────────────── */
@@ -180,6 +251,59 @@ const MemberTableRow = memo(function MemberTableRow({
     [onRequestDelete, member]
   );
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     NOUVEAU : Popups et données pour les colonnes Expiration et Offres
+     ═══════════════════════════════════════════════════════════════════════ */
+  const [showExpiryPopup, setShowExpiryPopup] = useState(false);
+  const [showOffersPopup, setShowOffersPopup] = useState(false);
+  const expiryPopupRef = useRef<HTMLDivElement>(null);
+  const expiryBadgeRef = useRef<HTMLSpanElement>(null);
+  const offersPopupRef = useRef<HTMLDivElement>(null);
+  const offersBadgeRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!showExpiryPopup && !showOffersPopup) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        expiryPopupRef.current &&
+        !expiryPopupRef.current.contains(target) &&
+        expiryBadgeRef.current &&
+        !expiryBadgeRef.current.contains(target)
+      ) {
+        setShowExpiryPopup(false);
+      }
+      if (
+        offersPopupRef.current &&
+        !offersPopupRef.current.contains(target) &&
+        offersBadgeRef.current &&
+        !offersBadgeRef.current.contains(target)
+      ) {
+        setShowOffersPopup(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExpiryPopup, showOffersPopup]);
+
+  const activeSubsWithDates = useMemo(() => getActiveSubscriptionsWithDates(member), [member]);
+  const allSubs = useMemo(() => getAllSubscriptionsWithDates(member), [member]);
+  const activeSubsCount = activeSubsWithDates.length;
+  const totalSubsCount = (member.userSubscriptions ?? []).length;
+  const urgentCount = activeSubsWithDates.filter((s) => s.isExpired || s.isWarning).length;
+  const urgentSubs = activeSubsWithDates.filter((s) => s.isExpired || s.isWarning);
+  const normalSubs = activeSubsWithDates.filter((s) => !s.isExpired && !s.isWarning);
+
+  const displayExpiryDate = useMemo(() => {
+    if (activeSubsCount === 0) return null;
+    return activeSubsWithDates[0].expiryDate;
+  }, [activeSubsCount, activeSubsWithDates]);
+
+  const progressPercent = useMemo(() => {
+    if (!member.startDate || !displayExpiryDate) return null;
+    return Math.round(calculateSubscriptionProgress(member.startDate, displayExpiryDate) * 100);
+  }, [member.startDate, displayExpiryDate]);
+
   return (
     <tr
       className={`cursor-pointer hover:bg-muted/20 ${isSelected ? "bg-primary/5" : ""}`}
@@ -194,10 +318,117 @@ const MemberTableRow = memo(function MemberTableRow({
       </td>
       <td>{getSubscriptionDisplay(member)}</td>
       {/* ═══════════════════════════════════════════════════════════════════════
-          NOUVEAU : Colonne Offres
+          MODIFIÉ : Colonne Offres — badge cliquable avec popup de détail
           ═══════════════════════════════════════════════════════════════════════ */}
       <td>
-        <span className="text-xs text-muted-foreground">{formatSubscriptionsDisplay(member)}</span>
+        <span className="relative inline-flex items-center">
+          <span
+            ref={offersBadgeRef}
+            onClick={(e) => { e.stopPropagation(); setShowOffersPopup(!showOffersPopup); setShowExpiryPopup(false); }}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold cursor-pointer ${
+              totalSubsCount > 0
+                ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
+          >
+            <Layers size={10} />
+            {totalSubsCount === 0 ? "0 offre" : formatSubscriptionsDisplay(member)}
+          </span>
+
+          {showOffersPopup && (
+            <div
+              ref={offersPopupRef}
+              className="absolute bottom-full left-0 mb-2 z-50 w-64 p-3 rounded-lg bg-slate-800 text-white text-[11px] shadow-xl border border-slate-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-semibold text-[10px] text-slate-300 uppercase tracking-wider">Toutes les offres</p>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowOffersPopup(false); }}
+                  className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-700"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+
+              {allSubs.active.length === 0 && allSubs.pending.length === 0 && allSubs.suspended.length === 0 && allSubs.expired.length === 0 && (
+                <p className="text-slate-400 text-center py-2">Aucune offre</p>
+              )}
+
+              {allSubs.active.length > 0 && (
+                <div className="mb-2.5">
+                  <p className="text-[9px] font-bold text-green-400 uppercase mb-1.5">Actives ({allSubs.active.length})</p>
+                  <div className="space-y-2">
+                    {allSubs.active.map((sub, idx) => (
+                      <div key={idx} className="flex flex-col gap-0.5 pb-2 border-b border-slate-700 last:border-0 last:pb-0">
+                        <span className="font-medium text-white text-[11px]">{sub.planName}</span>
+                        <span className="text-slate-400">
+                          {sub.startDate ? formatDate(sub.startDate) : "—"} → {sub.expiryDate ? formatDate(sub.expiryDate) : "—"}
+                        </span>
+                        <span className="text-slate-500 text-[10px]">
+                          Payé: {formatCurrency(sub.totalPaid)} / Prix: {formatCurrency(sub.price)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {allSubs.pending.length > 0 && (
+                <div className="mb-2.5">
+                  <p className="text-[9px] font-bold text-orange-400 uppercase mb-1.5">En attente ({allSubs.pending.length})</p>
+                  <div className="space-y-2">
+                    {allSubs.pending.map((sub, idx) => (
+                      <div key={idx} className="flex flex-col gap-0.5 pb-2 border-b border-slate-700 last:border-0 last:pb-0">
+                        <span className="font-medium text-white text-[11px]">{sub.planName}</span>
+                        <span className="text-slate-400">
+                          {sub.startDate ? formatDate(sub.startDate) : "—"} → {sub.expiryDate ? formatDate(sub.expiryDate) : "—"}
+                        </span>
+                        <span className="text-slate-500 text-[10px]">
+                          Prix: {formatCurrency(sub.price)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {allSubs.suspended.length > 0 && (
+                <div className="mb-2.5">
+                  <p className="text-[9px] font-bold text-red-400 uppercase mb-1.5">Suspendues ({allSubs.suspended.length})</p>
+                  <div className="space-y-2">
+                    {allSubs.suspended.map((sub, idx) => (
+                      <div key={idx} className="flex flex-col gap-0.5 pb-2 border-b border-slate-700 last:border-0 last:pb-0">
+                        <span className="font-medium text-white text-[11px]">{sub.planName}</span>
+                        <span className="text-slate-400">
+                          {sub.startDate ? formatDate(sub.startDate) : "—"} → {sub.expiryDate ? formatDate(sub.expiryDate) : "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {allSubs.expired.length > 0 && (
+                <div>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase mb-1.5">Expirées ({allSubs.expired.length})</p>
+                  <div className="space-y-2">
+                    {allSubs.expired.map((sub, idx) => (
+                      <div key={idx} className="flex flex-col gap-0.5 pb-2 border-b border-slate-700 last:border-0 last:pb-0">
+                        <span className="font-medium text-white text-[11px]">{sub.planName}</span>
+                        <span className="text-slate-400">
+                          {sub.startDate ? formatDate(sub.startDate) : "—"} → {sub.expiryDate ? formatDate(sub.expiryDate) : "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <span className="absolute top-full left-4 -mt-1 border-4 border-transparent border-t-slate-800"></span>
+            </div>
+          )}
+        </span>
       </td>
       <td>
         {member.activities && member.activities.length > 0 ? (
@@ -238,12 +469,96 @@ const MemberTableRow = memo(function MemberTableRow({
           {member.rfidCard || "Non assignée"}
         </span>
       </td>
+      {/* ═══════════════════════════════════════════════════════════════════════
+          MODIFIÉ : Colonne Expiration — badge toujours visible, popup au clic
+          ═══════════════════════════════════════════════════════════════════════ */}
       <td>
         <div className="flex flex-col gap-1">
-          <span>{formatDate(member.expiryDate)}</span>
-          {member.startDate && member.expiryDate && (
+          <span className="relative inline-flex items-center gap-1.5">
+            <span>{displayExpiryDate ? formatDate(displayExpiryDate) : "—"}</span>
+            <span
+              ref={expiryBadgeRef}
+              onClick={(e) => { e.stopPropagation(); setShowExpiryPopup(!showExpiryPopup); setShowOffersPopup(false); }}
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold cursor-pointer ${
+                activeSubsCount === 0
+                  ? 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  : urgentCount > 0
+                  ? 'bg-destructive/10 text-destructive hover:bg-destructive/20'
+                  : 'bg-primary/10 text-primary hover:bg-primary/20'
+              }`}
+            >
+              <Layers size={10} />
+              {activeSubsCount} offre{activeSubsCount > 1 ? "s" : ""}
+              {urgentCount > 0 && (
+                <span className="font-bold">({urgentCount}⚠️)</span>
+              )}
+            </span>
+
+            {showExpiryPopup && (
+              <div
+                ref={expiryPopupRef}
+                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-64 p-3 rounded-lg bg-slate-800 text-white text-[11px] shadow-xl border border-slate-700"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold text-[10px] text-slate-300 uppercase tracking-wider">Offres actives</p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowExpiryPopup(false); }}
+                    className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-700"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+
+                {activeSubsCount === 0 && (
+                  <p className="text-slate-400 text-center py-2">Aucune offre active</p>
+                )}
+
+                {urgentSubs.length > 0 && (
+                  <div className="mb-2.5">
+                    <p className="text-[9px] font-bold text-orange-400 uppercase mb-1.5">⚠️ Urgences</p>
+                    <div className="space-y-2">
+                      {urgentSubs.map((sub, idx) => (
+                        <div key={idx} className="flex flex-col gap-0.5 pb-2 border-b border-slate-700 last:border-0 last:pb-0">
+                          <span className="font-medium text-white text-[11px]">{sub.planName}</span>
+                          <span className="text-slate-400">
+                            {sub.startDate ? formatDate(sub.startDate) : "—"} → {sub.expiryDate ? formatDate(sub.expiryDate) : "—"}
+                          </span>
+                          <span className={`text-[10px] font-bold ${sub.isExpired ? 'text-red-400' : 'text-orange-400'}`}>
+                            {sub.isExpired ? `J${sub.daysLeft} (dépassé)` : `dans ${sub.daysLeft} jours`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {normalSubs.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1.5">Autres offres</p>
+                    <div className="space-y-2">
+                      {normalSubs.map((sub, idx) => (
+                        <div key={idx} className="flex flex-col gap-0.5 pb-2 border-b border-slate-700 last:border-0 last:pb-0">
+                          <span className="font-medium text-white text-[11px]">{sub.planName}</span>
+                          <span className="text-slate-400">
+                            {sub.startDate ? formatDate(sub.startDate) : "—"} → {sub.expiryDate ? formatDate(sub.expiryDate) : "—"}
+                          </span>
+                          <span className="text-[10px] text-green-400">
+                            dans {sub.daysLeft} jours
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-800"></span>
+              </div>
+            )}
+          </span>
+          {member.startDate && displayExpiryDate && progressPercent !== null && (
             <span className="text-[10px] text-muted-foreground font-medium">
-              {Math.round(calculateSubscriptionProgress(member.startDate, member.expiryDate) * 100)}% utilisé
+              {progressPercent}% utilisé
             </span>
           )}
         </div>
@@ -260,6 +575,50 @@ const MemberTableRow = memo(function MemberTableRow({
   );
 });
 
+/* ═══════════════════════════════════════════════════════════════════════
+   MODIFIÉ : Modal zoom photo avec état de chargement
+   ═══════════════════════════════════════════════════════════════════════ */
+function PhotoModal({
+  photoUrl,
+  memberName,
+  onClose,
+}: {
+  photoUrl: string;
+  memberName: string;
+  onClose: () => void;
+}) {
+  const [isLoading, setIsLoading] = useState(true);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div className="relative max-w-lg w-full mx-4">
+        <button
+          onClick={onClose}
+          className="absolute -top-12 right-0 text-white/80 hover:text-white"
+        >
+          <X className="w-8 h-8" />
+        </button>
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="w-10 h-10 text-white animate-spin" />
+          </div>
+        )}
+        <img
+          src={photoUrl}
+          alt={`Photo de ${memberName}`}
+          className="w-full h-auto rounded-2xl border border-slate-600"
+          onClick={(e) => e.stopPropagation()}
+          onLoad={() => setIsLoading(false)}
+          style={{ opacity: isLoading ? 0 : 1, transition: "opacity 0.3s" }}
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ─── Composant principal ─────────────────────────────────────────────── */
 export default function Members() {
   const queryClient = useQueryClient();
@@ -270,6 +629,12 @@ export default function Members() {
   const debouncedSearch = useDebounce(search, 250);
 
   const [statusFilter, setStatusFilter] = useState<"all" | MemberStatus>("all");
+  
+  /* ═══════════════════════════════════════════════════════════════════════
+     NOUVEAU : État pour le zoom photo
+     ═══════════════════════════════════════════════════════════════════════ */
+  const [zoomPhoto, setZoomPhoto] = useState<string | null>(null);
+
   const [promptConfig, setPromptConfig] = useState<{
     isOpen: boolean;
     type: "confirm" | "prompt";
@@ -372,14 +737,20 @@ export default function Members() {
     [plans]
   );
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     MODIFIÉ : validerMutation — première inscription, pas de grâce
+     ═══════════════════════════════════════════════════════════════════════ */
   const validerMutation = useMutation({
     mutationFn: async (id: number) => {
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toLocaleDateString("fr-CA", { timeZone: "Indian/Antananarivo" });
       const member = members.find((m) => m.id === id);
+      
+      const startDate = calculateNewSubscriptionStartDate(today);
       const expiryDate = computeAndGetExpiryDate(member);
+      
       return api.users.update(id, {
         status: "active",
-        startDate: today,
+        startDate,
         ...(expiryDate ? { expiryDate } : {}),
       });
     },
@@ -387,7 +758,9 @@ export default function Members() {
       await queryClient.cancelQueries({ queryKey: ["users"] });
       const previousData = queryClient.getQueryData<any>(["users"]);
       const member = members.find((m) => m.id === id);
+      const startDate = calculateNewSubscriptionStartDate();
       const expiryDate = computeAndGetExpiryDate(member);
+      
       if (previousData) {
         queryClient.setQueryData(["users"], {
           ...previousData,
@@ -396,7 +769,7 @@ export default function Members() {
               ? {
                   ...m,
                   status: "active",
-                  startDate: new Date().toISOString().split("T")[0],
+                  startDate,
                   ...(expiryDate ? { expiryDate } : {}),
                 }
               : m
@@ -416,6 +789,9 @@ export default function Members() {
     },
   });
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     MODIFIÉ : payerMutation — première inscription legacy, pas de grâce
+     ═══════════════════════════════════════════════════════════════════════ */
   const payerMutation = useMutation({
     mutationFn: async ({
       id,
@@ -428,10 +804,10 @@ export default function Members() {
       userIri: string;
       subscription: string;
     }) => {
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toLocaleDateString("fr-CA", { timeZone: "Indian/Antananarivo" });
       const currentUser = members.find((m) => m.id === id);
-      const originalStart = currentUser?.startDate || currentUser?.joinDate || today;
-      const actualStartDate = calculateGracePeriodStartDate(originalStart);
+      
+      const startDate = calculateNewSubscriptionStartDate(today);
 
       await api.paymentRecords.create({
         user: userIri,
@@ -458,7 +834,7 @@ export default function Members() {
 
       return api.users.update(id, {
         status: "active",
-        startDate: actualStartDate,
+        startDate,
         ...(expiryDate ? { expiryDate } : {}),
         totalPayments: newTotal,
       });
@@ -467,7 +843,9 @@ export default function Members() {
       await queryClient.cancelQueries({ queryKey: ["users"] });
       const previousData = queryClient.getQueryData<any>(["users"]);
       const currentUser = members.find((m) => m.id === id);
+      const startDate = calculateNewSubscriptionStartDate();
       const expiryDate = computeAndGetExpiryDate(currentUser);
+      
       if (previousData) {
         queryClient.setQueryData(["users"], {
           ...previousData,
@@ -476,7 +854,7 @@ export default function Members() {
               ? {
                   ...m,
                   status: "active",
-                  startDate: new Date().toISOString().split("T")[0],
+                  startDate,
                   ...(expiryDate ? { expiryDate } : {}),
                   totalPayments: (m.totalPayments || 0) + amount,
                 }
@@ -502,7 +880,7 @@ export default function Members() {
 
   const enregistrerPaiementMutation = useMutation({
     mutationFn: async ({ id, amount }: { id: number; amount: number }) => {
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toLocaleDateString("fr-CA", { timeZone: "Indian/Antananarivo" });
       const currentUser = members.find((m) => m.id === id);
       await api.payments.create({
         memberId: currentUser?.memberId,
@@ -581,12 +959,41 @@ export default function Members() {
   });
 
   /* ── Mutations pour UserSubscription ─────────────────────── */
-  const validateSubscriptionMutation = useMutation({
-    mutationFn: async ({ subscriptionId, validatedBy }: { subscriptionId: number; validatedBy: string }) => {
-      const today = new Date().toISOString().split("T")[0];
+  
+  /* ═══════════════════════════════════════════════════════════════════════
+     MODIFIÉ : validateSubscriptionMutation — gère première offre et renouvellement
+     ═══════════════════════════════════════════════════════════════════════ */
+    const validateSubscriptionMutation = useMutation({
+    mutationFn: async ({
+      subscriptionId,
+      planName,
+      validatedBy,
+    }: {
+      subscriptionId: number;
+      planName: string;
+      validatedBy: string;
+    }) => {
+      const today = new Date().toLocaleDateString("fr-CA", { timeZone: "Indian/Antananarivo" });
+      
+      const lastSub = selectedMember ? getLastSubscriptionForPlan(selectedMember, planName) : null;
+      
+      let startDate: string;
+      let expiryDate: string;
+      
+      if (lastSub?.expiryDate) {
+        startDate = calculateRenewalStartDate(lastSub.expiryDate, today);
+      } else {
+        startDate = calculateNewSubscriptionStartDate(today);
+      }
+      
+      const plan = plans.find((p) => p.name === planName);
+      const durationMonths = plan ? Number(plan.duration) : 1;
+      expiryDate = calculateExpiryDate(startDate, durationMonths);
+      
       return api.userSubscriptions.update(subscriptionId, {
         status: "active",
-        startDate: today,
+        startDate,
+        expiryDate,
         validatedBy,
         validatedAt: new Date().toISOString(),
       });
@@ -596,57 +1003,73 @@ export default function Members() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setSelectedMember(null);
     },
-    onError: () => toast.error("Erreur lors de la validation de l'offre"),
+    onError: () => {
+      toast.error("Erreur lors de la validation de l'offre");
+    },
   });
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     MODIFIÉ : paySubscriptionMutation — gère première offre et renouvellement
+     ═══════════════════════════════════════════════════════════════════════ */
   const paySubscriptionMutation = useMutation({
     mutationFn: async ({
       subscriptionId,
       amount,
       userIri,
       planName,
-      validatedBy,
     }: {
       subscriptionId: number;
       amount: number;
       userIri: string;
       planName: string;
-      validatedBy: string;
     }) => {
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toLocaleDateString("fr-CA", { timeZone: "Indian/Antananarivo" });
+      const currentUser = members.find((m) => m.id === selectedMember?.id);
+      
+      const lastSub = currentUser ? getLastSubscriptionForPlan(currentUser, planName) : null;
+      
+      let startDate: string;
+      let expiryDate: string;
+      
+      if (lastSub?.expiryDate) {
+        startDate = calculateRenewalStartDate(lastSub.expiryDate, today);
+      } else {
+        startDate = calculateNewSubscriptionStartDate(today);
+      }
+      
+      const plan = plans.find((p) => p.name === planName);
+      const durationMonths = plan ? Number(plan.duration) : 1;
+      expiryDate = calculateExpiryDate(startDate, durationMonths);
       
       await api.paymentRecords.create({
         user: userIri,
-        amount,
+        amount: amount,
         date: today,
         method: "Espèces",
-        receiptNo: `VAL-${Date.now()}`,
+        receiptNo: `SUB-${Date.now()}`,
         subscription: planName,
-        userSubscription: `/api/user_subscriptions/${subscriptionId}`,
       });
-
+      
       await api.payments.create({
-        memberId: selectedMember?.memberId,
-        memberName: selectedMember ? getFullName(selectedMember) : undefined,
+        memberId: currentUser?.memberId,
+        memberName: currentUser ? getFullName(currentUser) : undefined,
         amount,
         date: today,
         method: "cash",
-        receiptNo: `VAL-${Date.now()}`,
+        receiptNo: `SUB-${Date.now()}`,
         subscription: planName,
         cashRegister: currentCashRegister,
-        userSubscription: `/api/user_subscriptions/${subscriptionId}`,
       });
-
+      
       return api.userSubscriptions.update(subscriptionId, {
         status: "active",
-        startDate: today,
+        startDate,
+        expiryDate,
         totalPaid: amount,
-        validatedBy,
-        validatedAt: new Date().toISOString(),
       });
     },
     onSuccess: () => {
-      toast.success("Paiement enregistré et offre validée");
+      toast.success("Paiement enregistré et offre activée");
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       setSelectedMember(null);
@@ -654,6 +1077,9 @@ export default function Members() {
     onError: () => toast.error("Erreur lors du paiement de l'offre"),
   });
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     MODIFIÉ : payActiveSubscriptionMutation — gère paiement partiel et renouvellement
+     ═══════════════════════════════════════════════════════════════════════ */
   const payActiveSubscriptionMutation = useMutation({
     mutationFn: async ({
       subscriptionId,
@@ -668,37 +1094,37 @@ export default function Members() {
       planName: string;
       currentTotalPaid: number;
     }) => {
-      const today = new Date().toISOString().split("T")[0];
-      const newTotalPaid = currentTotalPaid + amount;
+      const today = new Date().toLocaleDateString("fr-CA", { timeZone: "Indian/Antananarivo" });
+      const currentUser = members.find((m) => m.id === selectedMember?.id);
       
       await api.paymentRecords.create({
         user: userIri,
-        amount,
+        amount: amount,
         date: today,
         method: "Espèces",
-        receiptNo: `PAY-${Date.now()}`,
+        receiptNo: `PART-${Date.now()}`,
         subscription: planName,
-        userSubscription: `/api/user_subscriptions/${subscriptionId}`,
       });
-
+      
       await api.payments.create({
-        memberId: selectedMember?.memberId,
-        memberName: selectedMember ? getFullName(selectedMember) : undefined,
+        memberId: currentUser?.memberId,
+        memberName: currentUser ? getFullName(currentUser) : undefined,
         amount,
         date: today,
         method: "cash",
-        receiptNo: `PAY-${Date.now()}`,
+        receiptNo: `PART-${Date.now()}`,
         subscription: planName,
         cashRegister: currentCashRegister,
-        userSubscription: `/api/user_subscriptions/${subscriptionId}`,
       });
-
+      
+      const newTotalPaid = currentTotalPaid + amount;
+      
       return api.userSubscriptions.update(subscriptionId, {
         totalPaid: newTotalPaid,
       });
     },
     onSuccess: () => {
-      toast.success("Paiement enregistré avec succès");
+      toast.success("Paiement partiel enregistré");
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       setSelectedMember(null);
@@ -706,26 +1132,19 @@ export default function Members() {
     onError: () => toast.error("Erreur lors de l'enregistrement du paiement"),
   });
 
-  /* ═══════════════════════════════════════════════════════════════════════
-     MODIFIÉ : Synchronisation active de member.status lors du refus
-     ═══════════════════════════════════════════════════════════════════════ */
   const refuseSubscriptionMutation = useMutation({
-    mutationFn: async (subscriptionId: number) => {
-      await api.userSubscriptions.update(subscriptionId, {
+    mutationFn: async ({
+      subscriptionId,
+      refusedBy,
+    }: {
+      subscriptionId: number;
+      refusedBy: string;
+    }) => {
+      return api.userSubscriptions.update(subscriptionId, {
         status: "suspended",
+        refusedBy,
+        refusedAt: new Date().toISOString(),
       });
-      if (selectedMember?.id) {
-        const freshSubs = selectedMember.userSubscriptions?.filter((s) => s.id !== subscriptionId) ?? [];
-        const hasRemainingActive = freshSubs.some((s) => s.status === "active");
-        const hasRemainingPending = freshSubs.some((s) => s.status === "pending");
-        if (hasRemainingActive) {
-          await api.users.update(selectedMember.id, { status: "active" });
-        } else if (hasRemainingPending) {
-          await api.users.update(selectedMember.id, { status: "pending" });
-        } else {
-          await api.users.update(selectedMember.id, { status: "suspended" });
-        }
-      }
     },
     onSuccess: () => {
       toast.success("Offre refusée");
@@ -735,128 +1154,108 @@ export default function Members() {
     onError: () => toast.error("Erreur lors du refus de l'offre"),
   });
 
-  /* ═══════════════════════════════════════════════════════════════════════
-     MODIFIÉ : Filtre basé sur le statut effectif des membres
-     ═══════════════════════════════════════════════════════════════════════ */
-  const filteredMembers = useMemo(() => {
-    const needle = debouncedSearch.toLowerCase();
-    return members.filter((member) => {
-      const effectiveStatus = getMemberEffectiveStatus(member);
-      if (statusFilter !== "all" && effectiveStatus !== statusFilter) return false;
-      if (!debouncedSearch) return true;
+  const updateExpiryMutation = useMutation({
+    mutationFn: async ({ id, expiryDate }: { id: number; expiryDate: string }) => {
+      return api.users.update(id, { expiryDate });
+    },
+    onMutate: async ({ id, expiryDate }) => {
+      await queryClient.cancelQueries({ queryKey: ["users"] });
+      const previousData = queryClient.getQueryData<any>(["users"]);
+      if (previousData) {
+        queryClient.setQueryData(["users"], {
+          ...previousData,
+          "hydra:member": previousData["hydra:member"]?.map((m: any) =>
+            m.id === id ? { ...m, expiryDate } : m
+          ) ?? [],
+        });
+      }
+      return { previousData };
+    },
+    onError: (err, vars, context) => {
+      if (context?.previousData) queryClient.setQueryData(["users"], context.previousData);
+      toast.error("Erreur lors de la mise à jour de la date d'expiration");
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+    onSuccess: () => {
+      toast.success("Date d'expiration mise à jour");
+      setSelectedMember(null);
+    },
+  });
 
-      const haystack = [
-        getFullName(member),
-        member.memberId,
-        member.rfidCard,
-        member.email,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(needle);
+  /* ── Computed values ───────────────────────────────────────────────── */
+  const computedExpiryDate = useMemo(
+    () => computeAndGetExpiryDate(selectedMember),
+    [selectedMember, computeAndGetExpiryDate]
+  );
+
+  const stableExpiryDate = useMemo(() => computedExpiryDate, [computedExpiryDate]);
+
+  const defaultPrice = useMemo(() => {
+    if (!selectedMember || !plans.length) return 0;
+    const normalizedSub = normalizeSubscriptionType(selectedMember.subscription);
+    const matchedPlan = plans.find(
+      (p) => normalizeSubscriptionType(p.type) === normalizedSub
+    );
+    return matchedPlan ? getAmountWithPromo(selectedMember, matchedPlan.price) : 0;
+  }, [selectedMember, plans, getAmountWithPromo]);
+
+  const getPlanPrice = useCallback(
+    (planName: string) => {
+      const plan = plans.find((p) => p.name === planName);
+      return plan ? plan.price : 0;
+    },
+    [plans]
+  );
+
+  const getPendingSubscriptions = useCallback(
+    (member: User | null) => {
+      if (!member?.userSubscriptions) return [];
+      return member.userSubscriptions.filter((sub) => sub.status === "pending");
+    },
+    []
+  );
+
+  const getActiveSubscriptions = useCallback(
+    (member: User | null) => {
+      if (!member?.userSubscriptions) return [];
+      return member.userSubscriptions.filter((sub) => sub.status === "active");
+    },
+    []
+  );
+
+  const isActiveButUnpaid = useCallback(
+    (member: User | null) => {
+      if (!member) return false;
+      const status = normalizeMemberStatus(member.status);
+      const totalPaid = member.totalPayments || 0;
+      return status === "active" && totalPaid === 0;
+    },
+    []
+  );
+
+  /* ── Filtrage des membres ─────────────────────────────────────────── */
+  const filteredMembers = useMemo(() => {
+    const term = debouncedSearch.toLowerCase().trim();
+    return members.filter((member) => {
+      const fullName = getFullName(member).toLowerCase();
+      const email = (member.email || "").toLowerCase();
+      const memberId = (member.memberId || "").toLowerCase();
+      const rfid = (member.rfidCard || "").toLowerCase();
+      const subscription = (member.subscription || "").toLowerCase();
+      const matchesSearch =
+        !term ||
+        fullName.includes(term) ||
+        email.includes(term) ||
+        memberId.includes(term) ||
+        rfid.includes(term) ||
+        subscription.includes(term);
+      const status = getMemberEffectiveStatus(member);
+      const matchesStatus = statusFilter === "all" || status === statusFilter;
+      return matchesSearch && matchesStatus;
     });
   }, [members, debouncedSearch, statusFilter]);
 
-  /* ── Date d'expiration calculée (pour affichage uniquement) ───────── */
-  const computedExpiryDate = useMemo(() => {
-    return computeExpiryDateForMember(selectedMember, plans);
-  }, [selectedMember, plans]);
-
-  /* ── SOLUTION 1 : Débouncer pour synchro auto (sans boucle) ───────── */
-  const [stableExpiryDate, setStableExpiryDate] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (
-      !selectedMember?.id ||
-      !computedExpiryDate ||
-      computedExpiryDate === selectedMember.expiryDate
-    ) {
-      setStableExpiryDate(null);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setStableExpiryDate(computedExpiryDate);
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [computedExpiryDate, selectedMember?.expiryDate, selectedMember?.id]);
-
-  const updateExpiryMutation = useMutation({
-    mutationFn: ({ id, expiryDate }: { id: number; expiryDate: string }) =>
-      api.users.update(id, { expiryDate }),
-    onSuccess: () => {
-      toast.success("Date de fin synchronisée en base ✓");
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-      setStableExpiryDate(null);
-    },
-    onError: (error: any) => {
-      console.error("Erreur sync date:", error?.message || error);
-      setStableExpiryDate(null);
-    },
-  });
-
-  useEffect(() => {
-    if (
-      !selectedMember?.id ||
-      !stableExpiryDate ||
-      stableExpiryDate === selectedMember.expiryDate ||
-      updateExpiryMutation.isPending
-    )
-      return;
-
-    updateExpiryMutation.mutate({
-      id: selectedMember.id,
-      expiryDate: stableExpiryDate,
-    });
-  }, [stableExpiryDate, selectedMember?.id, selectedMember?.expiryDate]);
-
-  /* ── Synchronise selectedMember avec les données fraîches du cache ─── */
-  const selectedMemberRef = useRef(selectedMember);
-  useEffect(() => {
-    selectedMemberRef.current = selectedMember;
-  });
-
-  useEffect(() => {
-    if (selectedMemberRef.current && members.length > 0) {
-      const fresh = members.find((m) => m.id === selectedMemberRef.current!.id);
-      if (fresh) {
-        const cur = selectedMemberRef.current;
-        if (
-          fresh.status !== cur.status ||
-          fresh.totalPayments !== cur.totalPayments ||
-          fresh.expiryDate !== cur.expiryDate ||
-          fresh.startDate !== cur.startDate
-        ) {
-          setSelectedMember(fresh);
-        }
-      }
-    }
-  }, [members]);
-
-  /* ── Helpers d'affichage ───────────────────────────────────────────── */
-  const isActiveButUnpaid = useCallback((member: User | null): boolean => {
-    if (!member) return false;
-    const status = getMemberEffectiveStatus(member);
-    return status === "active" && (member.totalPayments == null || member.totalPayments === 0);
-  }, []);
-
-  /* ── Helpers pour UserSubscription ──────────────────────── */
-  const getPendingSubscriptions = useCallback((member: User | null): UserSubscription[] => {
-    if (!member?.userSubscriptions) return [];
-    return member.userSubscriptions.filter((sub) => sub.status === "pending");
-  }, []);
-
-  const getActiveSubscriptions = useCallback((member: User | null): UserSubscription[] => {
-    if (!member?.userSubscriptions) return [];
-    return member.userSubscriptions.filter((sub) => sub.status === "active");
-  }, []);
-
-  const getPlanPrice = useCallback((planName: string): number => {
-    const plan = plans.find((p) => p.name === planName);
-    return plan?.price || 0;
-  }, [plans]);
-
-  /* ── Handlers stables pour éviter les re-rendus des lignes ────────── */
+  /* ── Handlers ──────────────────────────────────────────────────────── */
   const handleSelectMember = useCallback((member: User) => {
     setSelectedMember(member);
   }, []);
@@ -879,7 +1278,7 @@ export default function Members() {
     [deleteMutation]
   );
 
-  /* ── Rendu du panneau de détail (mémorisé) ────────────────────────── */
+  /* ── Panneau de détail (mémorisé) ─────────────────────────────────── */
   const detailPanel = useMemo(() => {
     if (!selectedMember) {
       return (
@@ -928,23 +1327,51 @@ export default function Members() {
 
     return (
       <div className="space-y-6 text-sm">
+        {/* ═══════════════════════════════════════════════════════════════════════
+            MODIFIÉ : Avatar + Photo de profil côte à côte horizontalement
+            ═══════════════════════════════════════════════════════════════════════ */}
         <div
-          className="flex flex-col items-center text-center space-y-3 pb-4 border-b"
+          className="flex items-start gap-4 pb-4 border-b"
           style={{ borderColor: "hsl(var(--border))" }}
         >
-          <div className="w-24 h-24 rounded-2xl bg-muted border-2 border-primary/20 overflow-hidden shadow-lg">
+          {/* Avatar DiceBear (conservé) */}
+          <div className="w-16 h-16 rounded-2xl bg-muted border-2 border-primary/20 overflow-hidden shadow-lg shrink-0">
             <img
               src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedMember.email}`}
               alt="Avatar"
               className="w-full h-full object-cover"
             />
           </div>
-          <div>
+          
+          {/* Photo de profil (nouveau) */}
+          {selectedMember.photo ? (
+            <button
+              onClick={() => setZoomPhoto(getFullImageUrl(selectedMember.photo!))}
+              className="relative group shrink-0"
+            >
+              <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-primary shadow-lg">
+                <img
+                  src={getFullImageUrl(selectedMember.photo)}
+                  alt="Photo de profil"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedMember.email}`;
+                  }}
+                />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 rounded-2xl">
+                <Eye className="w-5 h-5 text-white" />
+              </div>
+            </button>
+          ) : (
+            <div className="w-16 h-16 rounded-2xl bg-muted border-2 border-dashed border-muted-foreground/30 flex items-center justify-center shrink-0">
+              <User className="w-8 h-8 text-muted-foreground/50" />
+            </div>
+          )}
+
+          <div className="flex-1 min-w-0 pt-1">
             <p className="font-black text-lg text-foreground leading-tight">{getFullName(selectedMember)}</p>
             <p className="text-muted-foreground font-medium">{selectedMember.memberId}</p>
-          </div>
-          <div className="p-3 bg-white rounded-2xl border border-border shadow-md">
-            <QRCodeSVG value={`MADAFIT:${selectedMember.memberId}`} size={160} className="w-40 h-40" />
           </div>
         </div>
 
@@ -988,8 +1415,15 @@ export default function Members() {
             </div>
           )}
 
-          <InfoRow label="Date début" value={formatDate(selectedMember.startDate || selectedMember.joinDate)} />
+          {/* ═══════════════════════════════════════════════════════════════════════
+              COMMENTÉ : Date début
+              ═══════════════════════════════════════════════════════════════════════ */}
+          {/* <InfoRow label="Date début" value={formatDate(selectedMember.startDate || selectedMember.joinDate)} /> */}
 
+          {/* ═══════════════════════════════════════════════════════════════════════
+              COMMENTÉ : Date fin
+              ═══════════════════════════════════════════════════════════════════════ */}
+          {/*
           <div className="flex items-start justify-between gap-4">
             <span className="text-muted-foreground">Date fin</span>
             <div className="flex items-center gap-2 text-right">
@@ -1003,6 +1437,7 @@ export default function Members() {
               ) : null}
             </div>
           </div>
+          */}
 
           {/* ═══════════════════════════════════════════════════════════════════════
               MODIFIÉ : "Récapitulatif paiements" avec détail par offre
@@ -1132,6 +1567,7 @@ export default function Members() {
                               if (sub.id) {
                                 validateSubscriptionMutation.mutate({
                                   subscriptionId: sub.id,
+                                  planName: sub.planName,
                                   validatedBy: isAdmin ? "admin" : "reception",
                                 });
                               }
@@ -1165,7 +1601,6 @@ export default function Members() {
                                     amount,
                                     userIri: `/api/users/${selectedMember.id}`,
                                     planName: sub.planName,
-                                    validatedBy: isAdmin ? "admin" : "reception",
                                   });
                                 }
                                 setPromptConfig((prev) => ({ ...prev, isOpen: false }));
@@ -1189,7 +1624,12 @@ export default function Members() {
                             confirmText: "Oui, refuser",
                             confirmColor: "bg-destructive",
                             onConfirm: () => {
-                              if (sub.id) refuseSubscriptionMutation.mutate(sub.id);
+                              if (sub.id) {
+                                refuseSubscriptionMutation.mutate({
+                                  subscriptionId: sub.id,
+                                  refusedBy: isAdmin ? "admin" : "reception",
+                                });
+                              }
                               setPromptConfig((prev) => ({ ...prev, isOpen: false }));
                             },
                           });
@@ -1462,6 +1902,17 @@ export default function Members() {
 
   return (
     <div className="space-y-5">
+      {/* ═══════════════════════════════════════════════════════════════════════
+          NOUVEAU : Modal zoom photo
+          ═══════════════════════════════════════════════════════════════════════ */}
+      {zoomPhoto && selectedMember && (
+        <PhotoModal
+          photoUrl={zoomPhoto}
+          memberName={getFullName(selectedMember)}
+          onClose={() => setZoomPhoto(null)}
+        />
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="page-header mb-0">
           <h1 className="page-title">Gestion des Membres</h1>
@@ -1529,42 +1980,39 @@ export default function Members() {
                   <th>Offres</th>
                   <th>Activités</th>
                   <th>Statut</th>
-                  <th>Carte</th>
+                  <th>Carte RFID</th>
                   <th>Expiration</th>
-                  <th></th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {isLoading && (
-                  <tr>
-                    <td colSpan={8} className="text-center py-10 text-muted-foreground">
-                      <div className="flex flex-col items-center gap-2">
-                        <Loader2 size={24} className="animate-spin text-primary" />
-                        <span>Chargement...</span>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-
-                {isError && (
+                {isLoading ? (
                   <tr>
                     <td colSpan={8} className="text-center py-10">
-                      <div className="flex flex-col items-center gap-3 text-destructive">
-                        <p>Impossible de charger les membres.</p>
-                        <button
-                          onClick={() => usersQuery.refetch()}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:opacity-90"
-                        >
-                          <RotateCcw size={14} />
-                          Réessayer
-                        </button>
-                      </div>
+                      <Loader2 size={24} className="animate-spin mx-auto text-primary" />
+                      <p className="text-sm text-muted-foreground mt-2">Chargement des membres...</p>
                     </td>
                   </tr>
-                )}
-
-                {!isLoading &&
-                  !isError &&
+                ) : isError ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-10">
+                      <p className="text-sm text-destructive">Erreur lors du chargement des membres.</p>
+                      <button
+                        onClick={() => usersQuery.refetch()}
+                        className="mt-2 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                      >
+                        <RefreshCw size={14} />
+                        Réessayer
+                      </button>
+                    </td>
+                  </tr>
+                ) : filteredMembers.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-10">
+                      <p className="text-sm text-muted-foreground">Aucun membre trouvé.</p>
+                    </td>
+                  </tr>
+                ) : (
                   filteredMembers.map((member) => (
                     <MemberTableRow
                       key={member.id}
@@ -1573,32 +2021,24 @@ export default function Members() {
                       onSelect={handleSelectMember}
                       onRequestDelete={handleRequestDelete}
                     />
-                  ))}
-
-                {!isLoading && !isError && filteredMembers.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="text-center py-10 text-muted-foreground italic">
-                      Aucun membre ne correspond à votre recherche.
-                    </td>
-                  </tr>
+                  ))
                 )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* ── Fiche rapide ── */}
+        {/* ── Panneau de détail ── */}
         <div
-          className="bg-card rounded-xl border p-5 overflow-y-auto"
+          className="bg-card rounded-xl border overflow-hidden flex flex-col"
           style={{ borderColor: "hsl(var(--border))", boxShadow: "var(--shadow-md)" }}
         >
-          <h2
-            className="font-bold text-foreground mb-4 sticky top-0 bg-card z-10 pb-2"
-            style={{ borderBottom: "1px solid hsl(var(--border))" }}
-          >
-            Fiche rapide
-          </h2>
-          {detailPanel}
+          <div className="p-4 border-b" style={{ borderColor: "hsl(var(--border))" }}>
+            <h2 className="font-bold text-foreground">Fiche membre</h2>
+          </div>
+          <div className="p-4 overflow-y-auto flex-1">
+            {detailPanel}
+          </div>
         </div>
       </div>
 
@@ -1606,9 +2046,9 @@ export default function Members() {
         isOpen={promptConfig.isOpen}
         onClose={() => setPromptConfig((prev) => ({ ...prev, isOpen: false }))}
         onConfirm={promptConfig.onConfirm}
+        type={promptConfig.type}
         title={promptConfig.title}
         message={promptConfig.message}
-        type={promptConfig.type}
         defaultValue={promptConfig.defaultValue}
         inputType={promptConfig.inputType}
         confirmText={promptConfig.confirmText}
@@ -1619,11 +2059,12 @@ export default function Members() {
   );
 }
 
+/* ─── Sous-composant : ligne d'info ─────────────────────────────────── */
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <span className="text-muted-foreground">{label}</span>
-      <span className="text-right text-foreground font-medium">{value || "—"}</span>
+      <span className="text-foreground font-medium text-right">{value ?? "—"}</span>
     </div>
   );
 }

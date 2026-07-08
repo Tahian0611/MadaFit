@@ -15,7 +15,12 @@ import {
   getFullName,
   normalizeMemberStatus,
   normalizeSubscriptionType,
-  calculateGracePeriodStartDate,
+  /* ═══════════════════════════════════════════════════════════════════════
+     MODIFIÉ : Remplacé calculateGracePeriodStartDate par calculateNewSubscriptionStartDate
+     ═══════════════════════════════════════════════════════════════════════ */
+  calculateNewSubscriptionStartDate,
+  calculateRenewalStartDate,
+  calculateExpiryDate,
   type MemberStatus,
   type SubscriptionType,
 } from "@/lib/madafit";
@@ -194,7 +199,7 @@ const SubscriptionTableRow = memo(function SubscriptionTableRow({
           )}
         </span>
       </td>
-      <td>{formatDate(member.expiryDate)}</td>
+      {/* <td>{formatDate(member.expiryDate)}</td> */}
       {/* ═══════════════════════════════════════════════════════════════════════
           MODIFIÉ : Afficher la somme des totalPaid de toutes les offres
           ═══════════════════════════════════════════════════════════════════════ */}
@@ -455,12 +460,17 @@ export default function Subscriptions() {
     },
   });
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     MODIFIÉ : payerMutation — première inscription legacy, pas de grâce
+     Remplacé calculateGracePeriodStartDate par calculateNewSubscriptionStartDate
+     ═══════════════════════════════════════════════════════════════════════ */
   const payerMutation = useMutation({
     mutationFn: async ({ id, amount, userIri, subscription }: { id: number, amount: number, userIri: string, subscription: string }) => {
       const today = new Date().toISOString().split("T")[0];
       const currentUser = users.find(m => m.id === id);
-      const originalStart = currentUser?.startDate || currentUser?.joinDate || today;
-      const actualStartDate = calculateGracePeriodStartDate(originalStart);
+      
+      // Première inscription : début = aujourd'hui (date de paiement)
+      const actualStartDate = calculateNewSubscriptionStartDate(today);
 
       await api.paymentRecords.create({
         user: userIri,
@@ -922,7 +932,7 @@ export default function Subscriptions() {
                   <th>Formule</th>
                   <th>Offres</th>
                   <th>Statut</th>
-                  <th>Expiration</th>
+                  {/* <th>Expiration</th> */}
                   <th>Paiements</th>
                 </tr>
               </thead>
@@ -937,7 +947,7 @@ export default function Subscriptions() {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center py-10 text-muted-foreground italic">
+                    <td colSpan={5} className="text-center py-10 text-muted-foreground italic">
                       Aucun membre enregistré.
                     </td>
                   </tr>
@@ -1477,7 +1487,7 @@ const SubscriptionDetailPanel = memo(function SubscriptionDetailPanel({
         </div>
       )}
 
-      {/* ── Info : membre actif déjà payé ── */}
+      {/* ── Legacy : renouvellement pour actif payé ── */}
       {member.userSubscriptions?.length === 0 && !isPendingLike && !isActiveButUnpaid(member) && (
         <div className="pt-4 space-y-3 border-t" style={{ borderColor: "hsl(var(--border))" }}>
           <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
@@ -1650,9 +1660,9 @@ function ValidationModal({
             <p className="font-bold text-foreground">{getAllFormulesDisplay()}</p>
             {plan && (
               <div className="mt-1">
-                <p className={`text-lg font-black ${hasPromo ? 'text-muted-foreground text-sm line-through' : 'text-primary'}`}>
+                {/* <p className={`text-lg font-black ${hasPromo ? 'text-muted-foreground text-sm line-through' : 'text-primary'}`}>
                   {formatCurrency(plan.price)}
-                </p>
+                </p> */}
                 {hasPromo && (
                   <div className="flex items-center gap-3">
                     <p className="text-xl font-black text-primary">{formatCurrency(finalPrice)}</p>
@@ -1678,7 +1688,7 @@ function ValidationModal({
                 {/* Bandeau d'alerte dans le modal si actif avec offres en attente */}
         {hasPendingWhileActive(member) && (
           <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-start gap-2">
-            <AlertCircle size={16} className="text-orange-500 shrink-0 mt-0.5" />
+            <AlertCircle             size={16} className="text-orange-500 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-orange-600">
                 Offres en attente
@@ -1692,12 +1702,12 @@ function ValidationModal({
 
         {/* ── Offres en attente ── */}
         {pendingSubs.length > 0 && (
-          <div className="pt-4 space-y-3 border-t" style={{ borderColor: "hsl(var(--border))" }}>
+          <div className="space-y-3">
             <p className="text-sm font-bold text-foreground">Offres en attente ({pendingSubs.length})</p>
             {pendingSubs.map((sub) => {
               const planPrice = getPlanPrice(sub.planName);
               const finalPrice = sub.promotion ? getAmountWithPromo({ ...member, promotion: sub.promotion }, planPrice) : planPrice;
-
+              
               return (
                 <div key={sub.id} className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 space-y-2">
                   <div className="flex items-center justify-between">
@@ -1794,9 +1804,9 @@ function ValidationModal({
           </div>
         )}
 
-        {/* ── Offres actives ── */}
+        {/* ── Offres actives avec paiement partiel et renouvellement ── */}
         {activeSubs.length > 0 && (
-          <div className="pt-4 space-y-3 border-t" style={{ borderColor: "hsl(var(--border))" }}>
+          <div className="space-y-3">
             <p className="text-sm font-bold text-foreground">Offres actives ({activeSubs.length})</p>
             {activeSubs.map((sub) => {
               const planPrice = getPlanPrice(sub.planName);
@@ -1804,18 +1814,11 @@ function ValidationModal({
               const totalPaid = sub.totalPaid || 0;
               const remaining = Math.max(0, finalPrice - totalPaid);
               const isFullyPaid = totalPaid >= finalPrice;
-
-              // ═══════════════════════════════════════════════════════════════════════
-              // CORRECTION : Ajouter isExpired pour chaque offre (même code que Panel)
-              // ═══════════════════════════════════════════════════════════════════════
+              
               const now = new Date();
               const expiryDate = sub.expiryDate ? new Date(sub.expiryDate) : null;
               const isExpired = expiryDate ? expiryDate < now : false;
 
-              // ═══════════════════════════════════════════════════════════════════════
-              // NOUVELLE LOGIQUE : Si expiré, on force l'affichage "Paiement à compléter"
-              // et on bloque le renouvellement jusqu'à paiement complet
-              // ═══════════════════════════════════════════════════════════════════════
               const showRenewButton = isFullyPaid && !isExpired;
               const showCompletePayment = !isFullyPaid || isExpired;
 
@@ -1827,9 +1830,6 @@ function ValidationModal({
                       ACTIF
                     </span>
                   </div>
-                  {/* ═══════════════════════════════════════════════════════════════════════
-                      CORRECTION : Afficher les dates de l'OFFRE, pas du membre
-                      ═══════════════════════════════════════════════════════════════════════ */}
                   <p className="text-xs text-muted-foreground">
                     Du {formatDate(sub.startDate)} au {formatDate(sub.expiryDate)}
                   </p>
@@ -1948,7 +1948,7 @@ function ValidationModal({
 
         {/* ── Legacy : boutons pour membres sans userSubscriptions ── */}
         {member.userSubscriptions?.length === 0 && isPendingLike && (
-          <div className="pt-4 space-y-3 border-t" style={{ borderColor: "hsl(var(--border))" }}>
+          <div className="space-y-3 pt-2 border-t" style={{ borderColor: "hsl(var(--border))" }}>
             <p className="text-sm font-bold text-foreground">Actions sur la demande</p>
             <div className="flex flex-col gap-2">
               <button
@@ -2027,9 +2027,9 @@ function ValidationModal({
           </div>
         )}
 
-        {/* ── Legacy : paiement pour actif non payé ── */}
+        {/* ── Legacy : paiement pour membre actif non payé ── */}
         {isActiveButUnpaid(member) && member.userSubscriptions?.length === 0 && (
-          <div className="pt-4 space-y-3 border-t" style={{ borderColor: "hsl(var(--border))" }}>
+          <div className="space-y-3 pt-2 border-t" style={{ borderColor: "hsl(var(--border))" }}>
             <p className="text-sm font-bold text-foreground">Paiement en attente</p>
             <p className="text-xs text-muted-foreground">
               Ce membre a commencé son abonnement mais n'a pas encore réglé.
@@ -2069,7 +2069,7 @@ function ValidationModal({
 
         {/* ── Legacy : renouvellement pour actif payé ── */}
         {member.userSubscriptions?.length === 0 && !isPendingLike && !isActiveButUnpaid(member) && (
-          <div className="pt-4 space-y-3 border-t" style={{ borderColor: "hsl(var(--border))" }}>
+          <div className="space-y-3 pt-2 border-t" style={{ borderColor: "hsl(var(--border))" }}>
             <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
               <p className="text-sm font-semibold text-green-600">✓ Abonnement actif — Paiement enregistré</p>
               <p className="text-xs text-muted-foreground mt-1">
@@ -2116,6 +2116,15 @@ function ValidationModal({
             </button>
           </div>
         )}
+
+        <div className="pt-4 border-t" style={{ borderColor: "hsl(var(--border))" }}>
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold bg-muted hover:bg-muted/80 transition-colors text-foreground"
+          >
+            Fermer
+          </button>
+        </div>
       </div>
     </div>
   );

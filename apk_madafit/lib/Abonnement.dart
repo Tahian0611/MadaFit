@@ -455,90 +455,90 @@ class _AbonnementPageState extends State<AbonnementPage> {
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.white10),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "CODE PROMO",
-            style: TextStyle(
-              color: Colors.white38,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _promoController,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: "Entrez un code...",
-                    hintStyle: const TextStyle(color: Colors.white24),
-                    filled: true,
-                    fillColor: Colors.black26,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 15,
-                      vertical: 0,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                height: 45,
-                child: ElevatedButton(
-                  onPressed: _isValidatingPromo ? null : _validatePromoCode,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white10,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: _isValidatingPromo
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text("APPLIQUER"),
-                ),
-              ),
-            ],
-          ),
-          if (_appliedPromo != null) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 16),
-                const SizedBox(width: 5),
-                Text(
-                  "Réduction de ${_appliedPromo!['discountPercentage'] != null ? '${_appliedPromo!['discountPercentage']}%' : '${_appliedPromo!['discountAmount']} Ar'} appliquée !",
-                  style: const TextStyle(color: Colors.green, fontSize: 12),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () => setState(() => _appliedPromo = null),
-                  child: const Text(
-                    "Supprimer",
-                    style: TextStyle(color: Colors.redAccent, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
+      // child: Column(
+      //   crossAxisAlignment: CrossAxisAlignment.start,
+      //   children: [
+      //     const Text(
+      //       "CODE PROMO",
+      //       style: TextStyle(
+      //         color: Colors.white38,
+      //         fontSize: 10,
+      //         fontWeight: FontWeight.bold,
+      //         letterSpacing: 1.2,
+      //       ),
+      //     ),
+      //     const SizedBox(height: 10),
+      //     Row(
+      //       children: [
+      //         Expanded(
+      //           child: TextField(
+      //             controller: _promoController,
+      //             style: const TextStyle(color: Colors.white, fontSize: 14),
+      //             decoration: InputDecoration(
+      //               hintText: "Entrez un code...",
+      //               hintStyle: const TextStyle(color: Colors.white24),
+      //               filled: true,
+      //               fillColor: Colors.black26,
+      //               contentPadding: const EdgeInsets.symmetric(
+      //                 horizontal: 15,
+      //                 vertical: 0,
+      //               ),
+      //               border: OutlineInputBorder(
+      //                 borderRadius: BorderRadius.circular(10),
+      //                 borderSide: BorderSide.none,
+      //               ),
+      //             ),
+      //           ),
+      //         ),
+      //         const SizedBox(width: 10),
+      //         SizedBox(
+      //           height: 45,
+      //           child: ElevatedButton(
+      //             onPressed: _isValidatingPromo ? null : _validatePromoCode,
+      //             style: ElevatedButton.styleFrom(
+      //               backgroundColor: Colors.white10,
+      //               foregroundColor: Colors.white,
+      //               shape: RoundedRectangleBorder(
+      //                 borderRadius: BorderRadius.circular(10),
+      //               ),
+      //             ),
+      //             child: _isValidatingPromo
+      //                 ? const SizedBox(
+      //                     width: 20,
+      //                     height: 20,
+      //                     child: CircularProgressIndicator(
+      //                       strokeWidth: 2,
+      //                       color: Colors.white,
+      //                     ),
+      //                   )
+      //                 : const Text("APPLIQUER"),
+      //           ),
+      //         ),
+      //       ],
+      //     ),
+      //     if (_appliedPromo != null) ...[
+      //       const SizedBox(height: 10),
+      //       Row(
+      //         children: [
+      //           const Icon(Icons.check_circle, color: Colors.green, size: 16),
+      //           const SizedBox(width: 5),
+      //           Text(
+      //             "Réduction de ${_appliedPromo!['discountPercentage'] != null ? '${_appliedPromo!['discountPercentage']}%' : '${_appliedPromo!['discountAmount']} Ar'} appliquée !",
+      //             style: const TextStyle(color: Colors.green, fontSize: 12),
+      //           ),
+      //           const Spacer(),
+      //           TextButton(
+      //             onPressed: () => setState(() => _appliedPromo = null),
+      //             child: const Text(
+      //               "Supprimer",
+      //               style: TextStyle(color: Colors.redAccent, fontSize: 12),
+      //             ),
+      //           ),
+      //         ],
+      //       ),
+      //     ],
+      //   ],
+      // ),
     );
   }
 
