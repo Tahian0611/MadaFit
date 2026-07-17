@@ -2,12 +2,12 @@ import 'package:flutter/foundation.dart';
 
 class ApiConfig {
   // 1. URL de Production
-  ///static const String _prodUrl = 'https://st-travelnosybe.com/api';
+  static const String _prodUrl = 'https://st-travelnosybe.com/api';
 
   // 2. URL de Développement (Local)
   // - Utilisez '10.0.2.2' pour l'émulateur Android
   // - Utilisez l'IP de votre machine (ex: '192.168.1.XX') pour un appareil réel
-  static const String _localIp = '192.168.1.145'; // À MODIFIER selon votre IP
+  static const String _localIp = '192.168.1.138'; // À MODIFIER selon votre IP
   static const String _devUrl = 'https://$_localIp:8000/api';
 
   /// The base URL for the API.

@@ -160,7 +160,7 @@ class UserApiService {
     required File imageFile,
   }) async {
     try {
-      final uri = Uri.parse('${ApiConfig.domainUrl}/user/$userId/photo');
+      final uri = Uri.parse('$usersUrl/$userId/photo');
       final request = http.MultipartRequest('POST', uri);
       request.headers['Authorization'] = 'Bearer $token';
       
