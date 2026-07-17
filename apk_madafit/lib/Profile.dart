@@ -764,13 +764,13 @@ class _UserOffresPageState extends State<UserOffresPage> with WidgetsBindingObse
               ),
             ],
           ),
-          if (balance > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-              "Reste à payer : ${_formatPrice(balance.toInt())} Ar",
-              style: const TextStyle(color: Colors.orangeAccent, fontSize: 12),
-            ),
-          ],
+          // if (balance > 0) ...[
+          //   const SizedBox(height: 8),
+          //   Text(
+          //     "Reste à payer : ${_formatPrice(balance.toInt())} Ar",
+          //     style: const TextStyle(color: Colors.orangeAccent, fontSize: 12),
+          //   ),
+          // ],
           if (startDate != null && expiryDate != null) ...[
             const SizedBox(height: 12),
             Text(
@@ -965,20 +965,20 @@ class _UserOffresPageState extends State<UserOffresPage> with WidgetsBindingObse
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Reste à payer", style: TextStyle(color: Colors.white38, fontSize: 10)),
-                    Text(
-                      "${_formatPrice(balance.toInt())} Ar",
-                      style: TextStyle(
-                        color: balance > 0 ? Colors.orangeAccent : Colors.greenAccent,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
+                // Column(
+                //   crossAxisAlignment: CrossAxisAlignment.start,
+                //   children: [
+                //     const Text("Reste à payer", style: TextStyle(color: Colors.white38, fontSize: 10)),
+                //     Text(
+                //       "${_formatPrice(balance.toInt())} Ar",
+                //       style: TextStyle(
+                //         color: balance > 0 ? Colors.orangeAccent : Colors.greenAccent,
+                //         fontSize: 18,
+                //         fontWeight: FontWeight.w900,
+                //       ),
+                //     ),
+                //   ],
+                // ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(

@@ -14,7 +14,7 @@ class ApiConfig {
   /// Force l'utilisation de l'URL de production pour l'APK.
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: _devUrl,
+    defaultValue: _prodUrl,
   );
 
   static String get domainUrl {
