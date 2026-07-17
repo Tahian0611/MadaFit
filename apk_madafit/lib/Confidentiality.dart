@@ -14,8 +14,8 @@ class ConfidentialityPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHeader("PROTECTION DES DONNÉES"),
-            _buildText("Chez Madafit, nous respectons votre vie privée. Les données collectées (poids, mesures, fréquence cardiaque) servent exclusivement à votre suivi de performance."),
-            _buildSection("1. Collecte", "Nous collectons vos informations lors de l'inscription et via les capteurs de santé."),
+            _buildText("Chez Madafit, nous respectons votre vie privée."),
+            _buildSection("1. Collecte", "Nous collectons vos informations lors de l'inscription."),
             _buildSection("2. Utilisation", "Vos données ne sont jamais vendues à des tiers."),
             _buildSection("3. Sécurité", "Toutes vos données sont chiffrées sur nos serveurs basés à Madagascar."),
             const SizedBox(height: 30),
