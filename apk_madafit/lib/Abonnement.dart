@@ -19,7 +19,7 @@ class SubscriptionPlan {
     required this.name,
     required this.type,
     required this.duration,
-    required this.price,
+    required this.price,  
     required this.features,
     this.color,
     required this.popular,
@@ -172,27 +172,27 @@ class _AbonnementPageState extends State<AbonnementPage> {
           _appliedPromo = data;
           _isValidatingPromo = false;
         });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✓ Code promo appliqué !'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        // if (mounted) {
+        //   ScaffoldMessenger.of(context).showSnackBar(
+        //     const SnackBar(
+        //       content: Text('✓ Code promo appliqué !'),
+        //       backgroundColor: Colors.green,
+        //     ),
+        //   );
+        // }
       } else {
         setState(() {
           _appliedPromo = null;
           _isValidatingPromo = false;
         });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Code promo invalide ou expiré'),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
+        // if (mounted) {
+        //   ScaffoldMessenger.of(context).showSnackBar(
+        //     const SnackBar(
+        //       content: Text('Code promo invalide ou expiré'),
+        //       backgroundColor: Colors.redAccent,
+        //     ),
+        //   );
+        // }
       }
     } catch (e) {
       setState(() {

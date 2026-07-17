@@ -895,7 +895,7 @@ export default function Reports() {
             </span>
           </div>
           
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/20 bg-muted/30">

@@ -1658,7 +1658,7 @@ export default function Report() {
                 </div>
               </div>
             </div>
-            <div className="p-6 overflow-x-auto">
+            <div className="p-6 overflow-x-auto overflow-y-auto max-h-[400px]">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/50">
@@ -1823,7 +1823,7 @@ export default function Report() {
               </div>
             </div>
           </div>
-          <div className="p-6">
+          <div className="p-6 overflow-y-auto max-h-[400px]">
             {topProducts.length === 0 ? (
               <div className="text-center py-12">
                 <Package className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
@@ -1996,7 +1996,7 @@ export default function Report() {
               </div>
             </div>
           </div>
-          <div className="p-6 overflow-x-auto">
+          <div className="p-6 overflow-x-auto overflow-y-auto max-h-[400px]">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/50">

@@ -640,13 +640,13 @@ class _UserOffresPageState extends State<UserOffresPage> with WidgetsBindingObse
             "${_formatPrice(price.toInt())} Ar",
             style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
           ),
-          if (promotion != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              "Code promo: $promotion",
-              style: const TextStyle(color: Colors.greenAccent, fontSize: 11),
-            ),
-          ],
+          // if (promotion != null) ...[
+          //   const SizedBox(height: 4),
+          //   Text(
+          //     "Code promo: $promotion",
+          //     style: const TextStyle(color: Colors.greenAccent, fontSize: 11),
+          //   ),
+          // ],
           const SizedBox(height: 12),
           const Text(
             "Votre demande sera traitée par un administrateur.",

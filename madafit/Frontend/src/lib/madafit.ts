@@ -60,19 +60,15 @@ export function normalizeMemberStatus(status?: string | null): MemberStatus {
 export function isMemberAccessAuthorized(user: User): boolean {
   const status = normalizeMemberStatus(user.status);
   
-  // Si le membre est actif, l'accès est autorisé
   if (status === "active") return true;
   
-  // Si le membre est expiré, on vérifie la date d'expiration (+5 jours de marge)
   if (status === "expired" && user.expiryDate) {
     const expiry = new Date(user.expiryDate);
     const now = new Date();
     
-    // On ajoute 5 jours de grâce à la date d'expiration
     const gracePeriodEnd = new Date(expiry);
     gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 5);
     
-    // Si la période de grâce n'est pas encore passée, on autorise
     if (now <= gracePeriodEnd) {
       return true;
     }
@@ -111,34 +107,188 @@ export function normalizeSubscriptionType(subscription?: string | null): string 
   if (["vip"].includes(value)) return "vip";
   if (["coaching", "coaching perso"].includes(value)) return "coaching";
   
-  // Si on ne connaît pas le mot-clé, on garde la valeur brute (ex: "Offre 2026")
   return subscription ?? "standard";
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   SUPPRIMÉ : calculateGracePeriodStartDate
+   Remplacée par les fonctions ci-dessous
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CORRIGÉ : calculateNewSubscriptionStartDate
+   Avant : utilisait new Date() + setHours(0,0,0,0) + toISOString()
+   Après : parsing manuel YYYY-MM-DD sans objet Date, zero conversion UTC
+   ═══════════════════════════════════════════════════════════════════════ */
+
 /**
- * Calcule la nouvelle date de début suivant la règle des 10 jours de grâce.
- * - Si payé dans les 10 jours: garde la date d'origine (startDate).
- * - Si payé après 10 jours: la nouvelle date est le 11ème jour.
+ * Parse une string YYYY-MM-DD en {year, month, day} sans créer d'objet Date.
  */
-export function calculateGracePeriodStartDate(originalStartDate: string | Date, paymentDate: string | Date = new Date()): string {
-  const start = new Date(originalStartDate);
-  const payment = new Date(paymentDate);
-  
-  // Normalisation des dates (on ne compare que les jours)
-  start.setHours(0, 0, 0, 0);
-  payment.setHours(0, 0, 0, 0);
-  
-  const diffTime = payment.getTime() - start.getTime();
-  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-  
-  if (diffDays <= 10) {
-    return start.toISOString().split("T")[0];
-  } else {
-    // 11ème jour = start + 10 jours
-    const eleventhDay = new Date(start);
-    eleventhDay.setDate(eleventhDay.getDate() + 10);
-    return eleventhDay.toISOString().split("T")[0];
+function parseDateString(dateStr: string): { year: number; month: number; day: number } {
+  const parts = dateStr.split("-").map(Number);
+  return { year: parts[0], month: parts[1], day: parts[2] };
+}
+
+/**
+ * Formate {year, month, day} en string YYYY-MM-DD.
+ */
+function formatDateParts(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
+ * Retourne la date du jour en YYYY-MM-DD selon le fuseau Indian/Antananarivo.
+ */
+function getTodayString(): string {
+  return new Date().toLocaleDateString("fr-CA", { timeZone: "Indian/Antananarivo" });
+}
+
+/**
+ * Calcule la date de début pour une NOUVELLE offre (première activation).
+ * La date de début = date de validation/paiement (aujourd'hui).
+ */
+export function calculateNewSubscriptionStartDate(paymentDate: string | Date = new Date()): string {
+  if (typeof paymentDate === "string") {
+    // Si c'est déjà une string YYYY-MM-DD, la retourner telle quelle
+    if (/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+      return paymentDate;
+    }
   }
+  // Sinon, utiliser le fuseau Madagascar pour obtenir YYYY-MM-DD
+  return getTodayString();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CORRIGÉ : calculateRenewalStartDate
+   Avant : utilisait new Date(lastExpiryDate) + setHours(0,0,0,0) + toISOString()
+   Après : parsing manuel des strings YYYY-MM-DD, comparaison en jours,
+           construction de la string résultat sans objet Date
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Calcule la date de début pour un RENOUVELLEMENT d'offre.
+ * 
+ * Règle :
+ * - Si renouvellement dans les 10j après expiration → continuité (début = date d'expiration)
+ * - Si renouvellement après 10j → nouveau cycle (début = date du renouvellement)
+ */
+export function calculateRenewalStartDate(
+  lastExpiryDate: string | Date,
+  paymentDate: string | Date = new Date()
+): string {
+  // Normaliser en strings YYYY-MM-DD sans jamais créer d'objet Date
+  let expiryStr: string;
+  let paymentStr: string;
+
+  if (typeof lastExpiryDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(lastExpiryDate)) {
+    expiryStr = lastExpiryDate;
+  } else if (lastExpiryDate instanceof Date) {
+    expiryStr = lastExpiryDate.toLocaleDateString("fr-CA", { timeZone: "Indian/Antananarivo" });
+  } else {
+    expiryStr = String(lastExpiryDate).split("T")[0];
+  }
+
+  if (typeof paymentDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+    paymentStr = paymentDate;
+  } else if (paymentDate instanceof Date) {
+    paymentStr = paymentDate.toLocaleDateString("fr-CA", { timeZone: "Indian/Antananarivo" });
+  } else {
+    paymentStr = getTodayString();
+  }
+
+  const expiry = parseDateString(expiryStr);
+  const payment = parseDateString(paymentStr);
+
+  // Convertir en timestamps (nombre de jours depuis une référence) pour comparaison
+  const expiryDays = expiry.year * 365 + expiry.month * 30 + expiry.day;
+  const paymentDays = payment.year * 365 + payment.month * 30 + payment.day;
+  const diffDays = paymentDays - expiryDays;
+
+  if (diffDays <= 10) {
+    // Dans les 10 jours : continuité, pas de trou
+    return expiryStr;
+  } else {
+    // Après 10 jours : nouveau cycle
+    return paymentStr;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CORRIGÉ : calculateExpiryDate
+   Avant : utilisait new Date(startDate) + setHours(0,0,0,0) + setMonth() + toISOString()
+   Après : parsing manuel YYYY-MM-DD, ajout de mois, gestion fin de mois,
+           construction string sans objet Date
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Calcule la date d'expiration à partir d'une date de début et d'une durée en mois.
+ */
+export function calculateExpiryDate(startDate: string | Date, durationMonths: number): string {
+  // Normaliser en string YYYY-MM-DD
+  let startStr: string;
+  if (typeof startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    startStr = startDate;
+  } else if (startDate instanceof Date) {
+    startStr = startDate.toLocaleDateString("fr-CA", { timeZone: "Indian/Antananarivo" });
+  } else {
+    startStr = String(startDate).split("T")[0];
+  }
+
+  const { year, month, day } = parseDateString(startStr);
+
+  // Ajouter les mois
+  let newMonth = month + durationMonths;
+  let newYear = year;
+
+  while (newMonth > 12) {
+    newMonth -= 12;
+    newYear += 1;
+  }
+
+  // Gérer les jours qui n'existent pas dans le mois cible (ex: 31 janvier + 1 mois = 28/29 février)
+  const daysInMonth = new Date(newYear, newMonth, 0).getDate();
+  const newDay = Math.min(day, daysInMonth);
+
+  return formatDateParts(newYear, newMonth, newDay);
+}
+
+/**
+ * Vérifie si un planName a déjà été activé pour un membre.
+ * Retourne la dernière souscription active/expirée de ce plan, ou null.
+ */
+export function getLastSubscriptionForPlan(
+  member: User,
+  planName: string
+): { expiryDate: string | null; status: string } | null {
+  const userSubs = member.userSubscriptions ?? [];
+  
+  /* ═══════════════════════════════════════════════════════════════════════
+     CORRIGÉ : Comparaison des dates sans new Date() pour éviter 
+     les conversions UTC qui causent le décalage d'un jour.
+     On compare les strings YYYY-MM-DD directement.
+     ═══════════════════════════════════════════════════════════════════════ */
+  const matchingSubs = userSubs
+    .filter((sub) => sub.planName === planName && (sub.status === "active" || sub.status === "expired"))
+    .sort((a, b) => {
+      // Parser les dates YYYY-MM-DD manuellement en nombres pour comparaison
+      const parseDateToNumber = (dateStr: string | null | undefined): number => {
+        if (!dateStr) return 0;
+        const parts = dateStr.split("-").map(Number);
+        // Format : AAAAMMJJ pour comparaison numérique simple
+        return parts[0] * 10000 + parts[1] * 100 + parts[2];
+      };
+      const dateA = parseDateToNumber(a.expiryDate);
+      const dateB = parseDateToNumber(b.expiryDate);
+      return dateB - dateA; // Plus récent d'abord
+    });
+  
+  if (matchingSubs.length === 0) return null;
+  
+  const lastSub = matchingSubs[0];
+  return {
+    expiryDate: lastSub.expiryDate || null,
+    status: lastSub.status,
+  };
 }
 
 export function formatCurrency(amount?: number | null) {
@@ -161,12 +311,9 @@ export function formatDate(dateStr?: string | null) {
 export function formatTime(timeStr?: string | null) {
   if (!timeStr || timeStr === "00:00" || timeStr === "00:00:00") return "--:--:--";
 
-  // Cas 1: C'est un format ISO ou contient une date (ex: "2024-05-14T19:50:00Z")
   if (timeStr.includes("-") || timeStr.includes("T")) {
     let isoStr = timeStr.replace(" ", "T");
     
-    // Pour Madagascar, on veut souvent l'heure brute du serveur sans décalage auto du navigateur.
-    // Si la chaîne contient un 'T', on extrait la partie heure directement pour éviter les calculs de zone.
     if (isoStr.includes("T")) {
       const timePart = isoStr.split("T")[1].substring(0, 8);
       if (timePart && timePart.includes(":")) return timePart;
@@ -177,7 +324,6 @@ export function formatTime(timeStr?: string | null) {
       if (d.getFullYear() <= 1970 && d.getHours() === 0 && d.getMinutes() === 0) {
          return "--:--:--";
       }
-      // On force l'heure de Madagascar pour l'affichage
       return d.toLocaleTimeString("fr-FR", { 
         timeZone: "Indian/Antananarivo",
         hour: "2-digit", 
@@ -188,14 +334,10 @@ export function formatTime(timeStr?: string | null) {
     }
   }
 
-  // Cas 2: C'est déjà un format simple HH:mm...
-  // Si c'est juste du texte sans date, on ne peut pas facilement convertir la timezone sans date de référence.
-  // Mais on essaye de garder la précision.
   if (/^\d{1,2}:\d{2}/.test(timeStr) && !timeStr.includes("-")) {
     return timeStr.length >= 8 ? timeStr.substring(0, 8) : timeStr.substring(0, 5);
   }
 
-  // Fallback
   if (timeStr.length >= 5 && timeStr.includes(":")) {
     return timeStr.length >= 8 ? timeStr.substring(0, 8) : timeStr.substring(0, 5);
   }
@@ -248,11 +390,9 @@ export function computeDashboardStats(
   const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
   const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
 
-  // Map produits pour lookup rapide
   const productMap: Record<number, Product> = {};
   products.forEach((p) => { if (p.id !== undefined) productMap[p.id] = p; });
 
-  // Calcule le revenu total des ventes de produits pour un mois donné
   const getMovementRevenueForMonth = (monthVal: number, yearVal: number): number => {
     return transactions
       .filter((tx) => {
@@ -269,7 +409,6 @@ export function computeDashboardStats(
       }, 0);
   };
 
-  // Membres Actifs
   const activeMembers = users.filter((user) => normalizeMemberStatus(user.status) === "active").length;
   const membersLastMonth = users.filter((user) => {
     if (!user.joinDate) return false;
@@ -278,7 +417,6 @@ export function computeDashboardStats(
   }).length;
   const membersDiff = activeMembers - (membersLastMonth || activeMembers);
 
-  // Revenus 6 mois : paiements + bénéfice produits
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
   const paymentRevenue6m = payments
     .filter((p) => new Date(p.date) >= sixMonthsAgo)
@@ -304,7 +442,6 @@ export function computeDashboardStats(
 
   const revenueDiff = revenueLastMonth === 0 ? 100 : Math.round(((revenueCurrentMonth - revenueLastMonth) / revenueLastMonth) * 100);
 
-  // Fréquentation
   const totalAttendance = attendance.length;
   const attendanceCurrentMonth = attendance.filter((a) => { const d = new Date(a.date); return d.getMonth() === currentMonth && d.getFullYear() === currentYear; }).length;
   const attendanceLastMonth = attendance.filter((a) => { const d = new Date(a.date); return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear; }).length;
@@ -312,7 +449,6 @@ export function computeDashboardStats(
 
   const retentionRate = users.length === 0 ? 0 : Math.round((activeMembers / users.length) * 100);
 
-  // inGymNow : présent si le passage le plus RÉCENT n'a pas de checkOut
   const latestByMember = new Map<number, AttendanceRecord>();
   attendance.forEach(a => {
     const userId = extractIdFromIri(a.user);
@@ -334,7 +470,6 @@ export function computeDashboardStats(
     if (diffHours >= 0 && diffHours < 15) inGymNow++;
   });
 
-  // Données graphiques 6 mois
   const monthlyData: any[] = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -412,14 +547,11 @@ export function computeReportsStats(
 
   const activeMembers = users.filter((u) => normalizeMemberStatus(u.status) === "active").length;
   
-  // Taux de rétention réel
   const retentionRate = users.length === 0 ? 0 : Math.round((activeMembers / users.length) * 100);
 
-  // Map produits pour lookup rapide (bénéfice produit)
   const productMap: Record<number, Product> = {};
   products.forEach((p) => { if (p.id !== undefined) productMap[p.id] = p; });
 
-  // Calcule le revenu total des ventes de produits pour un mois donné
   const getMovementRevenueForMonth = (monthVal: number, yearVal: number): number => {
     return transactions
       .filter((tx) => {
@@ -436,16 +568,13 @@ export function computeReportsStats(
       }, 0);
   };
 
-  // Période des 6 derniers mois
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-  // Maps pour données mensuelles
   const monthlyRevenue: Record<string, number> = {};
   const monthlyNewMembers: Record<string, number> = {};
   const monthlyTotalMembers: Record<string, number> = {};
   const monthlyAttendance: Record<string, number> = {};
 
-  // Initialiser les 6 derniers mois
   for (let i = 0; i < 6; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = d.toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
@@ -455,7 +584,6 @@ export function computeReportsStats(
     monthlyAttendance[key] = 0;
   }
 
-  // Revenus par mois (6 derniers mois) : paiements + bénéfice produits
   payments.forEach((p) => {
     const d = new Date(p.date);
     if (d >= sixMonthsAgo) {
@@ -464,7 +592,6 @@ export function computeReportsStats(
     }
   });
 
-  // Ajouter le bénéfice produit aux revenus mensuels
   for (let i = 0; i < 6; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = d.toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
@@ -475,7 +602,6 @@ export function computeReportsStats(
     }
   }
 
-  // Nouveaux membres par mois (6 derniers mois)
   users.forEach((u) => {
     if (u.joinDate) {
       const d = new Date(u.joinDate);
@@ -486,7 +612,6 @@ export function computeReportsStats(
     }
   });
 
-  // Fréquentation par mois (6 derniers mois)
   attendance.forEach((a) => {
     const d = new Date(a.date);
     if (d >= sixMonthsAgo) {
@@ -495,7 +620,6 @@ export function computeReportsStats(
     }
   });
 
-  // Calcul du total cumulé de membres par mois (évolution réelle)
   const sortedKeys = Object.keys(monthlyRevenue).sort((a, b) => {
     const [monthA, yearA] = a.split(' ');
     const [monthB, yearB] = b.split(' ');
@@ -510,7 +634,6 @@ export function computeReportsStats(
     monthlyTotalMembers[key] = runningTotal;
   });
 
-  // Ajouter les membres existants avant la période
   const existingMembersBefore = users.filter((u) => {
     if (!u.joinDate) return true;
     return new Date(u.joinDate) < sixMonthsAgo;
@@ -527,29 +650,23 @@ export function computeReportsStats(
     members: monthlyTotalMembers[month],
   }));
 
-  // Total revenu 6 mois = paiements + bénéfice produits
   const totalRevenue = Object.values(monthlyRevenue).reduce((a, b) => a + b, 0);
 
-  // Calcul des trends réels
   const currentMonthKey = new Date(now.getFullYear(), currentMonth, 1).toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
   const lastMonthKey = new Date(lastMonthYear, lastMonth, 1).toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
 
-  // Trend revenus (inclut bénéfice produit)
   const currentRevenue = monthlyRevenue[currentMonthKey] || 0;
   const prevRevenue = monthlyRevenue[lastMonthKey] || 0;
   const revenueTrend = prevRevenue === 0 ? (currentRevenue > 0 ? 100 : 0) : Math.round(((currentRevenue - prevRevenue) / prevRevenue) * 100);
 
-  // Trend membres (nouveaux inscrits ce mois vs mois dernier)
   const currentNew = monthlyNewMembers[currentMonthKey] || 0;
   const prevNew = monthlyNewMembers[lastMonthKey] || 0;
   const membersTrend = prevNew === 0 ? (currentNew > 0 ? 100 : 0) : Math.round(((currentNew - prevNew) / prevNew) * 100);
 
-  // Trend fréquentation
   const currentAtt = monthlyAttendance[currentMonthKey] || 0;
   const prevAtt = monthlyAttendance[lastMonthKey] || 0;
   const attendanceTrend = prevAtt === 0 ? (currentAtt > 0 ? 100 : 0) : Math.round(((currentAtt - prevAtt) / prevAtt) * 100);
 
-  // Fréquentation hebdomadaire réelle
   const dayLabels = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
   const dayCounts = [0, 0, 0, 0, 0, 0, 0];
   
@@ -577,7 +694,6 @@ export function computeReportsStats(
   };
 }
 
-// Helper pour convertir nom de mois abrégé fr vers index
 function getMonthIndex(monthName: string): number {
   const months = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
   return months.indexOf(monthName.toLowerCase());

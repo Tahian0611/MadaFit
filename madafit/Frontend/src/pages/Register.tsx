@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, CalendarCheck, AlertCircle } from "lucide-react";
+import { CheckCircle2, CalendarCheck, AlertCircle, Upload, X, User } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { refreshNotifications } from '@/services/api';
@@ -23,8 +23,9 @@ type FormState = {
   phone: string;
   dob: string;
   activities: ActivityType[];
-  subscription: string;
+  subscriptions: string[]; // ← CHANGÉ : tableau d'IDs de plans
   accessType: "abonnement" | "seance";
+  photoFile: File | null;
 };
 
 const initialState: FormState = {
@@ -34,8 +35,9 @@ const initialState: FormState = {
   phone: "",
   dob: "",
   activities: [],
-  subscription: "",
+  subscriptions: [], // ← CHANGÉ
   accessType: "abonnement",
+  photoFile: null,
 };
 
 // ── RÈGLES DE VALIDATION ────────────────────────────────────────────────────
@@ -101,9 +103,13 @@ function validate(form: FormState): ValidationErrors {
   if (!form.accessType)
     errors.accessType = "Veuillez choisir un type d'accès.";
 
-  // ── FORMULE (si abonnement) ───────────────────────────────────────────────
-  if (form.accessType === "abonnement" && !form.subscription)
-    errors.subscription = "Veuillez choisir une formule.";
+  // ── FORMULES (si abonnement) ─────────────────────────────────────────────
+  if (form.accessType === "abonnement" && (!form.subscriptions || form.subscriptions.length === 0))
+    errors.subscriptions = "Veuillez choisir au moins une formule.";
+
+  // ── PHOTO ─────────────────────────────────────────────────────────────────
+  if (!form.photoFile)
+    errors.photoFile = "La photo de profil est obligatoire.";
 
   return errors;
 }
@@ -117,6 +123,8 @@ export default function Register() {
   const [form, setForm] = useState<FormState>(initialState);
   const [touched, setTouched] = useState<Partial<Record<keyof FormState, boolean>>>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const plansQuery = useQuery({
     queryKey: ["subscription-plans", "register"],
@@ -125,20 +133,47 @@ export default function Register() {
 
   const plans = extractHydraMembers<SubscriptionPlan>(plansQuery.data);
 
-  const selectedPlan = useMemo(
-  () => plans.find((plan) => String(plan.id) === form.subscription),
-  [form.subscription, plans]
-);
+  // ── PLANS SÉLECTIONNÉS (plusieurs) ──────────────────────────────────────
+  const selectedPlans = useMemo(
+    () => plans.filter((plan) => form.subscriptions.includes(String(plan.id))),
+    [form.subscriptions, plans]
+  );
 
-  // ── CALCUL AUTOMATIQUE DE LA DATE DE FIN ────────────────────────────────
+  // ── CALCUL AUTOMATIQUE DES DATES POUR CHAQUE OFFRE ──────────────────────
   const computedDates = useMemo(() => {
     const start = new Date();
     const startStr = start.toISOString().split("T")[0];
-    if (form.accessType === "seance" || !selectedPlan?.duration) return { startStr, expiryStr: null };
-    const expiry = new Date(start);
-    expiry.setMonth(expiry.getMonth() + Number(selectedPlan.duration));
-    return { startStr, expiryStr: expiry.toISOString().split("T")[0] };
-  }, [selectedPlan, form.accessType]);
+    if (form.accessType === "seance" || selectedPlans.length === 0) return { startStr, plans: [] };
+    
+    const plansWithDates = selectedPlans.map((plan) => {
+      const expiry = new Date(start);
+      expiry.setMonth(expiry.getMonth() + Number(plan.duration));
+      return {
+        plan,
+        startStr,
+        expiryStr: expiry.toISOString().split("T")[0],
+      };
+    });
+    
+    return { startStr, plans: plansWithDates };
+  }, [selectedPlans, form.accessType]);
+
+  // ── PRIX TOTAL ───────────────────────────────────────────────────────────
+  const totalPrice = useMemo(() => {
+    return selectedPlans.reduce((sum, plan) => sum + (plan.price || 0), 0);
+  }, [selectedPlans]);
+
+  // ── GESTION MULTI-FORMULES ───────────────────────────────────────────────
+  function toggleSubscription(planId: string) {
+    setForm((c) => {
+      const exists = c.subscriptions.includes(planId);
+      const newSubscriptions = exists
+        ? c.subscriptions.filter((id) => id !== planId)
+        : [...c.subscriptions, planId];
+      return { ...c, subscriptions: newSubscriptions };
+    });
+    touch("subscriptions");
+  }
   // ────────────────────────────────────────────────────────────────────────
 
   // Erreurs en temps réel
@@ -226,8 +261,43 @@ export default function Register() {
   }
   // ────────────────────────────────────────────────────────────────────────
 
+  // ── GESTION PHOTO ───────────────────────────────────────────────────────
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Fichier trop grand (max 5MB)");
+      return;
+    }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Format invalide (JPEG, PNG, WebP uniquement)");
+      return;
+    }
+
+    setForm((c) => ({ ...c, photoFile: file }));
+    setPhotoPreview(URL.createObjectURL(file));
+    touch("photoFile");
+  }
+
+  function clearPhoto() {
+    setForm((c) => ({ ...c, photoFile: null }));
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+    setPhotoPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    touch("photoFile");
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
   const createMutation = useMutation({
     mutationFn: async () => {
+      // ── CRÉATION DU USER ────────────────────────────────────────────────
       const createdUser = await api.users.create({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
@@ -236,18 +306,60 @@ export default function Register() {
         dob: form.dob || undefined,
         password: Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-2).toUpperCase() + "!",
         roles: ["ROLE_USER"],
-        status: "pending", // Modification : Toujours mettre en attente de validation
+        status: "pending",
         memberId: `MF-${Date.now().toString().slice(-6)}`,
         rfidCard: `RF${Date.now().toString().slice(-6)}`,
-        subscription: (form.accessType === "abonnement" && selectedPlan ? normalizeSubscriptionType(selectedPlan.type) : "monthly") as SubscriptionType,
+        subscription: (form.accessType === "abonnement" && selectedPlans.length > 0 
+          ? normalizeSubscriptionType(selectedPlans[0].type) 
+          : "monthly") as SubscriptionType,
         activities: form.activities,
         activity: form.activities[0] ?? null,
         accessType: form.accessType,
         joinDate: computedDates.startStr,
         startDate: computedDates.startStr,
-        expiryDate: computedDates.expiryStr ?? undefined,
-        totalPayments: 0, // Initialement à 0, sera mis à jour lors de la validation du paiement
+        expiryDate: computedDates.plans.length > 0 
+          ? computedDates.plans[0].expiryStr 
+          : undefined,
+        totalPayments: 0,
       });
+
+      // ── CRÉATION DES USER SUBSCRIPTIONS (offres multiples) ──────────────
+      if (form.accessType === "abonnement" && selectedPlans.length > 0 && createdUser?.id) {
+        for (const planDate of computedDates.plans) {
+          await api.userSubscriptions.create({
+            user: `/api/users/${createdUser.id}`,
+            subscriptionPlan: `/api/subscription_plans/${planDate.plan.id}`,
+            planName: planDate.plan.name,
+            startDate: planDate.startStr,
+            expiryDate: planDate.expiryStr,
+            totalPrice: planDate.plan.price,
+            totalPaid: 0,
+            status: "pending",
+          });
+        }
+      }
+
+      // ── UPLOAD DE LA PHOTO ──────────────────────────────────────────────
+      if (form.photoFile && createdUser?.id) {
+        const formData = new FormData();
+        formData.append("photo", form.photoFile);
+        
+        const response = await fetch(`/api/users/${createdUser.id}/photo`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("madafit_token") || ""}`,
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Erreur lors de l'upload de la photo");
+        }
+
+        const result = await response.json();
+        await api.users.update(createdUser.id, { photo: result.photoUrl });
+      }
 
       return createdUser;
     },
@@ -260,6 +372,7 @@ export default function Register() {
       setForm(initialState);
       setTouched({});
       setSubmitAttempted(false);
+      setPhotoPreview(null);
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -293,7 +406,10 @@ export default function Register() {
         <button
           className="w-full sm:w-auto px-6 py-3 rounded-xl text-sm font-semibold text-white"
           style={{ background: "var(--gradient-hero)", boxShadow: "var(--shadow-red)" }}
-          onClick={() => setCompleted(false)}
+          onClick={() => {
+            setCompleted(false);
+            setPhotoPreview(null);
+          }}
         >
           Enregistrer un autre membre
         </button>
@@ -327,6 +443,59 @@ export default function Register() {
             Informations personnelles
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* ── PHOTO DE PROFIL ───────────────────────────────────────────── */}
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs font-semibold text-foreground">
+                Photo de profil <span className="text-destructive">*</span>
+              </label>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  {photoPreview ? (
+                    <div className="relative">
+                      <img
+                        src={photoPreview}
+                        alt="Preview"
+                        className="w-24 h-24 rounded-full object-cover border-2 border-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={clearPhoto}
+                        className="absolute -top-2 -right-2 p-1 rounded-full bg-destructive text-white hover:bg-destructive/90 shadow-sm"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-muted border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+                      <User size={32} className="text-muted-foreground/50" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors hover:bg-muted"
+                    style={{ borderColor: "hsl(var(--border))" }}
+                  >
+                    <Upload size={16} />
+                    {photoPreview ? "Changer la photo" : "Choisir une photo"}
+                  </button>
+                  <p className="text-xs text-muted-foreground">
+                    JPEG, PNG ou WebP. Max 5MB.
+                  </p>
+                </div>
+              </div>
+              {getError("photoFile") && <ErrorMsg message={getError("photoFile")!} />}
+            </div>
+
             <Field
               label="Prénom"
               required
@@ -437,7 +606,7 @@ export default function Register() {
                 value={form.accessType}
                 onChange={(e) => {
                   const val = e.target.value as "abonnement" | "seance";
-                  setForm((c) => ({ ...c, accessType: val, subscription: val === "seance" ? "" : c.subscription }));
+                  setForm((c) => ({ ...c, accessType: val, subscriptions: val === "seance" ? [] : c.subscriptions }));
                   touch("accessType");
                 }}
                 onBlur={() => touch("accessType")}
@@ -450,39 +619,54 @@ export default function Register() {
               {getError("accessType") && <ErrorMsg message={getError("accessType")!} />}
             </div>
 
-            {/* Condition : Formule affichée seulement si abonnement */}
+            {/* ═══════════════════════════════════════════════════════════════════
+                MODIFIÉ : Sélection multiple de formules (checkboxes)
+                ═══════════════════════════════════════════════════════════════════ */}
             {form.accessType === "abonnement" && (
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-xs font-semibold text-foreground">
-                  Formule <span className="text-destructive">*</span>
+                  Formules <span className="text-destructive">*</span>
                 </label>
-                <select
-                  value={form.subscription} // ← PLUS DE FALLBACK ICI
-                  onChange={(e) => {
-                    setForm((c) => ({ ...c, subscription: e.target.value }));
-                    touch("subscription");
-                  }}
-                  onBlur={() => touch("subscription")}
-                  className={`w-full px-3 py-2.5 rounded-lg border text-sm bg-card outline-none focus:border-primary transition-colors ${
-                    getError("subscription") ? "border-destructive" : ""
-                  }`}
-                  style={{ borderColor: getError("subscription") ? undefined : "hsl(var(--border))" }}
-                >
-                  <option value="" disabled>— Choisir une formule —</option>
-                  {plans.map((plan) => (
-                    <option key={plan.id} value={String(plan.id)}>
-                      {plan.name} — {formatCurrency(plan.price)}
-                    </option>
-                  ))}
-                </select>
-                {getError("subscription") && <ErrorMsg message={getError("subscription")!} />}
+                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-lg border bg-card ${
+                  getError("subscriptions") ? "border-destructive" : ""
+                }`} style={{ borderColor: getError("subscriptions") ? undefined : "hsl(var(--border))" }}>
+                  {plans.map((plan) => {
+                    const isSelected = form.subscriptions.includes(String(plan.id));
+                    return (
+                      <label
+                        key={plan.id}
+                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                          isSelected
+                            ? "bg-primary/10 border-primary/30"
+                            : "bg-card border-border/50 hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSubscription(String(plan.id))}
+                          className="w-4 h-4 mt-0.5 rounded border-primary text-primary focus:ring-primary/20 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-semibold ${isSelected ? "text-primary" : "text-foreground"}`}>
+                            {plan.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {plan.duration} mois · {formatCurrency(plan.price)}
+                          </p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                {getError("subscriptions") && <ErrorMsg message={getError("subscriptions")!} />}
               </div>
             )}
           </div>
         </div>
 
-        {/* ── RÉCAPITULATIF : Affiché seulement si abonnement ET plan sélectionné ── */}
-        {form.accessType === "abonnement" && selectedPlan && (
+        {/* ── RÉCAPITULATIF : Affiché seulement si abonnement ET formules sélectionnées ── */}
+        {form.accessType === "abonnement" && selectedPlans.length > 0 && (
           <div
             className="rounded-xl border p-4 space-y-3"
             style={{
@@ -490,43 +674,29 @@ export default function Register() {
               borderColor: "hsl(var(--primary) / 0.2)",
             }}
           >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <p className="font-semibold text-foreground">
-                  {SUBSCRIPTION_LABELS[normalizeSubscriptionType(selectedPlan.type)]}
-                </p>
-                <p className="text-xs text-muted-foreground">{selectedPlan.duration} mois</p>
-              </div>
-              <p className="text-xl font-black text-primary">{formatCurrency(selectedPlan.price)}</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b"
+              style={{ borderColor: "hsl(var(--primary) / 0.15)" }}>
+              <p className="font-semibold text-foreground">Récapitulatif des offres</p>
+              <p className="text-xl font-black text-primary">{formatCurrency(totalPrice)}</p>
             </div>
-            <div
-              className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t"
-              style={{ borderColor: "hsl(var(--primary) / 0.15)" }}
-            >
-              <div
-                className="flex items-center gap-3 p-3 rounded-lg bg-card border"
-                style={{ borderColor: "hsl(var(--border))" }}
-              >
-                <CalendarCheck size={16} className="text-primary shrink-0" />
-                <div>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Date de début</p>
-                  <p className="text-sm font-black text-foreground">
-                    {formatDate(computedDates.startStr)}
-                  </p>
+            
+            <div className="space-y-2">
+              {computedDates.plans.map(({ plan, startStr, expiryStr }) => (
+                <div
+                  key={plan.id}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-card border"
+                  style={{ borderColor: "hsl(var(--border))" }}
+                >
+                  <CalendarCheck size={16} className="text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{plan.name}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatDate(startStr)} → {formatDate(expiryStr)} · {plan.duration} mois
+                    </p>
+                  </div>
+                  <p className="text-sm font-bold text-primary">{formatCurrency(plan.price)}</p>
                 </div>
-              </div>
-              <div
-                className="flex items-center gap-3 p-3 rounded-lg bg-card border"
-                style={{ borderColor: "hsl(var(--border))" }}
-              >
-                <CalendarCheck size={16} className="text-primary shrink-0" />
-                <div>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Date de fin</p>
-                  <p className="text-sm font-black text-foreground">
-                    {computedDates.expiryStr ? formatDate(computedDates.expiryStr) : "—"}
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         )}
