@@ -281,38 +281,38 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _pickPhoto() async {
-    final source = await showDialog<ImageSource>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Changer la photo',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Colors.redAccent),
-              title: const Text('Caméra', style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.redAccent),
-              title: const Text('Galerie', style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
+    // final source = await showDialog<ImageSource>(
+    //   context: context,
+    //   builder: (context) => AlertDialog(
+    //     backgroundColor: const Color(0xFF1A1A1A),
+    //     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    //     title: const Text(
+    //       'Changer la photo',
+    //       style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+    //     ),
+    //     content: Column(
+    //       mainAxisSize: MainAxisSize.min,
+    //       children: [
+    //         ListTile(
+    //           leading: const Icon(Icons.camera_alt, color: Colors.redAccent),
+    //           title: const Text('Caméra', style: TextStyle(color: Colors.white)),
+    //           onTap: () => Navigator.pop(context, ImageSource.camera),
+    //         ),
+    //         ListTile(
+    //           leading: const Icon(Icons.photo_library, color: Colors.redAccent),
+    //           title: const Text('Galerie', style: TextStyle(color: Colors.white)),
+    //           onTap: () => Navigator.pop(context, ImageSource.gallery),
+    //         ),
+    //       ],
+    //     ),
+    //   ),
+    // );
 
-    if (source == null) return;
+    // if (source == null) return;
 
     try {
       final pickedFile = await _picker.pickImage(
-        source: source,
+        source: ImageSource.gallery,
         maxWidth: 600,
         maxHeight: 600,
         imageQuality: 85,
