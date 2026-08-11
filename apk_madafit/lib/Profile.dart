@@ -27,6 +27,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   Map<String, dynamic>? _user;
   bool _isLoading = true;
+  bool _isSuspending = false;
   String? _error;
 
   static final String _baseUrl = ApiConfig.baseUrl;
@@ -300,6 +301,48 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                 ),
               ),
 
+              // ── SUPPRIMER COMPTE ───────────────────────────────────────
+              _isSuspending
+                  ? Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A1A1A),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(
+                          color: Colors.redAccent.withOpacity(0.5),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.redAccent,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            "SUPPRESSION EN COURS...",
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _buildActionCard(
+                      "Supprimer le compte",
+                      Icons.delete_forever,
+                      Colors.redAccent,
+                      () => _showDeleteAccountDialog(context),
+                    ),
+
               const SizedBox(height: 100),
             ],
           ),
@@ -369,6 +412,122 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         ),
         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
       ),
+    );
+  }
+    // ── DIALOGUE CONFIRMATION SUPPRESSION COMPTE ─────────────────────────────
+  void _showDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.redAccent,
+              size: 28,
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Supprimer le compte",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          "Êtes-vous sûr de vouloir supprimer votre compte ?\n\n"
+          "Cette action est irréversible. Vous ne pourrez plus vous connecter.\n\n"
+          "Pour toute réactivation, contactez l'accueil MadaFit.",
+          style: TextStyle(color: Colors.white70, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Annuler", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              _suspendAccount();
+            },
+            child: const Text(
+              "SUPPRIMER",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── APPEL API SUSPENSION ──────────────────────────────────────────────────
+  Future<void> _suspendAccount() async {
+    setState(() => _isSuspending = true);
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/account/suspend'),
+            headers: {
+              'Authorization': 'Bearer ${widget.token}',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        if (widget.onLogout != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Votre compte a été supprimé avec succès.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          await Future.delayed(const Duration(seconds: 1));
+          if (mounted) {
+            widget.onLogout!();
+          }
+        }
+      } else {
+        try {
+          final errorData = jsonDecode(response.body);
+          _showSnackBar(
+            errorData['error'] ?? 'Erreur lors de la suppression du compte.',
+          );
+        } catch (_) {
+          _showSnackBar('Erreur lors de la suppression du compte.');
+        }
+      }
+    } catch (e) {
+      debugPrint('💥 Suspend error: $e');
+      if (mounted) {
+        _showSnackBar('Problème de connexion. Veuillez réessayer.');
+      }
+    } finally {
+      if (mounted) setState(() => _isSuspending = false);
+    }
+  }
+
+  void _showSnackBar(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
     );
   }
 }

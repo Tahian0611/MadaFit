@@ -162,9 +162,10 @@ class _AuthScreenState extends State<AuthScreen> {
     return null;
   }
 
-  // ── VALIDATION TÉLÉPHONE MADAGASCAR ──────────────────────────────────────
+// ── VALIDATION TÉLÉPHONE MADAGASCAR (optionnel) ──────────────────────────
   String? _validatePhone(String? value) {
-    if (value == null || value.trim().isEmpty) return "Le téléphone est obligatoire.";
+    // Le téléphone est facultatif : un champ vide est accepté.
+    if (value == null || value.trim().isEmpty) return null;
     if (!RegExp(r"^(\+261\s(32|33|34|37|38)\s\d{2}\s\d{3}\s\d{2}|0(32|33|34|37|38)\s\d{2}\s\d{3}\s\d{2})$")
         .hasMatch(value.trim())) {
       return "Format invalide. Ex: +261 34 00 000 00 ou 034 00 000 00 (opérateurs: 032, 033, 034, 037, 038).";
@@ -283,7 +284,21 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (e, stack) {
       print('💥 Exception: $e');
       print('💥 Stack: $stack');
-      _showSnackBar("Erreur: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.wifi_off, color: Colors.white),
+              SizedBox(width: 10),
+              Expanded(child: Text('Problème de connexion. Veuillez réessayer.', style: TextStyle(color: Colors.white))),
+            ],
+          ),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(10),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _plansLoading = false);
     }
@@ -341,7 +356,21 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } catch (e) {
       print('💥 Network Exception (Login): $e');
-      _showSnackBar("Erreur réseau : $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.wifi_off, color: Colors.white),
+              SizedBox(width: 10),
+              Expanded(child: Text('Problème de connexion. Veuillez réessayer.', style: TextStyle(color: Colors.white))),
+            ],
+          ),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(10),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -559,7 +588,21 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } catch (e) {
       print('💥 Network Exception (Register): $e');
-      _showSnackBar("Erreur réseau : $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.wifi_off, color: Colors.white),
+              SizedBox(width: 10),
+              Expanded(child: Text('Problème de connexion. Veuillez réessayer.', style: TextStyle(color: Colors.white))),
+            ],
+          ),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(10),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -922,8 +965,8 @@ class _AuthScreenState extends State<AuthScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                MadafitTextField(
-                  label: "Téléphone",
+MadafitTextField(
+                  label: "Téléphone  (facultatif)",
                   icon: Icons.phone_outlined,
                   controller: _regPhoneController,
                   validator: _validatePhone,
